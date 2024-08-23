@@ -14,7 +14,7 @@ Création d'une API Java Spring capable de traiter des données financières et 
 ## Fonctionnalités Basiques
 
 1. **Récupération de Données Graphiques (GET /api/finance/charts)**
-   - **Description** : Récupère les données financières pour un symbole boursier donné et un intervalle de temps spécifié.
+   - **Description** : Récupère les données financières pour un symbole boursier (séries temporelles) donné et un intervalle de temps spécifié.
    - **Règles Business** :
      - Les données retournées doivent être exactes, à jour et provenir de sources fiables.
      - Les intervalles supportés doivent être définis (daily, weekly, etc.) et respecter les formats standards.
