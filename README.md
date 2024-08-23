@@ -108,3 +108,10 @@ Création d'une API Java Spring capable de traiter des données financières et 
    mvn clean install
    mvn spring-boot:run
    ```
+## Contribution
+
+Les contributions sont les bienvenues ! Si vous souhaitez proposer des améliorations ou corriger des bugs, veuillez ouvrir une issue ou soumettre une pull request.
+
+## Licence
+
+Ce projet est sous licence MIT. Veuillez vous référer au fichier LICENSE pour plus d'informations.
