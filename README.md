@@ -3,6 +3,14 @@
 ## Contexte
 Création d'une API Java Spring capable de traiter des données financières et de générer des graphiques. L'API recevra des données de marché financiers, effectuera des calculs (moyenne mobile, indice de volatilité, etc.) puis renverra des séries de données qui seront consommées par notre Front-end Angular.
 
+## Règles Business Générales
+
+1. **Exactitude des Données** : Toutes les données financières doivent être exactes et provenir de sources fiables (Yahoo Finance). L'API doit gérer les erreurs de données et informer les utilisateurs en cas de données suspectes ou manquantes.
+2. **Sécurité** : Toutes les communications entre l'API et les clients doivent être sécurisées. Utilisation de HTTPS pour toutes les requêtes. Les données sensibles doivent être protégées via des techniques de chiffrement.
+3. **Performance** : L'API doit répondre aux requêtes dans un temps raisonnable, même en cas de forte demande. Techniques de mise en cache et d'optimisation des requêtes pour améliorer les performances.
+4. **Conformité Légale** : L'API doit être conforme aux réglementations financières applicables, notamment en ce qui concerne la confidentialité des données et la transparence des analyses.
+5. **Modularité** : Le code doit être modulaire pour permettre une évolution facile du projet. De nouvelles fonctionnalités doivent pouvoir être ajoutées sans refactorisation majeure.
+
 ## Fonctionnalités Basiques
 
 1. **Récupération de Données Graphiques (GET /api/finance/charts)**
@@ -85,14 +93,6 @@ Création d'une API Java Spring capable de traiter des données financières et 
 3. Notifications d'Alertes Financières
 4. Intégration avec des Portefeuilles d'Investissement
 5. Optimisation des Performances et Scalabilité
-
-## Règles Business Générales
-
-1. **Exactitude des Données** : Toutes les données financières doivent être exactes et provenir de sources fiables (Yahoo Finance). L'API doit gérer les erreurs de données et informer les utilisateurs en cas de données suspectes ou manquantes.
-2. **Sécurité** : Toutes les communications entre l'API et les clients doivent être sécurisées. Utilisation de HTTPS pour toutes les requêtes. Les données sensibles doivent être protégées via des techniques de chiffrement.
-3. **Performance** : L'API doit répondre aux requêtes dans un temps raisonnable, même en cas de forte demande. Techniques de mise en cache et d'optimisation des requêtes pour améliorer les performances.
-4. **Conformité Légale** : L'API doit être conforme aux réglementations financières applicables, notamment en ce qui concerne la confidentialité des données et la transparence des analyses.
-5. **Modularité** : Le code doit être modulaire pour permettre une évolution facile du projet. De nouvelles fonctionnalités doivent pouvoir être ajoutées sans refactorisation majeure.
 
 ## Installation et Configuration
 
