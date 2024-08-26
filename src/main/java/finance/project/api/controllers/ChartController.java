@@ -23,9 +23,15 @@ public class ChartController {
 
     private final ChartService chartService;
 
+
     @GetMapping
     public ResponseEntity<List<ChartDataDTO>> getChartData(@RequestParam String symbol, @RequestParam String interval) {
         List<ChartDataDTO> data = chartService.getChartData(symbol, interval);
         return new ResponseEntity<>(data, HttpStatus.OK);
+    }
+
+    @GetMapping("/default")
+    public List<ChartDataDTO> listChartData(){
+        return chartService.getChartData("AAPL", "daily");
     }
 }

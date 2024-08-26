@@ -19,6 +19,7 @@ public class ChartServiceImpl implements ChartService {
         this.chartMap = new HashMap<>();
 
         ChartDataDTO chart1 = ChartDataDTO.builder()
+                .id(UUID.randomUUID())
                 .date(LocalDate.now())
                 .open(new BigDecimal("100.00"))
                 .close(new BigDecimal("110.00"))
@@ -27,7 +28,18 @@ public class ChartServiceImpl implements ChartService {
                 .volume(new BigDecimal("1000000"))
                 .build();
 
+        ChartDataDTO chart2 = ChartDataDTO.builder()
+                .id(UUID.randomUUID())
+                .date(LocalDate.now())
+                .open(new BigDecimal("110.00"))
+                .close(new BigDecimal("120.00"))
+                .high(new BigDecimal("125.00"))
+                .low(new BigDecimal("105.00"))
+                .volume(new BigDecimal("1100000"))
+                .build();
+
         chartMap.put(chart1.getId(), chart1);
+        chartMap.put(chart2.getId(), chart2);
     }
 
     @Override
