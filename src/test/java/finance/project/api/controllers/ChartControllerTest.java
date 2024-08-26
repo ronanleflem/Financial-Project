@@ -44,10 +44,10 @@ public class ChartControllerTest {
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.length()", is(2)));
-                //.andExpect(jsonPath("$[0].open", is(100.00)))
-                //.andExpect(jsonPath("$[0].high", is(115.00)))
-                //.andExpect(jsonPath("$[0].close", is(110.00)));
+                .andExpect(jsonPath("$.length()", is(1)))
+                .andExpect(jsonPath("$[0].open", is(100.00)))
+                .andExpect(jsonPath("$[0].high", is(115.00)))
+                .andExpect(jsonPath("$[0].close", is(110.00)));
 
     }
 

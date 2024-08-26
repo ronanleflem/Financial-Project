@@ -22,7 +22,6 @@ public class FinancialData {
     @GeneratedValue(generator = "UUID")
     @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
     private UUID id;
-
     private String symbol;
     private LocalDate date;
     private BigDecimal open;

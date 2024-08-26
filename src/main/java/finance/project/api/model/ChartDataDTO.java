@@ -11,9 +11,8 @@ import java.util.UUID;
 @Builder
 @Data
 public class ChartDataDTO {
-
     private UUID id;
-
+    private String symbol;
     private LocalDate date;
     private BigDecimal open;
     private BigDecimal close;
