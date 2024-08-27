@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -29,13 +30,13 @@ public class SymbolController {
         return symbolService.listAllSymbols();
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/{symbolId}")
     public SymbolDTO getSymbolById(@PathVariable("symbolId") UUID id) {
         return symbolService.getSymbolById(id).orElseThrow(NotFoundException::new);
     }
 
     @PostMapping
-    public ResponseEntity<SymbolDTO> createSymbol(@RequestBody SymbolDTO symbolDTO) {
+    public ResponseEntity<SymbolDTO> createSymbol(@Validated @RequestBody SymbolDTO symbolDTO) {
         SymbolDTO createdSymbol = symbolService.createSymbol(symbolDTO);
 
         HttpHeaders headers = new HttpHeaders();
@@ -44,13 +45,13 @@ public class SymbolController {
         return new ResponseEntity<>(headers, HttpStatus.CREATED);
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<SymbolDTO> updateSymbol(@PathVariable UUID id, @RequestBody SymbolDTO symbolDTO) {
+    @PutMapping("/{symbolId}")
+    public ResponseEntity<SymbolDTO> updateSymbol(@PathVariable("symbolId") UUID id, @RequestBody SymbolDTO symbolDTO) {
         return new ResponseEntity<>(symbolService.updateSymbol(id, symbolDTO), HttpStatus.OK);
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteSymbol(@PathVariable UUID id) {
+    @DeleteMapping("/{symbolId}")
+    public ResponseEntity<Void> deleteSymbol(@PathVariable("symbolId") UUID id) {
         if(!symbolService.deleteSymbol(id)) {
             throw new NotFoundException();
         }

@@ -49,6 +49,7 @@ public class CandleControllerTest {
                 .andExpect(jsonPath("$[0].high", is(115.00)))
                 .andExpect(jsonPath("$[0].close", is(110.00)));
 
+
     }
 
 }
