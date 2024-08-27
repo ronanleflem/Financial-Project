@@ -10,7 +10,7 @@ import java.util.UUID;
 
 @Builder
 @Data
-public class ChartDataDTO {
+public class CandleDTO {
     private UUID id;
     private String symbol;
     private LocalDate date;

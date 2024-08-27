@@ -1,6 +1,6 @@
 package finance.project.api.repositories;
 
-import finance.project.api.entities.FinancialData;
+import finance.project.api.entities.Candle;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Repository
-public interface ChartRepository extends JpaRepository<FinancialData, UUID> {
+public interface CandleRepository extends JpaRepository<Candle, UUID> {
 
-    List<FinancialData> findBySymbolAndDateBetween(String symbol, LocalDate startDate, LocalDate endDate);
+    List<Candle> findBySymbolAndDateBetween(String symbol, LocalDate startDate, LocalDate endDate);
 }

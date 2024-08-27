@@ -16,7 +16,7 @@ import java.util.UUID;
 @Entity
 @NoArgsConstructor
 @AllArgsConstructor
-public class FinancialData {
+public class Candle {
 
     @Id
     @GeneratedValue(generator = "UUID")

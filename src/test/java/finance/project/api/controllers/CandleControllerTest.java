@@ -1,7 +1,7 @@
 package finance.project.api.controllers;
 
-import finance.project.api.services.ChartService;
-import finance.project.api.services.ChartServiceImpl;
+import finance.project.api.services.CandleService;
+import finance.project.api.services.CandleServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,25 +17,25 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(ChartController.class)
-public class ChartControllerTest {
+@WebMvcTest(CandleController.class)
+public class CandleControllerTest {
     @Autowired
     MockMvc mockMvc;
 
     @MockBean
-    ChartService chartService;
+    CandleService chartService;
 
-    ChartServiceImpl chartServiceImpl;
+    CandleServiceImpl chartServiceImpl;
 
     @BeforeEach
     void setUp() {
-        chartServiceImpl = new ChartServiceImpl();
+        chartServiceImpl = new CandleServiceImpl();
     }
 
     @Test
     void testGetChartData() throws Exception {
         // Arrange
-        given(chartService.getChartData("AAPL", "daily")).willReturn(chartServiceImpl.getChartData("AAPL", "daily"));
+        given(chartService.getCandles("AAPL", "daily")).willReturn(chartServiceImpl.getCandles("AAPL", "daily"));
 
         // Act & Assert
         mockMvc.perform(get("/api/finance/charts")

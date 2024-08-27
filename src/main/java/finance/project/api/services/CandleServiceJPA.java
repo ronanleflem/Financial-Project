@@ -1,8 +1,8 @@
 package finance.project.api.services;
 
-import finance.project.api.mappers.ChartDataMapper;
-import finance.project.api.model.ChartDataDTO;
-import finance.project.api.repositories.ChartRepository;
+import finance.project.api.mappers.CandleMapper;
+import finance.project.api.model.CandleDTO;
+import finance.project.api.repositories.CandleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -14,13 +14,13 @@ import java.util.stream.Collectors;
 @Service
 @Primary
 @RequiredArgsConstructor
-public class ChartServiceJPA implements ChartService {
+public class CandleServiceJPA implements CandleService {
 
-    private final ChartRepository chartRepository;
-    private final ChartDataMapper chartDataMapper;
+    private final CandleRepository chartRepository;
+    private final CandleMapper chartDataMapper;
 
     @Override
-    public List<ChartDataDTO> getChartData(String symbol, String interval) {
+    public List<CandleDTO> getCandles(String symbol, String interval) {
         LocalDate startDate = LocalDate.now(); // To Change
         LocalDate endDate = LocalDate.now();
 

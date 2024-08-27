@@ -1,11 +1,10 @@
 package finance.project.api.controllers;
 
 
-import finance.project.api.model.ChartDataDTO;
-import finance.project.api.services.ChartService;
+import finance.project.api.model.CandleDTO;
+import finance.project.api.services.CandleService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,19 +18,19 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/finance/charts")
-public class ChartController {
+public class CandleController {
 
-    private final ChartService chartService;
+    private final CandleService candleService;
 
 
     @GetMapping
-    public ResponseEntity<List<ChartDataDTO>> getChartData(@RequestParam String symbol, @RequestParam String interval) {
-        List<ChartDataDTO> data = chartService.getChartData(symbol, interval);
+    public ResponseEntity<List<CandleDTO>> getCandles(@RequestParam String symbol, @RequestParam String interval) {
+        List<CandleDTO> data = candleService.getCandles(symbol, interval);
         return new ResponseEntity<>(data, HttpStatus.OK);
     }
 
     @GetMapping("/default")
-    public List<ChartDataDTO> listChartData(){
-        return chartService.getChartData("AAPL", "daily");
+    public List<CandleDTO> listCandles(){
+        return candleService.getCandles("AAPL", "daily");
     }
 }

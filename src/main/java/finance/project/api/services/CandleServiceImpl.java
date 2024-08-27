@@ -1,7 +1,6 @@
 package finance.project.api.services;
 
-import finance.project.api.mappers.ChartDataMapper;
-import finance.project.api.model.ChartDataDTO;
+import finance.project.api.model.CandleDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -12,14 +11,14 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-public class ChartServiceImpl implements ChartService {
+public class CandleServiceImpl implements CandleService {
 
-    private Map<UUID,ChartDataDTO> chartMap;
+    private Map<UUID, CandleDTO> chartMap;
 
-    public ChartServiceImpl() {
+    public CandleServiceImpl() {
         this.chartMap = new HashMap<>();
 
-        ChartDataDTO chart1 = ChartDataDTO.builder()
+        CandleDTO chart1 = CandleDTO.builder()
                 .symbol("AAPL")
                 .id(UUID.randomUUID())
                 .date(LocalDate.now())
@@ -30,7 +29,7 @@ public class ChartServiceImpl implements ChartService {
                 .volume(new BigDecimal("1000000"))
                 .build();
 
-        ChartDataDTO chart2 = ChartDataDTO.builder()
+        CandleDTO chart2 = CandleDTO.builder()
                 .symbol("EURUSD")
                 .id(UUID.randomUUID())
                 .date(LocalDate.now())
@@ -41,7 +40,7 @@ public class ChartServiceImpl implements ChartService {
                 .volume(new BigDecimal("1100000"))
                 .build();
 
-        ChartDataDTO chart3 = ChartDataDTO.builder()
+        CandleDTO chart3 = CandleDTO.builder()
                 .symbol("GOLD")
                 .id(UUID.randomUUID())
                 .date(LocalDate.now())
@@ -58,7 +57,7 @@ public class ChartServiceImpl implements ChartService {
     }
 
     @Override
-    public List<ChartDataDTO> getChartData(String symbol, String interval) {
+    public List<CandleDTO> getCandles(String symbol, String interval) {
         // Symbol filter only -- Must add interval
         return chartMap.values().stream()
                 .filter(chartDataDTO -> chartDataDTO.getSymbol().equalsIgnoreCase(symbol))
