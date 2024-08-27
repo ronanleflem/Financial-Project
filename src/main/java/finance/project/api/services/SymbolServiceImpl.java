@@ -11,56 +11,53 @@ import java.util.*;
 @Service
 public class SymbolServiceImpl implements SymbolService {
 
-    private Map<UUID, SymbolDTO> symbolMap;
+    private final Map<UUID, SymbolDTO> symbolMap = new HashMap<>();
 
     public SymbolServiceImpl() {
-        SymbolDTO symbol1 = SymbolDTO.builder()
-                .id(UUID.randomUUID())
-                .symbol("AAPL")
-                .name("Apple Inc.")
-                .market("NASDAQ")
-                .build();
-
-        SymbolDTO symbol2 = SymbolDTO.builder()
-                .id(UUID.randomUUID())
-                .symbol("EURUSD")
-                .name("Euro to US Dollar")
-                .market("Forex")
-                .build();
-
-        SymbolDTO symbol3 = SymbolDTO.builder()
-                .id(UUID.randomUUID())
-                .symbol("GOLD")
-                .name("Gold Futures")
-                .market("Commodities")
-                .build();
-        symbolMap = new HashMap<>();
-        symbolMap.put(symbol1.getId(),symbol1);
-        symbolMap.put(symbol2.getId(),symbol2);
-        symbolMap.put(symbol3.getId(),symbol3);
+        initializeSymbols();
     }
+
+    private void initializeSymbols() {
+        SymbolDTO symbol1 = createSymbolDTO("AAPL", "Apple Inc.", "NASDAQ");
+        SymbolDTO symbol2 = createSymbolDTO("EURUSD", "Euro to US Dollar", "Forex");
+        SymbolDTO symbol3 = createSymbolDTO("GOLD", "Gold Futures", "Commodities");
+
+        symbolMap.put(symbol1.getId(), symbol1);
+        symbolMap.put(symbol2.getId(), symbol2);
+        symbolMap.put(symbol3.getId(), symbol3);
+    }
+
+    private SymbolDTO createSymbolDTO(String symbol, String name, String market) {
+        return SymbolDTO.builder()
+                .id(UUID.randomUUID())
+                .symbol(symbol)
+                .name(name)
+                .market(market)
+                .build();
+    }
+
     @Override
     public SymbolDTO createSymbol(SymbolDTO symbolDTO) {
-        symbolDTO.setId(UUID.randomUUID());
-        symbolMap.put(symbolDTO.getId(), symbolDTO);
+        UUID id = UUID.randomUUID();
+        symbolDTO.setId(id);
+        symbolMap.put(id, symbolDTO);
         return symbolDTO;
     }
 
     @Override
     public SymbolDTO updateSymbol(UUID id, SymbolDTO updatedSymbolDTO) {
-        SymbolDTO existingSymbol = symbolMap.get(id);
-        if (existingSymbol == null) {
-            throw new RuntimeException("Symbol not found");
-        }
-        updatedSymbolDTO.setId(id);
-        symbolMap.put(id, updatedSymbolDTO);
-        return updatedSymbolDTO;
+        return Optional.ofNullable(symbolMap.get(id))
+                .map(existingSymbol -> {
+                    updatedSymbolDTO.setId(id);
+                    symbolMap.put(id, updatedSymbolDTO);
+                    return updatedSymbolDTO;
+                })
+                .orElseThrow(() -> new RuntimeException("Symbol not found"));
     }
 
     @Override
     public Boolean deleteSymbol(UUID id) {
-        symbolMap.remove(id);
-        return true;
+        return symbolMap.remove(id) != null;
     }
 
     @Override
@@ -70,6 +67,6 @@ public class SymbolServiceImpl implements SymbolService {
 
     @Override
     public Optional<SymbolDTO> getSymbolById(UUID id) {
-        return Optional.of(symbolMap.get(id));
+        return Optional.ofNullable(symbolMap.get(id));
     }
 }

@@ -48,9 +48,17 @@ class SymbolControllerTest {
         symbolServiceImpl = new SymbolServiceImpl();
     }
 
+    private SymbolDTO createTestSymbolDTO() {
+        return SymbolDTO.builder()
+                .id(UUID.randomUUID())
+                .symbol("AAPL")
+                .name("Apple Inc.")
+                .market("NASDAQ")
+                .build();
+    }
+
     @Test
     void testDeleteSymbol() throws Exception {
-
         SymbolDTO symbol = symbolServiceImpl.listAllSymbols().get(0);
 
         given(symbolService.deleteSymbol(any(UUID.class))).willReturn(true);
@@ -66,12 +74,7 @@ class SymbolControllerTest {
 
     @Test
     void testUpdateSymbol() throws Exception {
-        SymbolDTO symbol = SymbolDTO.builder()
-                .id(UUID.randomUUID())
-                .symbol("AAPL")
-                .name("Apple Inc.")
-                .market("NASDAQ")
-                .build();
+        SymbolDTO symbol = createTestSymbolDTO();
 
         given(symbolService.updateSymbol(any(UUID.class), any(SymbolDTO.class))).willReturn(symbol);
 
@@ -86,12 +89,7 @@ class SymbolControllerTest {
 
     @Test
     void testCreateNewSymbol() throws Exception {
-        SymbolDTO symbol = SymbolDTO.builder()
-                .id(UUID.randomUUID())
-                .symbol("GOOGL")
-                .name("Google LLC")
-                .market("NASDAQ")
-                .build();
+        SymbolDTO symbol = createTestSymbolDTO();
 
         given(symbolService.createSymbol(any(SymbolDTO.class))).willReturn(symbol);
 
@@ -100,13 +98,16 @@ class SymbolControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(symbol)))
                 .andExpect(status().isCreated())
-                .andExpect(header().exists("Location"));
+                .andExpect(header().exists("Location"))
+                .andExpect(header().string("Location", "/api/finance/symbols/" + symbol.getId().toString()));
+
+        verify(symbolService).createSymbol(any(SymbolDTO.class));
     }
 
     @Test
     void testListSymbols() throws Exception {
         List<SymbolDTO> symbolList = List.of(
-                SymbolDTO.builder().id(UUID.randomUUID()).symbol("AAPL").build(),
+                createTestSymbolDTO(),
                 SymbolDTO.builder().id(UUID.randomUUID()).symbol("GOOGL").build()
         );
 
@@ -123,12 +124,7 @@ class SymbolControllerTest {
 
     @Test
     void getSymbolById() throws Exception {
-        SymbolDTO symbol = SymbolDTO.builder()
-                .id(UUID.randomUUID())
-                .symbol("AAPL")
-                .name("Apple Inc.")
-                .market("NASDAQ")
-                .build();
+        SymbolDTO symbol = createTestSymbolDTO();
 
         given(symbolService.getSymbolById(any(UUID.class))).willReturn(Optional.of(symbol));
 
@@ -148,5 +144,20 @@ class SymbolControllerTest {
 
         mockMvc.perform(get("/api/finance/symbols/{id}", UUID.randomUUID()))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void testCreateInvalidSymbol() throws Exception {
+        SymbolDTO invalidSymbolDTO = SymbolDTO.builder()
+                .symbol("") // Invalid symbol
+                .name("Invalid Company")
+                .market("Invalid Market")
+                .build();
+
+        mockMvc.perform(post("/api/finance/symbols")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidSymbolDTO)))
+                .andExpect(status().isBadRequest());
     }
 }

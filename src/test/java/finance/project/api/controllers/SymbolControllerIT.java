@@ -4,6 +4,7 @@ import finance.project.api.entities.Symbol;
 import finance.project.api.mappers.SymbolMapper;
 import finance.project.api.model.SymbolDTO;
 import finance.project.api.repositories.SymbolRepository;
+import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -31,11 +32,19 @@ public class SymbolControllerIT {
     @Autowired
     SymbolMapper symbolMapper;
 
+    private Symbol createAndSaveSymbol(String symbolCode, String name, String market) {
+        return symbolRepository.save(Symbol.builder()
+                .symbol(symbolCode)
+                .name(name)
+                .market(market)
+                .build());
+    }
+
     @Rollback
     @Transactional
     @Test
     void deleteByIdFound() {
-        Symbol symbol = symbolRepository.save(Symbol.builder().symbol("AAPL").name("Apple Inc.").market("NASDAQ").build());
+        Symbol symbol = createAndSaveSymbol("AAPL", "Apple Inc.", "NASDAQ");
 
         ResponseEntity<Void> responseEntity = symbolController.deleteSymbol(symbol.getId());
         assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(204));
@@ -47,7 +56,7 @@ public class SymbolControllerIT {
     @Transactional
     @Test
     void updateExistingSymbol() {
-        Symbol symbol = symbolRepository.save(Symbol.builder().symbol("AAPL").name("Apple Inc.").market("NASDAQ").build());
+        Symbol symbol = createAndSaveSymbol("AAPL", "Apple Inc.", "NASDAQ");
 
         SymbolDTO symbolDTO = symbolMapper.toDto(symbol);
         symbolDTO.setName("Updated Name");
@@ -81,6 +90,9 @@ public class SymbolControllerIT {
 
         Symbol savedSymbol = symbolRepository.findById(savedId).orElse(null);
         assertThat(savedSymbol).isNotNull();
+        assertThat(savedSymbol.getSymbol()).isEqualTo(symbolDTO.getSymbol());
+        assertThat(savedSymbol.getName()).isEqualTo(symbolDTO.getName());
+        assertThat(savedSymbol.getMarket()).isEqualTo(symbolDTO.getMarket());
     }
 
     @Test
@@ -92,7 +104,7 @@ public class SymbolControllerIT {
 
     @Test
     void testGetById() {
-        Symbol symbol = symbolRepository.save(Symbol.builder().symbol("AAPL").name("Apple Inc.").market("NASDAQ").build());
+        Symbol symbol = createAndSaveSymbol("AAPL", "Apple Inc.", "NASDAQ");
 
         SymbolDTO dto = symbolController.getSymbolById(symbol.getId());
 
@@ -102,12 +114,12 @@ public class SymbolControllerIT {
 
     @Test
     void testListSymbols() {
-        symbolRepository.save(Symbol.builder().symbol("AAPL").name("Apple Inc.").market("NASDAQ").build()); // 3 + 1
-        symbolRepository.save(Symbol.builder().symbol("GOOGL").name("Google LLC").market("NASDAQ").build()); // 4 + 1
+        createAndSaveSymbol("AAPL", "Apple Inc.", "NASDAQ");
+        createAndSaveSymbol("GOOGL", "Google LLC", "NASDAQ");
 
         List<SymbolDTO> dtos = symbolController.listAllSymbols();
 
-        assertThat(dtos.size()).isEqualTo(5);
+        assertThat(dtos.size()).isEqualTo(5); // Valeur à ajuster si besoin
     }
 
     @Rollback
@@ -118,5 +130,20 @@ public class SymbolControllerIT {
         List<SymbolDTO> dtos = symbolController.listAllSymbols();
 
         assertThat(dtos.size()).isEqualTo(0);
+    }
+
+    @Rollback
+    @Transactional
+    @Test
+    void saveInvalidSymbolTest() {
+        SymbolDTO invalidSymbolDTO = SymbolDTO.builder()
+                .symbol("") // Empty symbol should trigger validation error
+                .name("Google LLC")
+                .market("NASDAQ")
+                .build();
+
+        assertThrows(ConstraintViolationException.class, () -> {
+            symbolController.createSymbol(invalidSymbolDTO);
+        });
     }
 }

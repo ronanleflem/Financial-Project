@@ -30,14 +30,18 @@ public class Symbol {
     @NotNull
     @NotBlank
     @Size(max = 50)
-    @Column(length = 50)
+    @Column(length = 50, nullable = false)
     private String symbol;
 
     @NotNull
+    @NotBlank
+    @Size(max = 100)
+    @Column(length = 100, nullable = false)
     private String name;
 
     @NotNull
     @NotBlank
     @Size(max = 255)
+    @Column(length = 255, nullable = false)
     private String market;
 }

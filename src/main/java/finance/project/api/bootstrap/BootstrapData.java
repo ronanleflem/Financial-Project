@@ -26,65 +26,43 @@ public class BootstrapData implements CommandLineRunner {
     }
 
     private void loadCandleData() {
-        if(candleRepository.count() == 0) {
+        if (candleRepository.count() == 0) {
+            Candle chart1 = createCandle("AAPL", "100.00", "110.00", "115.00", "95.00", "1000000");
+            Candle chart2 = createCandle("EURUSD", "110.00", "120.00", "125.00", "105.00", "1100000");
+            Candle chart3 = createCandle("GOLD", "110.00", "120.00", "125.00", "105.00", "1100000");
 
-            Candle chart1 = Candle.builder()
-                    .symbol("AAPL")
-                    .date(LocalDate.now())
-                    .open(new BigDecimal("100.00"))
-                    .close(new BigDecimal("110.00"))
-                    .high(new BigDecimal("115.00"))
-                    .low(new BigDecimal("95.00"))
-                    .volume(new BigDecimal("1000000"))
-                    .build();
-
-            Candle chart2 = Candle.builder()
-                    .symbol("EURUSD")
-                    .date(LocalDate.now())
-                    .open(new BigDecimal("110.00"))
-                    .close(new BigDecimal("120.00"))
-                    .high(new BigDecimal("125.00"))
-                    .low(new BigDecimal("105.00"))
-                    .volume(new BigDecimal("1100000"))
-                    .build();
-
-            Candle chart3 = Candle.builder()
-                    .symbol("GOLD")
-                    .date(LocalDate.now())
-                    .open(new BigDecimal("110.00"))
-                    .close(new BigDecimal("120.00"))
-                    .high(new BigDecimal("125.00"))
-                    .low(new BigDecimal("105.00"))
-                    .volume(new BigDecimal("1100000"))
-                    .build();
-
-            candleRepository.saveAll(Arrays.asList(chart1,chart2,chart3));
+            candleRepository.saveAll(Arrays.asList(chart1, chart2, chart3));
         }
     }
 
+    private Candle createCandle(String symbol, String open, String close, String high, String low, String volume) {
+        return Candle.builder()
+                .symbol(symbol)
+                .date(LocalDate.now())
+                .open(new BigDecimal(open))
+                .close(new BigDecimal(close))
+                .high(new BigDecimal(high))
+                .low(new BigDecimal(low))
+                .volume(new BigDecimal(volume))
+                .build();
+    }
+
     private void loadSymbolData() {
-        if(symbolRepository.count() == 0) {
-
-            Symbol symbol1 = Symbol.builder()
-                    .symbol("AAPL")
-                    .name("Apple Inc.")
-                    .market("NASDAQ")
-                    .build();
-
-            Symbol symbol2 = Symbol.builder()
-                    .symbol("EURUSD")
-                    .name("Euro to US Dollar")
-                    .market("Forex")
-                    .build();
-
-            Symbol symbol3 = Symbol.builder()
-                    .symbol("GOLD")
-                    .name("Gold Futures")
-                    .market("Commodities")
-                    .build();
+        if (symbolRepository.count() == 0) {
+            Symbol symbol1 = createSymbol("AAPL", "Apple Inc.", "NASDAQ");
+            Symbol symbol2 = createSymbol("EURUSD", "Euro to US Dollar", "Forex");
+            Symbol symbol3 = createSymbol("GOLD", "Gold Futures", "Commodities");
 
             symbolRepository.saveAll(Arrays.asList(symbol1, symbol2, symbol3));
         }
+    }
+
+    private Symbol createSymbol(String symbol, String name, String market) {
+        return Symbol.builder()
+                .symbol(symbol)
+                .name(name)
+                .market(market)
+                .build();
     }
 
 
