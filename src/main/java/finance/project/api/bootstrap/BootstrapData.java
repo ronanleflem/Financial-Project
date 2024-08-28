@@ -12,6 +12,14 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Arrays;
 
+/**
+ * BootstrapData est un composant Spring qui charge des données initiales dans la base de données
+ * de l'application au démarrage. Elle implémente l'interface {@link CommandLineRunner}, ce qui signifie que
+ * la méthode {@link #run(String...)} sera exécutée automatiquement lorsque l'application démarre.
+ *
+ * Cette classe est principalement responsable de l'initialisation de la base de données avec des données par
+ * défaut pour les Candles et les Symbols si la base de données est vide.
+ */
 @Component
 @RequiredArgsConstructor
 public class BootstrapData implements CommandLineRunner {
@@ -19,12 +27,23 @@ public class BootstrapData implements CommandLineRunner {
     private final CandleRepository candleRepository;
     private final SymbolRepository symbolRepository;
 
+    /**
+     * Cette méthode est exécutée automatiquement au démarrage de l'application.
+     * Elle appelle les méthodes pour charger les données par défaut des Candles et des Symbols dans la base de données.
+     *
+     * @param args arguments de la ligne de commande passés à l'application
+     * @throws Exception en cas d'erreur lors du chargement des données
+     */
     @Override
     public void run(String... args) throws Exception {
         loadCandleData();
         loadSymbolData();
     }
 
+    /**
+     * Charge les données par défaut des Candles dans la base de données si aucun enregistrement de Candle n'est présent.
+     * Cette méthode crée et sauvegarde un ensemble prédéfini d'objets Candle.
+     */
     private void loadCandleData() {
         if (candleRepository.count() == 0) {
             Candle chart1 = createCandle("AAPL", "100.00", "110.00", "115.00", "95.00", "1000000");
@@ -35,6 +54,17 @@ public class BootstrapData implements CommandLineRunner {
         }
     }
 
+    /**
+     * Crée un nouvel objet Candle avec les attributs fournis.
+     *
+     * @param symbol le symbole de négociation associé à la bougie
+     * @param open le prix d'ouverture de la bougie
+     * @param close le prix de fermeture de la bougie
+     * @param high le prix le plus élevé de la bougie
+     * @param low le prix le plus bas de la bougie
+     * @param volume le volume des transactions pour la bougie
+     * @return un nouvel objet {@link Candle}
+     */
     private Candle createCandle(String symbol, String open, String close, String high, String low, String volume) {
         return Candle.builder()
                 .symbol(symbol)
@@ -47,6 +77,10 @@ public class BootstrapData implements CommandLineRunner {
                 .build();
     }
 
+    /**
+     * Charge les données par défaut pour les objets Symbol dans la base de données si aucun enregistrement Symbol n'est présent.
+     * Cette méthode crée et enregistre un ensemble prédéfini d'objets Symbol.
+     */
     private void loadSymbolData() {
         if (symbolRepository.count() == 0) {
             Symbol symbol1 = createSymbol("AAPL", "Apple Inc.", "NASDAQ");
@@ -57,6 +91,14 @@ public class BootstrapData implements CommandLineRunner {
         }
     }
 
+    /**
+     * Crée un nouvel objet Symbol avec les attributs fournis.
+     *
+     * @param symbol le symbole de négociation de l'actif
+     * @param name le nom complet de la société ou de l'actif associé au symbole
+     * @param market le marché dans lequel le symbole est négocié
+     * @return un nouvel objet {@link Symbol}
+     */
     private Symbol createSymbol(String symbol, String name, String market) {
         return Symbol.builder()
                 .symbol(symbol)
