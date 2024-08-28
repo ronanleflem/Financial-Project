@@ -26,6 +26,9 @@ import java.util.UUID;
 @Validated
 public class SymbolController {
 
+    /**
+     * Service pour la gestion des symboles financiers.
+     */
     private final SymbolService symbolService;
 
     /**

@@ -28,6 +28,9 @@ import java.util.List;
 @RequestMapping("/api/finance/charts")
 public class CandleController {
 
+    /**
+     * Service pour la gestion des bougies.
+     */
     private final CandleService candleService;
 
     /**

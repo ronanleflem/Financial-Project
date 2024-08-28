@@ -24,7 +24,14 @@ import java.util.Arrays;
 @RequiredArgsConstructor
 public class BootstrapData implements CommandLineRunner {
 
+    /**
+     * Répertoire pour gérer les objets de type {@link Candle}.
+     */
     private final CandleRepository candleRepository;
+
+    /**
+     * Répertoire pour gérer les objets de type {@link Symbol}.
+     */
     private final SymbolRepository symbolRepository;
 
     /**
