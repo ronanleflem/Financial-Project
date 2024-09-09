@@ -1,8 +1,7 @@
 package finance.project.api.entities;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import org.hibernate.annotations.GenericGenerator;
 
@@ -16,18 +15,40 @@ import java.util.UUID;
 @Entity
 @NoArgsConstructor
 @AllArgsConstructor
+@Table(name="candle")
 public class Candle {
 
     @Id
     @GeneratedValue(generator = "UUID")
     @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
     private UUID id;
-    private String symbol;
+
+    @ManyToOne
+    @JoinColumn(name = "symbol_id", nullable = false)
+    private Symbol symbol;
+
+    @NotNull
+    @Column(nullable = false)
     private LocalDate date;
+
+    @NotNull
+    @Column(nullable = false)
     private BigDecimal open;
+
+    @NotNull
+    @Column(nullable = false)
     private BigDecimal close;
+
+    @NotNull
+    @Column(nullable = false)
     private BigDecimal high;
+
+    @NotNull
+    @Column(nullable = false)
     private BigDecimal low;
+
+    @NotNull
+    @Column(nullable = false)
     private BigDecimal volume;
 
 }

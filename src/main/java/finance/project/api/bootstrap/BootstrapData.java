@@ -1,5 +1,6 @@
 package finance.project.api.bootstrap;
 
+import finance.project.api.controllers.NotFoundException;
 import finance.project.api.entities.Candle;
 import finance.project.api.entities.Symbol;
 import finance.project.api.repositories.CandleRepository;
@@ -43,8 +44,9 @@ public class BootstrapData implements CommandLineRunner {
      */
     @Override
     public void run(String... args) throws Exception {
-        loadCandleData();
         loadSymbolData();
+        loadCandleData();
+
     }
 
     /**
@@ -53,9 +55,13 @@ public class BootstrapData implements CommandLineRunner {
      */
     private void loadCandleData() {
         if (candleRepository.count() == 0) {
-            Candle chart1 = createCandle("AAPL", "100.00", "110.00", "115.00", "95.00", "1000000");
-            Candle chart2 = createCandle("EURUSD", "110.00", "120.00", "125.00", "105.00", "1100000");
-            Candle chart3 = createCandle("GOLD", "110.00", "120.00", "125.00", "105.00", "1100000");
+            Symbol aaplSymbol = symbolRepository.findBySymbol("AAPL").orElseThrow(() -> new NotFoundException("Symbol not found"));
+            Symbol eurusdSymbol = symbolRepository.findBySymbol("EURUSD").orElseThrow(() -> new NotFoundException("Symbol not found"));
+            Symbol goldSymbol = symbolRepository.findBySymbol("GOLD").orElseThrow(() -> new NotFoundException("Symbol not found"));
+
+            Candle chart1 = createCandle(aaplSymbol, "100.00", "110.00", "115.00", "95.00", "1000000");
+            Candle chart2 = createCandle(eurusdSymbol, "110.00", "120.00", "125.00", "105.00", "1100000");
+            Candle chart3 = createCandle(goldSymbol, "110.00", "120.00", "125.00", "105.00", "1100000");
 
             candleRepository.saveAll(Arrays.asList(chart1, chart2, chart3));
         }
@@ -72,7 +78,7 @@ public class BootstrapData implements CommandLineRunner {
      * @param volume le volume des transactions pour la bougie
      * @return un nouvel objet {@link Candle}
      */
-    private Candle createCandle(String symbol, String open, String close, String high, String low, String volume) {
+    private Candle createCandle(Symbol symbol, String open, String close, String high, String low, String volume) {
         return Candle.builder()
                 .symbol(symbol)
                 .date(LocalDate.now())

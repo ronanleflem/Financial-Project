@@ -1,6 +1,7 @@
 package finance.project.api.model;
 
 
+import finance.project.api.entities.Symbol;
 import lombok.Builder;
 import lombok.Data;
 
@@ -12,7 +13,7 @@ import java.util.UUID;
 @Data
 public class CandleDTO {
     private UUID id;
-    private String symbol;
+    private Symbol symbol;
     private LocalDate date;
     private BigDecimal open;
     private BigDecimal close;

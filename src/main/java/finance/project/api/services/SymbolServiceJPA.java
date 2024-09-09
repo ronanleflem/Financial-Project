@@ -63,4 +63,10 @@ public class SymbolServiceJPA implements SymbolService {
         return symbolRepository.findById(id)
                 .map(symbolMapper::toDto);
     }
+
+
+    public SymbolDTO getSymbolByCode(String symbolCode) {
+        return symbolRepository.findBySymbol(symbolCode).map(symbolMapper::toDto)
+                .orElseThrow(() -> new NotFoundException("Symbol not found: " + symbolCode));
+    }
 }

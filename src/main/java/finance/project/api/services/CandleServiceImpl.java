@@ -1,6 +1,8 @@
 package finance.project.api.services;
 
 import finance.project.api.model.CandleDTO;
+import finance.project.api.entities.Symbol;
+import finance.project.api.model.SymbolDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -18,8 +20,30 @@ public class CandleServiceImpl implements CandleService {
     public CandleServiceImpl() {
         this.chartMap = new HashMap<>();
 
-        CandleDTO chart1 = CandleDTO.builder()
+        // Création des objets Symbol
+        Symbol aaplSymbol = Symbol.builder()
+                .id(UUID.randomUUID())
                 .symbol("AAPL")
+                .name("Apple Inc.")
+                .market("NASDAQ")
+                .build();
+
+        Symbol eurusdSymbol = Symbol.builder()
+                .id(UUID.randomUUID())
+                .symbol("EURUSD")
+                .name("Euro to US Dollar")
+                .market("Forex")
+                .build();
+
+        Symbol goldSymbol = Symbol.builder()
+                .id(UUID.randomUUID())
+                .symbol("GOLD")
+                .name("Gold Futures")
+                .market("Commodities")
+                .build();
+
+        CandleDTO chart1 = CandleDTO.builder()
+                .symbol(aaplSymbol)
                 .id(UUID.randomUUID())
                 .date(LocalDate.now())
                 .open(new BigDecimal("100.00"))
@@ -30,7 +54,7 @@ public class CandleServiceImpl implements CandleService {
                 .build();
 
         CandleDTO chart2 = CandleDTO.builder()
-                .symbol("EURUSD")
+                .symbol(eurusdSymbol)
                 .id(UUID.randomUUID())
                 .date(LocalDate.now())
                 .open(new BigDecimal("110.00"))
@@ -41,7 +65,7 @@ public class CandleServiceImpl implements CandleService {
                 .build();
 
         CandleDTO chart3 = CandleDTO.builder()
-                .symbol("GOLD")
+                .symbol(goldSymbol)
                 .id(UUID.randomUUID())
                 .date(LocalDate.now())
                 .open(new BigDecimal("110.00"))
@@ -57,10 +81,9 @@ public class CandleServiceImpl implements CandleService {
     }
 
     @Override
-    public List<CandleDTO> getCandles(String symbol, String interval) {
-        // Symbol filter only -- Must add interval
+    public List<CandleDTO> getCandles(SymbolDTO symbol, String interval) {
         return chartMap.values().stream()
-                .filter(chartDataDTO -> chartDataDTO.getSymbol().equalsIgnoreCase(symbol))
+                .filter(chartDataDTO -> chartDataDTO.getSymbol().equals(symbol.getSymbol()))
                 .collect(Collectors.toList());
     }
 }

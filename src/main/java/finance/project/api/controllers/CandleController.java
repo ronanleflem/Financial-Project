@@ -1,8 +1,11 @@
 package finance.project.api.controllers;
 
 
+import finance.project.api.entities.Symbol;
 import finance.project.api.model.CandleDTO;
+import finance.project.api.model.SymbolDTO;
 import finance.project.api.services.CandleService;
+import finance.project.api.services.SymbolService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -34,6 +37,11 @@ public class CandleController {
     private final CandleService candleService;
 
     /**
+     * Service pour la gestion des symboles.
+     */
+    private final SymbolService symbolService;
+
+    /**
      * Récupère une liste de bougies (candles) en fonction du symbole et de l'intervalle fournis.
      * <p>
      * Cette méthode répond aux requêtes GET à l'URL "/api/finance/charts" avec les paramètres de requête "symbol" et "interval".
@@ -46,7 +54,10 @@ public class CandleController {
      */
     @GetMapping
     public ResponseEntity<List<CandleDTO>> getCandles(@RequestParam String symbol, @RequestParam String interval) {
-        List<CandleDTO> data = candleService.getCandles(symbol, interval);
+
+        SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
+
+        List<CandleDTO> data = candleService.getCandles(symbolDTO, interval);
         return new ResponseEntity<>(data, HttpStatus.OK);
     }
 
@@ -61,6 +72,9 @@ public class CandleController {
      */
     @GetMapping("/default")
     public List<CandleDTO> listCandles(){
-        return candleService.getCandles("AAPL", "daily");
+
+        SymbolDTO symbol = symbolService.getSymbolByCode("AAPL");
+
+        return candleService.getCandles(symbol, "daily");
     }
 }

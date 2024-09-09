@@ -114,8 +114,8 @@ public class SymbolControllerIT {
 
     @Test
     void testListSymbols() {
-        createAndSaveSymbol("AAPL", "Apple Inc.", "NASDAQ");
-        createAndSaveSymbol("GOOGL", "Google LLC", "NASDAQ");
+        //createAndSaveSymbol("AAPL", "Apple Inc.", "NASDAQ");
+        //createAndSaveSymbol("GOOGL", "Google LLC", "NASDAQ");
 
         List<SymbolDTO> dtos = symbolController.listAllSymbols();
 

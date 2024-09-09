@@ -1,5 +1,6 @@
 package finance.project.api.services;
 
+import finance.project.api.controllers.NotFoundException;
 import finance.project.api.entities.Symbol;
 import finance.project.api.model.SymbolDTO;
 import lombok.extern.slf4j.Slf4j;
@@ -68,5 +69,10 @@ public class SymbolServiceImpl implements SymbolService {
     @Override
     public Optional<SymbolDTO> getSymbolById(UUID id) {
         return Optional.ofNullable(symbolMap.get(id));
+    }
+    @Override
+    public SymbolDTO getSymbolByCode(String symbolCode) {
+        return Optional.ofNullable(symbolMap.get(symbolCode))
+                .orElseThrow(() -> new NotFoundException("Symbol not found: " + symbolCode));
     }
 }

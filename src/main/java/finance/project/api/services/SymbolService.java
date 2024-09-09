@@ -1,5 +1,6 @@
 package finance.project.api.services;
 
+import finance.project.api.entities.Symbol;
 import finance.project.api.model.SymbolDTO;
 
 import java.util.List;
@@ -17,4 +18,6 @@ public interface SymbolService {
     List<SymbolDTO> listAllSymbols();
 
     Optional<SymbolDTO> getSymbolById(UUID id);
+
+    SymbolDTO getSymbolByCode(String symbolCode);
 }
