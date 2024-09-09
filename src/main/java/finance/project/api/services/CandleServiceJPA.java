@@ -29,7 +29,7 @@ public class CandleServiceJPA implements CandleService {
     public List<CandleDTO> getCandles(SymbolDTO symbol, String interval) {
 
         Optional<Symbol> optionalSymbol = symbolRepository.findBySymbol(symbol.getSymbol());
-
+        System.out.println("Service:"+optionalSymbol.isPresent());
         if (optionalSymbol.isEmpty()) {
             return Collections.emptyList();
         }

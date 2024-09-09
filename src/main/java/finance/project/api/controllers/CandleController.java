@@ -56,8 +56,9 @@ public class CandleController {
     public ResponseEntity<List<CandleDTO>> getCandles(@RequestParam String symbol, @RequestParam String interval) {
 
         SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
-
+        System.out.println(symbolDTO);
         List<CandleDTO> data = candleService.getCandles(symbolDTO, interval);
+        System.out.println("Data controller"+data);
         return new ResponseEntity<>(data, HttpStatus.OK);
     }
 

@@ -3,7 +3,6 @@ package finance.project.api.controllers;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import finance.project.api.model.SymbolDTO;
 import finance.project.api.services.SymbolService;
-import finance.project.api.services.SymbolServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -38,15 +37,8 @@ class SymbolControllerTest {
     @MockBean
     SymbolService symbolService;
 
-    SymbolServiceImpl symbolServiceImpl;
-
     @Captor
     ArgumentCaptor<UUID> uuidArgumentCaptor;
-
-    @BeforeEach
-    void setUp() {
-        symbolServiceImpl = new SymbolServiceImpl();
-    }
 
     private SymbolDTO createTestSymbolDTO() {
         return SymbolDTO.builder()
@@ -59,7 +51,7 @@ class SymbolControllerTest {
 
     @Test
     void testDeleteSymbol() throws Exception {
-        SymbolDTO symbol = symbolServiceImpl.listAllSymbols().get(0);
+        SymbolDTO symbol = createTestSymbolDTO();
 
         given(symbolService.deleteSymbol(any(UUID.class))).willReturn(true);
 

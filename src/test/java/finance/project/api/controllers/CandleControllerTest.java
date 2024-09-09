@@ -2,9 +2,7 @@ package finance.project.api.controllers;
 
 import finance.project.api.model.CandleDTO;
 import finance.project.api.services.CandleService;
-import finance.project.api.services.CandleServiceImpl;
 import finance.project.api.services.SymbolService;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -52,6 +50,8 @@ public class CandleControllerTest {
                 .build();
 
         List<CandleDTO> candles = List.of(candleDTO);
+
+        given(symbolService.getSymbolByCode("AAPL")).willReturn(symbolDTO);
 
         given(candleService.getCandles(symbolDTO, "daily")).willReturn(candles);
 
