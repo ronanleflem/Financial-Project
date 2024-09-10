@@ -85,6 +85,18 @@ Création d'une API Java Spring capable de traiter des données financières et 
     - **Règles Business** :
       - L'entrée de données doit exister dans la base de données pour être supprimée.
       - La suppression doit être irréversible et l'utilisateur doit être informé des conséquences.
+     
+## Fonctionnalités Techniques (Moyen Terme)
+
+1. Comparaison de Performances
+2. Calcul d'Indicateurs Techniques
+3. Comparaison de volatilité
+4. Suivi de corrélation entre deux actifs
+5. Détection de tendance
+6. Prévision (Forecasting)
+7. Rapports Personnalisés
+8. Analyse de Liquidités
+9. Backtesting 
 
 ## Fonctionnalités Avancées (Long Terme)
 
