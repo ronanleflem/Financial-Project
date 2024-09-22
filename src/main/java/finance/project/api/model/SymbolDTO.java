@@ -1,5 +1,6 @@
 package finance.project.api.model;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import jakarta.validation.constraints.NotBlank;
@@ -10,6 +11,7 @@ import java.util.UUID;
 
 @Data
 @Builder
+@AllArgsConstructor
 public class SymbolDTO {
 
     private UUID id;

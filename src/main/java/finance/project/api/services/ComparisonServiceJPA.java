@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.hibernate.query.sqm.tree.SqmNode.log;
+
 @Service
 @Primary
 @RequiredArgsConstructor
@@ -59,13 +61,35 @@ public class ComparisonServiceJPA implements ComparisonService {
         return new PerformanceComparisonDTO(symbol1, performance1, symbol2, performance2);
     }
 
+    /**
+     * Calcule la performance d'un actif en pourcentage sur la période représentée par une liste de bougies.
+     *
+     * @param candles la liste des bougies représentant les prix d'un actif sur une période
+     * @return la performance de l'actif en pourcentage (positive ou négative)
+     */
     private BigDecimal calculatePerformance(List<Candle> candles) {
+        // Vérifie si la liste de bougies est vide
+        // Si elle est vide, il n'y a pas de données de prix disponibles pour la période
         if (candles.isEmpty()) {
+            // Retourne 0 pour indiquer qu'aucune performance ne peut être calculée
             return BigDecimal.ZERO;
         }
 
+        // Récupère le prix de clôture de la première bougie de la période
+        // Ce prix représente le prix de départ de l'actif au début de la période
         BigDecimal startPrice = candles.get(0).getClose();
+
+        // Récupère le prix de clôture de la dernière bougie de la période
+        // Ce prix représente le prix final de l'actif à la fin de la période
         BigDecimal endPrice = candles.get(candles.size() - 1).getClose();
-        return (endPrice.subtract(startPrice)).divide(startPrice, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
+
+        // Calcule la différence entre le prix final et le prix de départ
+        // Cette différence représente l'augmentation ou la diminution absolue de la valeur de l'actif
+        // Ensuite, divise cette différence par le prix de départ pour obtenir le changement relatif (en pourcentage)
+        // Utilise RoundingMode.HALF_UP pour arrondir correctement le résultat
+        // Enfin, multiplie le résultat par 100 pour obtenir un pourcentage
+        return (endPrice.subtract(startPrice)) // Différence entre le prix final et le prix de départ
+                .divide(startPrice,10, RoundingMode.HALF_UP) // Division par le prix de départ pour obtenir un ratio
+                .multiply(BigDecimal.valueOf(100)); // Multiplication par 100 pour obtenir un pourcentage
     }
 }

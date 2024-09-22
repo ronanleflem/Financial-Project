@@ -20,7 +20,7 @@ public class Candle {
 
     @Id
     @GeneratedValue(generator = "UUID")
-    @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
+    @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator") // A REVOIR ça
     private UUID id;
 
     @ManyToOne
