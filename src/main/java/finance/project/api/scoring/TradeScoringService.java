@@ -1,5 +1,6 @@
 package finance.project.api.scoring;
 
+import finance.project.api.entities.MarketData;
 import finance.project.api.model.TradeSignalDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,7 +24,7 @@ public class TradeScoringService {
     public int calculateTradeScore(TradeSignalDTO signal, MarketData marketData) {
         int totalScore = 0;
 
-        logger.info("🔍 Calcul du score pour le trade {} à {}", signal.getDirection(), signal.getTimestamp());
+        //logger.info("🔍 Calcul du score pour le trade {} à {}", signal.getDirection(), signal.getTimestamp());
 
         for (ScoreRule rule : scoreRules) {
             int ruleScore = rule.calculateScore(signal, marketData);

@@ -1,6 +1,7 @@
 package finance.project.api.strategies.trend;
 
 import finance.project.api.entities.Candle;
+import finance.project.api.entities.MarketData;
 import finance.project.api.model.TradeSignalDTO;
 import finance.project.api.scoring.TradeScoringService;
 import finance.project.api.strategies.BaseStrategy;
@@ -16,6 +17,7 @@ public class EmaCrossoverStrategy extends BaseStrategy {
 
     @Override
     protected TradeSignalDTO generateTradeSignal(MarketData marketData) {
+        /*
         Candle latestCandle = marketData.getLatestCandle();
         if (latestCandle == null) return null;
 
@@ -30,7 +32,8 @@ public class EmaCrossoverStrategy extends BaseStrategy {
         }
 
         // Vérification via le TradeScoringService
-        return (signal != null && tradeScoringService.isTradeValid(signal, marketData)) ? signal : null;
+        return (signal != null && tradeScoringService.isTradeValid(signal, marketData)) ? signal : null;*/
+        return null;
     }
 
     private double calculateEMA(int period, Candle candle, MarketData marketData) {

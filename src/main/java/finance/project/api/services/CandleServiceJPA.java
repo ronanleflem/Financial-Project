@@ -1,46 +1,97 @@
 package finance.project.api.services;
 
+import finance.project.api.entities.Candle;
 import finance.project.api.entities.Symbol;
 import finance.project.api.mappers.CandleMapper;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.model.SymbolDTO;
 import finance.project.api.repositories.CandleRepository;
 import finance.project.api.repositories.SymbolRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
-import java.util.Collections;
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
+import java.util.UUID;
 
 @Service
 @Primary
 @RequiredArgsConstructor
+@Slf4j
 public class CandleServiceJPA implements CandleService {
 
-    private final CandleRepository chartRepository;
+    private final YahooFinanceService yahooFinanceService;
+    private final CandleRepository candleRepository;
     private final SymbolRepository symbolRepository;
-    private final CandleMapper chartDataMapper;
+    private final AlphaVantageService alphaVantageService;
 
     @Override
     public List<CandleDTO> getCandles(SymbolDTO symbol, String interval) {
+        return List.of();
+    }
 
-        Optional<Symbol> optionalSymbol = symbolRepository.findBySymbol(symbol.getSymbol());
-        System.out.println("Service:"+optionalSymbol.isPresent());
-        if (optionalSymbol.isEmpty()) {
-            return Collections.emptyList();
+    @Override
+    public List<CandleDTO> getCandles(String symbol) {
+        Symbol existingSymbol = symbolRepository.findBySymbol(symbol).orElseThrow();
+
+        if (existingSymbol == null) {
+            throw new IllegalArgumentException("❌ Symbole non trouvé en base : " + symbol);
         }
 
-        LocalDate startDate = LocalDate.now(); // To Change
-        LocalDate endDate = LocalDate.now();
+        // Vérifier si on a déjà des données en base
+        List<Candle> candlesFromDB = candleRepository.findBySymbol(existingSymbol);
+        if (!candlesFromDB.isEmpty()) {
+            log.info("📊 Retour des données depuis la base pour {}", symbol);
+            return candlesFromDB.stream().map(this::mapToDTO).toList();
+        }
 
-        return chartRepository.findBySymbolAndDateBetween(optionalSymbol.get(), startDate, endDate)
-                .stream()
-                .map(chartDataMapper::toDto)
-                .collect(Collectors.toList());
+        // Sinon, récupérer depuis Yahoo et stocker en base
+        log.info("🌍 Récupération des données Yahoo Finance pour {}", symbol);
+        List<CandleDTO> candlesFromYahoo = alphaVantageService.getHistoricalData(symbol);
+        if (!candlesFromYahoo.isEmpty()) {
+            saveCandlesToDatabase(candlesFromYahoo, existingSymbol);
+        }
+
+        return candlesFromYahoo;
+    }
+
+    @Transactional
+    public void saveCandlesToDatabase(List<CandleDTO> candles, Symbol symbol) {
+        List<Candle> candleEntities = candles.stream().map(dto -> Candle.builder()
+                .id(UUID.randomUUID())
+                .symbol(symbol)
+                .date(dto.getDate())
+                .open(dto.getOpen())
+                .close(dto.getClose())
+                .high(dto.getHigh())
+                .low(dto.getLow())
+                .volume(dto.getVolume())
+                .build()
+        ).toList();
+
+        candleRepository.saveAll(candleEntities);
+        log.info("💾 {} bougies enregistrées pour {}", candles.size(), symbol.getSymbol());
+    }
+
+    private CandleDTO mapToDTO(Candle candle) {
+        return CandleDTO.builder()
+                .id(candle.getId())
+                .symbol(SymbolDTO.builder()
+                        .id(candle.getSymbol().getId())
+                        .symbol(candle.getSymbol().getSymbol())
+                        .name(candle.getSymbol().getName())
+                        .market(candle.getSymbol().getMarket())
+                        .build())
+                .date(candle.getDate())
+                .open(candle.getOpen())
+                .close(candle.getClose())
+                .high(candle.getHigh())
+                .low(candle.getLow())
+                .volume(candle.getVolume())
+                .build();
     }
 
 }

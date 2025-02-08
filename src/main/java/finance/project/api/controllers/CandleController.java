@@ -78,4 +78,11 @@ public class CandleController {
 
         return candleService.getCandles(symbol, "daily");
     }
+
+
+    @GetMapping("/yahoo")
+    public ResponseEntity<List<CandleDTO>> getYahooCandles(@RequestParam String symbol) {
+        List<CandleDTO> candles = candleService.getCandles(symbol);
+        return new ResponseEntity<>(candles, HttpStatus.OK);
+    }
 }

@@ -1,5 +1,6 @@
 package finance.project.api.strategies.meanreversion;
 
+import finance.project.api.entities.MarketData;
 import finance.project.api.model.TradeSignalDTO;
 import finance.project.api.scoring.TradeScoringService;
 import finance.project.api.strategies.BaseStrategy;
@@ -15,11 +16,12 @@ public class MeanReversionStrategy extends BaseStrategy {
     @Override
     protected TradeSignalDTO generateTradeSignal(MarketData marketData) {
         // Retour vers la moyenne
+        /*
         if (marketData.getCurrentPrice() < marketData.getMovingAverage(50)) {
             return new TradeSignalDTO("BUY", marketData.getAsset(), marketData.getCurrentPrice());
         } else if (marketData.getCurrentPrice() > marketData.getMovingAverage(50)) {
             return new TradeSignalDTO("SELL", marketData.getAsset(), marketData.getCurrentPrice());
-        }
+        }*/
         return null;
     }
 }

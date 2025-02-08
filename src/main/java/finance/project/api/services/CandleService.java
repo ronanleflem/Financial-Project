@@ -7,7 +7,6 @@ import finance.project.api.model.SymbolDTO;
 import java.util.List;
 
 public interface CandleService {
-
     List<CandleDTO> getCandles(SymbolDTO symbol, String interval);
-
+    List<CandleDTO> getCandles(String symbol);
 }

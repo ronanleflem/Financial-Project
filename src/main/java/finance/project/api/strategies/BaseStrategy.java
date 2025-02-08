@@ -1,5 +1,6 @@
 package finance.project.api.strategies;
 
+import finance.project.api.entities.MarketData;
 import finance.project.api.model.TradeSignalDTO;
 import finance.project.api.scoring.TradeScoringService;
 import org.slf4j.Logger;
@@ -44,6 +45,6 @@ public abstract class BaseStrategy {
      * Simule l'exécution du trade (à remplacer par l'intégration avec un broker plus tard).
      */
     private void executeTrade(TradeSignalDTO signal) {
-        logger.info("🟢 Exécution trade : {} {} à {}", signal.getDirection(), signal.getAsset(), signal.getPrice());
+        //logger.info("🟢 Exécution trade : {} {} à {}", signal.getDirection(), signal.getAsset(), signal.getPrice());
     }
 }

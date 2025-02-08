@@ -1,5 +1,6 @@
 package finance.project.api.services;
 
+import finance.project.api.entities.MarketData;
 import finance.project.api.strategies.BaseStrategy;
 import org.springframework.stereotype.Service;
 import java.util.List;

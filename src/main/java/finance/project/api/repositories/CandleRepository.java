@@ -13,4 +13,6 @@ import java.util.UUID;
 public interface CandleRepository extends JpaRepository<Candle, UUID> {
 
     List<Candle> findBySymbolAndDateBetween(Symbol symbol, LocalDate startDate, LocalDate endDate);
+    List<Candle> findBySymbol(Symbol symbol);
+
 }

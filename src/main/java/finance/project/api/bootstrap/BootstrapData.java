@@ -58,12 +58,12 @@ public class BootstrapData implements CommandLineRunner {
             Symbol aaplSymbol = symbolRepository.findBySymbol("AAPL").orElseThrow(() -> new NotFoundException("Symbol not found"));
             Symbol eurusdSymbol = symbolRepository.findBySymbol("EURUSD").orElseThrow(() -> new NotFoundException("Symbol not found"));
             Symbol goldSymbol = symbolRepository.findBySymbol("GOLD").orElseThrow(() -> new NotFoundException("Symbol not found"));
-
+            /*
             Candle chart1 = createCandle(aaplSymbol, "100.00", "110.00", "115.00", "95.00", "1000000");
             Candle chart2 = createCandle(eurusdSymbol, "110.00", "120.00", "125.00", "105.00", "1100000");
             Candle chart3 = createCandle(goldSymbol, "110.00", "120.00", "125.00", "105.00", "1100000");
 
-            candleRepository.saveAll(Arrays.asList(chart1, chart2, chart3));
+            candleRepository.saveAll(Arrays.asList(chart1, chart2, chart3));*/
         }
     }
 
