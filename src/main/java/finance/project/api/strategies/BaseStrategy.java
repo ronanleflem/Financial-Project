@@ -1,50 +1,37 @@
 package finance.project.api.strategies;
 
 import finance.project.api.entities.MarketData;
+import finance.project.api.model.TradeRequestDTO;
 import finance.project.api.model.TradeSignalDTO;
 import finance.project.api.scoring.TradeScoringService;
+import finance.project.api.services.TradeFilterService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class BaseStrategy {
+public abstract class BaseStrategy implements Strategy {
 
-    protected final TradeScoringService tradeScoringService;
-    protected static final Logger logger = LoggerFactory.getLogger(BaseStrategy.class);
+    protected final TradeFilterService tradeFilterService;
 
-    public BaseStrategy(TradeScoringService tradeScoringService) {
-        this.tradeScoringService = tradeScoringService;
+    public BaseStrategy(TradeFilterService tradeFilterService) {
+        this.tradeFilterService = tradeFilterService;
     }
 
-    /**
-     * Vérifie si le trade est valide selon le système de scoring.
-     */
-    public boolean isTradeValid(TradeSignalDTO signal, MarketData marketData) {
-        return tradeScoringService.isTradeValid(signal, marketData);
+    public boolean isTradeValid(TradeRequestDTO tradeRequest, MarketData marketData) {
+        return tradeFilterService.isTradeValid(tradeRequest, marketData);
     }
 
-    /**
-     * Logique spécifique de chaque stratégie (ex. breakout, mean reversion...).
-     */
-    protected abstract TradeSignalDTO generateTradeSignal(MarketData marketData);
+    protected abstract TradeSignalDTO generateRawSignal(MarketData marketData);
 
-    /**
-     * Exécute la stratégie complète : génère un signal, valide et exécute si ok.
-     */
     public void execute(MarketData marketData) {
-        TradeSignalDTO signal = generateTradeSignal(marketData);
-
-        if (signal != null && isTradeValid(signal, marketData)) {
-            logger.info("🚀 [STRAT {}] Exécution du trade {}", this.getClass().getSimpleName(), signal);
-            executeTrade(signal);
+        TradeSignalDTO rawSignal = generateRawSignal(marketData);
+        if (rawSignal != null && isTradeValid(new TradeRequestDTO(rawSignal), marketData)) {
+            executeTrade(rawSignal);
         } else {
-            logger.info("❌ [STRAT {}] Pas de trade valide trouvé.", this.getClass().getSimpleName());
+            System.out.println("🚫 Signal rejeté par les filtres.");
         }
     }
 
-    /**
-     * Simule l'exécution du trade (à remplacer par l'intégration avec un broker plus tard).
-     */
     private void executeTrade(TradeSignalDTO signal) {
-        //logger.info("🟢 Exécution trade : {} {} à {}", signal.getDirection(), signal.getAsset(), signal.getPrice());
+        System.out.println("✅ Trade exécuté : " + signal);
     }
 }

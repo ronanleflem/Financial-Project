@@ -1,4 +1,4 @@
-package finance.project.api.strategies.meanreversion;
+package finance.project.api.strategies.statisticals;
 
 import finance.project.api.entities.MarketData;
 import finance.project.api.model.TradeSignalDTO;
