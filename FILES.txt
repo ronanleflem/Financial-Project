@@ -1,0 +1,147 @@
+src/main/java/finance/project/api/
+├── filters/
+│   ├── rules/
+│   │   ├── BiasInstitutionalFilter.java         # Filtre le biais macroéconomique et institutionnel
+│   │   ├── ICTRetracementFilter.java           # Vérifie les retracements 50% et signatures ICT
+│   │   ├── HighTimeframeZoneFilter.java        # Vérifie les niveaux HTF (FVG, key levels)
+│   │   ├── LowerTimeframeConfluenceFilter.java # Confirme une confluence LTF (breaker, BOS, etc.)
+│   │   ├── LiquidityFilter.java                # Vérifie la liquidité (POC, open interest, sweeps)
+│   │   ├── VolatilityFilter.java               # Vérifie ATR, Bollinger, VIX
+│   │   ├── OrderBookFilter.java                # Analyse carnet d’ordres (imbalance, absorption, spoofing)
+│   │   ├── CandleStructureFilter.java          # Vérifie momentum et bougies précédentes
+│   │   ├── ContradictorySignalsFilter.java     # Filtre les signaux contradictoires (RSI/MACD, etc.)
+│   │   ├── CyclesFilter.java                   # Analyse les cycles intra-journaliers et répétitions
+│   │   ├── NewsImpactFilter.java               # Filtre les news à fort impact et expiration d’options
+│   │   ├── MarketRegimeFilter.java             # Détecte marché en range/tendance et compression/expansion
+│   │   ├── TraderPsychologyFilter.java         # Analyse sentiment de marché et Fear & Greed Index
+│   │   ├── MarketConditionsFilter.java         # Filtre selon l’heure, la liquidité et les conditions de trading
+│   ├── Filter.java                              # Interface commune pour tous les filtres
+│   ├── TradeFilterService.java                  # Gère l’application des filtres
+│
+├── strategies/
+│   ├── institutional/
+│   │   ├── ICTReversalStrategy.java           # Stratégie basée sur les concepts ICT
+│   │   ├── MacroTrendStrategy.java            # Stratégie basée sur les biais macroéconomiques
+│   ├── liquidity/
+│   │   ├── LiquiditySweepStrategy.java        # Stratégie basée sur la prise de liquidité
+│   │   ├── OrderFlowStrategy.java             # Stratégie basée sur l’analyse du carnet d’ordres
+│   ├── trend/
+│   │   ├── TrendContinuationStrategy.java     # Stratégie de continuation de tendance (EMA, BOS)
+│   │   ├── TrendReversalStrategy.java         # Stratégie de retournement (Divergences, Wyckoff)
+│   ├── volatility/
+│   │   ├── VolatilityBreakoutStrategy.java    # Stratégie de breakout sur forte volatilité
+│   │   ├── MeanReversionStrategy.java         # Stratégie de retour à la moyenne
+│   ├── StrategyExecutorService.java            # Gère l’exécution des stratégies
+│   ├── StrategyManager.java                    # Orchestration des stratégies actives
+│   ├── BaseStrategy.java                       # Classe de base pour toutes les stratégies
+│   ├── Strategy.java                           # Interface commune aux stratégies
+
+
+📌 Détails des nouveaux filtres
+1️⃣ Filtres liés au biais institutionnel
+
+📍 Package : filters.rules
+Classe	Description
+BiasInstitutionalFilter	Vérifie le biais macro (inflation, taux, politique monétaire)
+ICTRetracementFilter	Vérifie les retracements 50%, signatures ICT et algorithmes institutionnels
+2️⃣ Filtres liés aux zones de réaction HTF et LTF
+
+📍 Package : filters.rules
+Classe	Description
+HighTimeframeZoneFilter	Vérifie les niveaux HTF (FVG, Key Levels, liquidation zones)
+LowerTimeframeConfluenceFilter	Vérifie si plusieurs éléments LTF sont alignés (breaker, BOS, rééquilibrage)
+3️⃣ Filtres liés à la liquidité et carnet d’ordres
+
+📍 Package : filters.rules
+Classe	Description
+LiquidityFilter	Vérifie POC, Open Interest, sweeps de liquidité
+OrderBookFilter	Analyse carnet d’ordres (imbalance, absorption, spoofing, large players tracking)
+4️⃣ Filtres liés à la volatilité et structure des bougies
+
+📍 Package : filters.rules
+Classe	Description
+VolatilityFilter	Vérifie ATR, Bollinger Bands, VIX
+CandleStructureFilter	Vérifie momentum, fausses cassures, bougies précédentes
+5️⃣ Filtres liés aux signaux contradictoires et cycles de marché
+
+📍 Package : filters.rules
+Classe	Description
+ContradictorySignalsFilter	Vérifie RSI/MACD, confluence de signaux, ratio risk/reward
+CyclesFilter	Analyse les cycles intra-journaliers et patterns répétitifs
+6️⃣ Filtres liés aux news et conditions macro
+
+📍 Package : filters.rules
+Classe	Description
+NewsImpactFilter	Filtre news macro, intervention des banques centrales, expiration options
+MarketRegimeFilter	Détecte marché en range/tendance et compression/expansion
+TraderPsychologyFilter	Analyse sentiment du marché, Fear & Greed Index, positionnement retail vs institutionnels
+MarketConditionsFilter	Filtre selon l’heure, la liquidité et les conditions de trading
+
+
+📌 1. Filtres basés sur des statistiques et probabilités
+
+Ces filtres utilisent des concepts mathématiques pour évaluer la qualité des trades.
+📂 Package : filters.rules
+Classe	Concept Mathématique	Description
+BenfordLawFilter	Loi de Benford	Détecte des anomalies dans la distribution des prix (fraude, manipulation)
+ZScoreVolatilityFilter	Z-Score	Vérifie si la volatilité est anormale par rapport à son historique
+StatisticalArbitrageFilter	Test de co-intégration	Vérifie si un actif dévie trop de sa relation avec un autre actif corrélé
+MeanReversionProbabilityFilter	Distribution Gaussienne	Analyse si le prix a une probabilité élevée de retourner à la moyenne
+FractalAnalysisFilter	Analyse Fractale	Détecte les schémas de répétition à plusieurs échelles de temps
+EntropyMarketFilter	Entropie de Shannon	Évalue si le marché est en phase d’ordre (tendance) ou de chaos (range)
+KurtosisSkewnessFilter	Kurtosis & Skewness	Vérifie si la distribution des rendements est normale ou biaisée
+StationarityFilter	Test de Dickey-Fuller	Vérifie si une série temporelle est stationnaire ou en tendance
+📌 2. Stratégies avancées basées sur des modèles statistiques
+
+Ces stratégies combinent plusieurs filtres et utilisent des modèles mathématiques pour maximiser l’efficacité.
+📂 Package : strategies.statistical
+Classe	Concept Mathématique	Description
+StatisticalArbitrageStrategy	Co-intégration	Exploite les écarts entre deux actifs liés statistiquement
+MeanReversionStrategy	Distribution Gaussienne	Achète quand un actif s’éloigne trop de sa moyenne
+VolatilityBreakoutStrategy	Z-Score	Entre en position sur des déviations extrêmes de volatilité
+FractalPatternStrategy	Analyse Fractale	Identifie des schémas répétitifs sur plusieurs unités de temps
+EntropyTrendStrategy	Entropie de Shannon	Suit la tendance lorsque l’entropie diminue
+MarketRegimeSwitchStrategy	Markov Switching Model	Change de stratégie selon que le marché est en tendance ou en range
+SkewnessBiasStrategy	Kurtosis & Skewness	Exploite les asymétries dans la distribution des rendements
+📌 3. Explication des concepts mathématiques utilisés
+
+Voici une brève explication des concepts clés utilisés dans ces filtres et stratégies.
+📍 Loi de Benford (BenfordLawFilter)
+
+    Vérifie si les premiers chiffres significatifs des prix suivent la loi de Benford.
+    Utilité : Détecter des anomalies ou manipulations du marché.
+
+📍 Z-Score pour la Volatilité (ZScoreVolatilityFilter)
+
+    Mesure combien un point de données s’écarte de la moyenne en nombre d’écarts-types.
+    Utilité : Détecter des pics de volatilité inhabituels.
+    Formule :
+    Z=X−μσ
+    Z=σX−μ​ où XX est la volatilité actuelle, μμ la moyenne historique, et σσ l’écart-type.
+
+📍 Co-Intégration pour l’Arbitrage Statistique (StatisticalArbitrageFilter)
+
+    Vérifie si deux actifs sont corrélés sur le long terme mais peuvent diverger temporairement.
+    Utilité : Acheter l’actif sous-évalué et vendre l’actif surévalué.
+    Test avec Dickey-Fuller pour confirmer la stationnarité.
+
+📍 Analyse Fractale (FractalAnalysisFilter)
+
+    Détecte des motifs de prix récurrents à différentes échelles de temps.
+    Utilité : Déterminer si un mouvement actuel répète un schéma passé.
+
+📍 Entropie de Shannon (EntropyMarketFilter)
+
+    Mesure le niveau de désordre du marché.
+    Utilité :
+        Faible entropie → le marché suit une tendance claire.
+        Haute entropie → le marché est chaotique (range).
+    Formule de l'entropie :
+    H(X)=−∑P(x)log⁡P(x)
+    H(X)=−∑P(x)logP(x)
+
+📍 Kurtosis & Skewness (KurtosisSkewnessFilter)
+
+    Skewness → Mesure l’asymétrie d’une distribution de prix.
+    Kurtosis → Mesure l’intensité des extrêmes dans les rendements.
+    Utilité : Identifier si un actif est plus risqué que la normale.
