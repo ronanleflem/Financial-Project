@@ -61,7 +61,6 @@ public class CandleServiceJPA implements CandleService {
     @Transactional
     public void saveCandlesToDatabase(List<CandleDTO> candles, Symbol symbol) {
         List<Candle> candleEntities = candles.stream().map(dto -> Candle.builder()
-                .id(UUID.randomUUID())
                 .symbol(symbol)
                 .date(dto.getDate())
                 .open(dto.getOpen())

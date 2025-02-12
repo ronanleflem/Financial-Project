@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Repository
-public interface CandleRepository extends JpaRepository<Candle, UUID> {
+public interface CandleRepository extends JpaRepository<Candle, Long> {
 
     List<Candle> findBySymbolAndDateBetween(Symbol symbol, LocalDate startDate, LocalDate endDate);
     List<Candle> findBySymbol(Symbol symbol);

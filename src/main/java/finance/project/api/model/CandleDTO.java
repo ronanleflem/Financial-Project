@@ -12,7 +12,7 @@ import java.util.UUID;
 @Builder
 @Data
 public class CandleDTO {
-    private UUID id;
+    private Long id;
     private SymbolDTO symbol; // Utilisation du DTO au lieu de l'entité
     private LocalDate date;
     private BigDecimal open;

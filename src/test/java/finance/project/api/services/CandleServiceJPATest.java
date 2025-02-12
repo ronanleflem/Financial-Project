@@ -63,7 +63,6 @@ public class CandleServiceJPATest {
                 .build();
 
         candleEntity = Candle.builder()
-                .id(UUID.randomUUID())
                 .symbol(symbolEntity)
                 .date(LocalDate.now())
                 .open(BigDecimal.valueOf(100.00))
@@ -75,7 +74,7 @@ public class CandleServiceJPATest {
 
         candleDTO = CandleDTO.builder()
                 .id(candleEntity.getId())
-                .symbol(symbolEntity)
+                .symbol(symbolDTO)
                 .date(candleEntity.getDate())
                 .open(candleEntity.getOpen())
                 .close(candleEntity.getClose())

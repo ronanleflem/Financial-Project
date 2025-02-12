@@ -3,10 +3,7 @@ package finance.project.api.strategies;
 import finance.project.api.entities.MarketData;
 import finance.project.api.model.TradeRequestDTO;
 import finance.project.api.model.TradeSignalDTO;
-import finance.project.api.scoring.TradeScoringService;
 import finance.project.api.services.TradeFilterService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public abstract class BaseStrategy implements Strategy {
 
@@ -23,12 +20,14 @@ public abstract class BaseStrategy implements Strategy {
     protected abstract TradeSignalDTO generateRawSignal(MarketData marketData);
 
     public void execute(MarketData marketData) {
+        /*
         TradeSignalDTO rawSignal = generateRawSignal(marketData);
         if (rawSignal != null && isTradeValid(new TradeRequestDTO(rawSignal), marketData)) {
             executeTrade(rawSignal);
         } else {
             System.out.println("🚫 Signal rejeté par les filtres.");
-        }
+        }*/
+        System.out.println("🚫 Signal rejeté par les filtres.");
     }
 
     private void executeTrade(TradeSignalDTO signal) {

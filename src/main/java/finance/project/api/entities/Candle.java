@@ -19,9 +19,8 @@ import java.util.UUID;
 public class Candle {
 
     @Id
-    @GeneratedValue(generator = "UUID")
-    @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator") // A REVOIR ça
-    private UUID id;
+    @GeneratedValue(strategy = GenerationType.AUTO) // SQLite ne supporte pas UUID, donc on utilise AUTO
+    private Long id; // Changement de UUID vers Long
 
     @ManyToOne
     @JoinColumn(name = "symbol_id", nullable = false)
