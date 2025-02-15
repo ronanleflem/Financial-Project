@@ -37,7 +37,7 @@ public class YahooFinanceService {
             // Transformation des données Yahoo en CandleDTO
             candles = stock.getHistory(from).stream()
                     .map(hist -> CandleDTO.builder()
-                            .date(hist.getDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate())
+                            .date(hist.getDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime())
                             .open(hist.getOpen())
                             .close(hist.getClose())
                             .high(hist.getHigh())

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 
 /**
@@ -81,7 +82,7 @@ public class BootstrapData implements CommandLineRunner {
     private Candle createCandle(Symbol symbol, String open, String close, String high, String low, String volume) {
         return Candle.builder()
                 .symbol(symbol)
-                .date(LocalDate.now())
+                .date(LocalDateTime.now())
                 .open(new BigDecimal(open))
                 .close(new BigDecimal(close))
                 .high(new BigDecimal(high))

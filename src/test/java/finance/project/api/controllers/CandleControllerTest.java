@@ -64,8 +64,8 @@ public class CandleControllerTest {
                 .andReturn();
 
         // Print the result to debug
-        String content = result.getResponse().getContentAsString();
-        System.out.println("Response Content: " + content);
+        //String content = result.getResponse().getContentAsString();
+        //System.out.println("Response Content: " + content);
 
         // Perform the assertions
         mockMvc.perform(get("/api/finance/charts")

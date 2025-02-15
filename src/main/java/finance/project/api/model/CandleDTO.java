@@ -7,6 +7,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Builder
@@ -14,7 +15,7 @@ import java.util.UUID;
 public class CandleDTO {
     private Long id;
     private SymbolDTO symbol; // Utilisation du DTO au lieu de l'entité
-    private LocalDate date;
+    private LocalDateTime date;
     private BigDecimal open;
     private BigDecimal close;
     private BigDecimal high;

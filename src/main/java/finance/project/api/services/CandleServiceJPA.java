@@ -13,8 +13,10 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -34,6 +36,7 @@ public class CandleServiceJPA implements CandleService {
     }
 
     @Override
+    @Transactional
     public List<CandleDTO> getCandles(String symbol) {
         Symbol existingSymbol = symbolRepository.findBySymbol(symbol).orElseThrow();
 
@@ -51,8 +54,8 @@ public class CandleServiceJPA implements CandleService {
         // Sinon, récupérer depuis Yahoo et stocker en base
         log.info("🌍 Récupération des données Yahoo Finance pour {}", symbol);
         List<CandleDTO> candlesFromYahoo = alphaVantageService.getHistoricalData(symbol);
-        if (!candlesFromYahoo.isEmpty()) {
-            saveCandlesToDatabase(candlesFromYahoo, existingSymbol);
+        if (!Objects.requireNonNull(candlesFromYahoo).isEmpty()) {
+            saveCandlesToDatabase(Objects.requireNonNull(candlesFromYahoo), existingSymbol);
         }
 
         return candlesFromYahoo;

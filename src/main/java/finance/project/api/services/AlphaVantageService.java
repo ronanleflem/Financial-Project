@@ -2,16 +2,23 @@ package finance.project.api.services;
 
 import finance.project.api.model.CandleDTO;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -20,44 +27,45 @@ public class AlphaVantageService {
 
     private static final String API_KEY = "4NBH950DAGIXA6LV";
     private static final String BASE_URL = "https://www.alphavantage.co/query";
+    private static final String INTERVAL = "5min";
 
-    private final WebClient webClient;
 
-    public AlphaVantageService(WebClient.Builder webClientBuilder) {
-        this.webClient = webClientBuilder.baseUrl(BASE_URL).build();
+    private final RestTemplate restTemplate;
+
+    public AlphaVantageService(RestTemplateBuilder restTemplateBuilder) {
+        this.restTemplate = restTemplateBuilder.build();
     }
 
     public List<CandleDTO> getHistoricalData(String symbol) {
-        List<CandleDTO> candles = new ArrayList<>();
-
         try {
-            // Appel à l'API via WebClient, réponse en Mono
-            Mono<Map<String, Object>> responseMono = webClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .queryParam("function", "TIME_SERIES_DAILY")
-                            .queryParam("symbol", symbol)
-                            .queryParam("apikey", API_KEY)
-                            .build())
-                    .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {});
+            String url = UriComponentsBuilder.fromHttpUrl(BASE_URL)
+                    .queryParam("function", "TIME_SERIES_INTRADAY")
+                    .queryParam("symbol", symbol)
+                    .queryParam("apikey", API_KEY)
+                    .queryParam("interval", INTERVAL)
+                    .queryParam("outputsize", "compact")
+                    .toUriString();
 
-            // Attente du résultat et traitement
-            Map<String, Object> response = responseMono.block();  // block() pour synchroniser
+            ResponseEntity<Map<String, Object>> responseEntity = restTemplate.exchange(
+                    url, HttpMethod.GET, null, new ParameterizedTypeReference<>() {}
+            );
 
-            if (response == null || !response.containsKey("Time Series (Daily)")) {
+            Map<String, Object> response = responseEntity.getBody();
+
+            if (response == null || !response.containsKey("Time Series ("+INTERVAL+")")) {
                 log.error("❌ Impossible de récupérer les données pour {}", symbol);
-                return candles;
+                return new ArrayList<>();
             }
 
-            // Extraction des données des bougies
-            Map<String, Map<String, String>> timeSeries = (Map<String, Map<String, String>>) response.get("Time Series (Daily)");
+            Map<String, Map<String, String>> timeSeries = (Map<String, Map<String, String>>) response.get("Time Series ("+INTERVAL+")");
 
-            candles = timeSeries.entrySet().stream()
+            return timeSeries.entrySet().stream()
                     .map(entry -> {
-                        LocalDate date = LocalDate.parse(entry.getKey());
                         Map<String, String> values = entry.getValue();
+                        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
                         return CandleDTO.builder()
-                                .date(date)
+                                .date(LocalDateTime.parse(entry.getKey(), formatter))
                                 .open(new BigDecimal(values.get("1. open")))
                                 .close(new BigDecimal(values.get("4. close")))
                                 .high(new BigDecimal(values.get("2. high")))
@@ -67,12 +75,9 @@ public class AlphaVantageService {
                     })
                     .collect(Collectors.toList());
 
-            log.info("✅ {} bougies récupérées pour {}", candles.size(), symbol);
-
         } catch (Exception e) {
             log.error("❌ Erreur lors de la récupération des données Alpha Vantage pour {}", symbol, e);
+            return new ArrayList<>();
         }
-
-        return candles;
     }
 }

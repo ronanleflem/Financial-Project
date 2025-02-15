@@ -7,6 +7,7 @@ import org.hibernate.annotations.GenericGenerator;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Builder
@@ -28,7 +29,7 @@ public class Candle {
 
     @NotNull
     @Column(nullable = false)
-    private LocalDate date;
+    private LocalDateTime date;
 
     @NotNull
     @Column(nullable = false)
