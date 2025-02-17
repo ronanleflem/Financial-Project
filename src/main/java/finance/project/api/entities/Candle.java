@@ -21,10 +21,11 @@ public class Candle {
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO) // SQLite ne supporte pas UUID, donc on utilise AUTO
+    @Column(nullable = false, length = 255)
     private Long id; // Changement de UUID vers Long
 
     @ManyToOne
-    @JoinColumn(name = "symbol_id", nullable = false)
+    @JoinColumn(name = "symbol_id", nullable = false, columnDefinition = "BINARY(16)")
     private Symbol symbol;
 
     @NotNull
@@ -32,23 +33,23 @@ public class Candle {
     private LocalDateTime date;
 
     @NotNull
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 38, scale = 6)
     private BigDecimal open;
 
     @NotNull
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 38, scale = 6)
     private BigDecimal close;
 
     @NotNull
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 38, scale = 6)
     private BigDecimal high;
 
     @NotNull
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 38, scale = 6)
     private BigDecimal low;
 
     @NotNull
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 38, scale = 6)
     private BigDecimal volume;
 
 }

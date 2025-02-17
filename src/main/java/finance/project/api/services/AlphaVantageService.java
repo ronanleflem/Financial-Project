@@ -7,18 +7,15 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
-import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -36,6 +33,7 @@ public class AlphaVantageService {
         this.restTemplate = restTemplateBuilder.build();
     }
 
+    @Transactional(readOnly = true)
     public List<CandleDTO> getHistoricalData(String symbol) {
         try {
             String url = UriComponentsBuilder.fromHttpUrl(BASE_URL)
@@ -78,6 +76,8 @@ public class AlphaVantageService {
         } catch (Exception e) {
             log.error("❌ Erreur lors de la récupération des données Alpha Vantage pour {}", symbol, e);
             return new ArrayList<>();
+        } finally {
+
         }
     }
 }

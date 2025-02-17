@@ -7,14 +7,15 @@ import finance.project.api.model.CandleDTO;
 import finance.project.api.model.SymbolDTO;
 import finance.project.api.repositories.CandleRepository;
 import finance.project.api.repositories.SymbolRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
 import lombok.extern.slf4j.Slf4j;
-import reactor.core.publisher.Mono;
-
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -30,19 +31,17 @@ public class CandleServiceJPA implements CandleService {
     private final SymbolRepository symbolRepository;
     private final AlphaVantageService alphaVantageService;
 
+
+
     @Override
     public List<CandleDTO> getCandles(SymbolDTO symbol, String interval) {
         return List.of();
     }
 
     @Override
-    @Transactional
     public List<CandleDTO> getCandles(String symbol) {
-        Symbol existingSymbol = symbolRepository.findBySymbol(symbol).orElseThrow();
-
-        if (existingSymbol == null) {
-            throw new IllegalArgumentException("❌ Symbole non trouvé en base : " + symbol);
-        }
+        Symbol existingSymbol = symbolRepository.findBySymbol(symbol)
+                .orElseThrow(() -> new IllegalArgumentException("❌ Symbole non trouvé en base : " + symbol));
 
         // Vérifier si on a déjà des données en base
         List<Candle> candlesFromDB = candleRepository.findBySymbol(existingSymbol);
@@ -50,31 +49,40 @@ public class CandleServiceJPA implements CandleService {
             log.info("📊 Retour des données depuis la base pour {}", symbol);
             return candlesFromDB.stream().map(this::mapToDTO).toList();
         }
-
-        // Sinon, récupérer depuis Yahoo et stocker en base
+        // Récupération des données Yahoo
         log.info("🌍 Récupération des données Yahoo Finance pour {}", symbol);
         List<CandleDTO> candlesFromYahoo = alphaVantageService.getHistoricalData(symbol);
-        if (!Objects.requireNonNull(candlesFromYahoo).isEmpty()) {
-            saveCandlesToDatabase(Objects.requireNonNull(candlesFromYahoo), existingSymbol);
+        if (candlesFromYahoo != null && !candlesFromYahoo.isEmpty()) {
+            saveCandlesToDatabase(candlesFromYahoo, existingSymbol);
         }
-
         return candlesFromYahoo;
     }
 
-    @Transactional
     public void saveCandlesToDatabase(List<CandleDTO> candles, Symbol symbol) {
-        List<Candle> candleEntities = candles.stream().map(dto -> Candle.builder()
-                .symbol(symbol)
-                .date(dto.getDate())
-                .open(dto.getOpen())
-                .close(dto.getClose())
-                .high(dto.getHigh())
-                .low(dto.getLow())
-                .volume(dto.getVolume())
-                .build()
-        ).toList();
+        int batchSize = 50;  // On insère 50 bougies à la fois
+        List<Candle> batch = new ArrayList<>();
 
-        candleRepository.saveAll(candleEntities);
+        for (CandleDTO dto : candles) {
+            batch.add(Candle.builder()
+                    .symbol(symbol)
+                    .date(dto.getDate())
+                    .open(dto.getOpen())
+                    .close(dto.getClose())
+                    .high(dto.getHigh())
+                    .low(dto.getLow())
+                    .volume(dto.getVolume())
+                    .build());
+
+            if (batch.size() >= batchSize) {
+                candleRepository.saveAll(batch);
+                batch.clear(); // On vide la liste pour le prochain batch
+            }
+        }
+
+        if (!batch.isEmpty()) { // Sauvegarde du reste des données
+            candleRepository.saveAll(batch);
+        }
+
         log.info("💾 {} bougies enregistrées pour {}", candles.size(), symbol.getSymbol());
     }
 

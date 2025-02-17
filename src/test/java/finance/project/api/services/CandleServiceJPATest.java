@@ -15,6 +15,7 @@ import org.mockito.MockitoAnnotations;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -64,7 +65,7 @@ public class CandleServiceJPATest {
 
         candleEntity = Candle.builder()
                 .symbol(symbolEntity)
-                .date(LocalDate.now())
+                .date(LocalDateTime.now())
                 .open(BigDecimal.valueOf(100.00))
                 .close(BigDecimal.valueOf(110.00))
                 .high(BigDecimal.valueOf(115.00))

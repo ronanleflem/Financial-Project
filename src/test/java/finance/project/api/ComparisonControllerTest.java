@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -85,22 +86,22 @@ public class ComparisonControllerTest {
         Symbol symbol1 = new Symbol(UUID.randomUUID(),request.getSymbol1(),"Apple Inc.", "NASDAQ",List.of());
         Symbol symbol2 = new Symbol(UUID.randomUUID(),request.getSymbol2(),"Google LLC", "NASDAQ",List.of());
 
-        Candle candleAAPLStart = new Candle(1L, symbol1, LocalDate.of(2023, 1, 1),
+        Candle candleAAPLStart = new Candle(1L, symbol1, LocalDateTime.of(2023, 1, 1,1,1),
                 BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00),
                 BigDecimal.valueOf(105.00), BigDecimal.valueOf(95.00),
                 BigDecimal.valueOf(1000000));
 
-        Candle candleAAPLEnd = new Candle(2L,symbol1, LocalDate.of(2023, 12, 31),
+        Candle candleAAPLEnd = new Candle(2L,symbol1, LocalDateTime.of(2023, 12, 31,1,1),
                 BigDecimal.valueOf(110.00), BigDecimal.valueOf(110.00),
                 BigDecimal.valueOf(115.00), BigDecimal.valueOf(105.00),
                 BigDecimal.valueOf(1000000));
 
-        Candle candleGOOGLStart = new Candle(3L, symbol2, LocalDate.of(2023, 1, 1),
+        Candle candleGOOGLStart = new Candle(3L, symbol2, LocalDateTime.of(2023, 1, 1,1,1),
                 BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00),
                 BigDecimal.valueOf(105.00), BigDecimal.valueOf(95.00),
                 BigDecimal.valueOf(1000000));
 
-        Candle candleGOOGLEnd = new Candle(4L,symbol2, LocalDate.of(2023, 12, 31),
+        Candle candleGOOGLEnd = new Candle(4L,symbol2, LocalDateTime.of(2023, 12, 31,1,1),
                 BigDecimal.valueOf(115.00), BigDecimal.valueOf(115.00),
                 BigDecimal.valueOf(120.00), BigDecimal.valueOf(110.00),
                 BigDecimal.valueOf(1000000));
