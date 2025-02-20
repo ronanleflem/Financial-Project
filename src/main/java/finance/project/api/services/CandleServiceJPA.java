@@ -15,6 +15,13 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
 import lombok.extern.slf4j.Slf4j;
+
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -53,18 +60,62 @@ public class CandleServiceJPA implements CandleService {
         log.info("🌍 Récupération des données Yahoo Finance pour {}", symbol);
         List<CandleDTO> candlesFromYahoo = alphaVantageService.getHistoricalData(symbol);
         if (candlesFromYahoo != null && !candlesFromYahoo.isEmpty()) {
-            saveCandlesToDatabase(candlesFromYahoo, existingSymbol);
+            saveCandlesToDatabase(candlesFromYahoo, existingSymbol,"Daily");
         }
         return candlesFromYahoo;
     }
 
-    public void saveCandlesToDatabase(List<CandleDTO> candles, Symbol symbol) {
+    @Override
+    public List<CandleDTO> loadCsvTradingView(String symbolName, String timeframe) {
+        // Charger le symbole depuis la base
+        Symbol symbol = symbolRepository.findBySymbol(symbolName)
+                .orElseThrow(() -> new RuntimeException("Symbol not found: " + symbolName));
+
+        String filePath = "csvData/" + symbolName.toLowerCase() + "/"+timeframe+"/"+timeframe+".csv";
+        List<CandleDTO> candles = new ArrayList<>();
+
+        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
+            String line;
+            boolean isFirstLine = true;
+            while ((line = br.readLine()) != null) {
+                // Ignorer la première ligne si elle contient du texte
+                if (isFirstLine) {
+                    isFirstLine = false;
+                    if (line.toLowerCase().contains("time")) continue;
+                }
+                String[] values = line.split(",");
+                if (values.length < 5) continue;
+
+                CandleDTO candleDTO = CandleDTO.builder()
+                        .date(Instant.ofEpochSecond(Long.parseLong(values[0])).atZone(ZoneId.of("UTC")).toLocalDateTime())
+                        .open(new BigDecimal(values[1]))
+                        .high(new BigDecimal(values[2]))
+                        .timeframe(timeframe)
+                        .low(new BigDecimal(values[3]))
+                        .close(new BigDecimal(values[4]))
+                        .symbol(SymbolDTO.builder().id(symbol.getId()).name(symbol.getName()).build())
+                        .build();
+
+                candles.add(candleDTO);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Error reading CSV file: " + filePath, e);
+        }
+
+        // Sauvegarde en base
+        saveCandlesToDatabase(candles, symbol, timeframe);
+
+        return candles;
+    }
+
+    public void saveCandlesToDatabase(List<CandleDTO> candles, Symbol symbol, String timeframe) {
         int batchSize = 50;  // On insère 50 bougies à la fois
         List<Candle> batch = new ArrayList<>();
 
         for (CandleDTO dto : candles) {
             batch.add(Candle.builder()
                     .symbol(symbol)
+                    .timeframe(timeframe)
                     .date(dto.getDate())
                     .open(dto.getOpen())
                     .close(dto.getClose())

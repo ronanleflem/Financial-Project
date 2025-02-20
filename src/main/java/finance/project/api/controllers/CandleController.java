@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -39,6 +41,8 @@ public class CandleController {
      * Service pour la gestion des symboles.
      */
     private final SymbolService symbolService;
+
+    private static final List<String> TIMEFRAMES = List.of("1m", "3m", "5m", "15m", "30m", "1h", "4h", "daily", "weekly", "monthly");
 
     /**
      * Récupère une liste de bougies (candles) en fonction du symbole et de l'intervalle fournis.
@@ -83,5 +87,19 @@ public class CandleController {
     public ResponseEntity<List<CandleDTO>> getYahooCandles(@RequestParam String symbol) {
         List<CandleDTO> candles = candleService.getCandles(symbol);
         return new ResponseEntity<>(candles, HttpStatus.OK);
+    }
+
+    @GetMapping("/load-csv/tradingview")
+    public ResponseEntity<List<CandleDTO>> loadTradingViewCsv(@RequestParam String symbol, @RequestParam String timeframe) {
+        List<CandleDTO> candles = candleService.loadCsvTradingView(symbol,timeframe);
+        return new ResponseEntity<>(candles, HttpStatus.OK);
+    }
+
+    @GetMapping("/load-csv/tradingview/all")
+    public ResponseEntity<List<CandleDTO>> loadAllTradingViewCsv(@RequestParam String symbol) {
+        for(String timeframe : TIMEFRAMES){
+            candleService.loadCsvTradingView(symbol, timeframe);
+        }
+        return new ResponseEntity<>(HttpStatus.OK);
     }
 }

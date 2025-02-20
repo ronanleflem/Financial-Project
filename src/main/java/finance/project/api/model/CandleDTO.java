@@ -14,6 +14,7 @@ import java.util.UUID;
 @Data
 public class CandleDTO {
     private Long id;
+    private String timeframe;
     private SymbolDTO symbol; // Utilisation du DTO au lieu de l'entité
     private LocalDateTime date;
     private BigDecimal open;
@@ -21,4 +22,5 @@ public class CandleDTO {
     private BigDecimal high;
     private BigDecimal low;
     private BigDecimal volume;
+
 }

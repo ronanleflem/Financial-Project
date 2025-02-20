@@ -9,4 +9,6 @@ import java.util.List;
 public interface CandleService {
     List<CandleDTO> getCandles(SymbolDTO symbol, String interval);
     List<CandleDTO> getCandles(String symbol);
+    List<CandleDTO> loadCsvTradingView(String symbol, String timeframe);
+    
 }

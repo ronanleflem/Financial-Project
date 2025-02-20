@@ -24,6 +24,10 @@ public class Candle {
     @Column(nullable = false, length = 255)
     private Long id; // Changement de UUID vers Long
 
+    @NotNull
+    @Column(nullable = false)
+    private String timeframe;
+
     @ManyToOne
     @JoinColumn(name = "symbol_id", nullable = false, columnDefinition = "BINARY(16)")
     private Symbol symbol;
@@ -48,8 +52,7 @@ public class Candle {
     @Column(nullable = false, precision = 38, scale = 6)
     private BigDecimal low;
 
-    @NotNull
-    @Column(nullable = false, precision = 38, scale = 6)
+    @Column(nullable = true, precision = 38, scale = 6)
     private BigDecimal volume;
 
 }
