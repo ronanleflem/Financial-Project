@@ -4,9 +4,11 @@ import finance.project.api.entities.Candle;
 import finance.project.api.entities.Symbol;
 import finance.project.api.repositories.CandleRepository;
 import finance.project.api.repositories.SymbolRepository;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.text.DecimalFormat;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,135 +21,253 @@ public class CandleStructureFilter {
     private final CandleRepository candleRepository;
     private final SymbolRepository symbolRepository;
 
-    public Map<String, Double> calculateContinuationProbabilities(String symbolStr, String timeframe) {
-        Optional<Symbol> symbol = symbolRepository.findBySymbol(symbolStr);
-        List<Candle> candles = candleRepository.findBySymbolAndTimeframeOrderByDateAsc(symbol.get(), timeframe);
+    private void calculateTransitionProbabilities(ProbabilityData data, Candle current, Candle next) {
+        boolean isBullish = current.getClose().compareTo(current.getOpen()) > 0;
+        boolean nextBullish = next.getClose().compareTo(next.getOpen()) > 0;
 
-        if (candles.isEmpty()) {
-            throw new IllegalStateException("Aucune donnée de bougie trouvée pour " + symbol);
+        if (isBullish) {
+            data.bullishCount++;
+            if (nextBullish) data.bullishToBullish++;
+            else data.bullishToBearish++;
+        } else {
+            data.bearishCount++;
+            if (nextBullish) data.bearishToBullish++;
+            else data.bearishToBearish++;
+        }
+    }
+
+    private void calculateEngulfingPatterns(ProbabilityData data, Candle current, Candle next) {
+        if (current.getClose().compareTo(current.getOpen()) > 0 &&
+                next.getClose().doubleValue() > current.getOpen().doubleValue() &&
+                next.getOpen().doubleValue() < current.getClose().doubleValue()) {
+            data.bullishEngulfing++;
+        }
+        if (current.getClose().compareTo(current.getOpen()) < 0 &&
+                next.getClose().doubleValue() < current.getOpen().doubleValue() &&
+                next.getOpen().doubleValue() > current.getClose().doubleValue()) {
+            data.bearishEngulfing++;
+        }
+    }
+
+    private void calculateBreakoutAndRetrace(ProbabilityData data, Candle current) {
+        if (current.getHigh().doubleValue() - current.getOpen().doubleValue() >
+                current.getOpen().doubleValue() - current.getLow().doubleValue()) {
+            data.breakoutHighFirst++;
+        } else {
+            data.breakoutLowFirst++;
         }
 
-        int bullishCount = 0, bearishCount = 0;
-        int bullishToBullish = 0, bearishToBearish = 0, bullishToBearish = 0, bearishToBullish = 0;
-        int bullishEngulfing = 0, bearishEngulfing = 0;
-        int gapCount = 0, retraceCount = 0, openReboundCount = 0;
-        int breakoutHighFirst = 0, breakoutLowFirst = 0;
+        if (Math.abs(current.getClose().doubleValue() - current.getOpen().doubleValue()) <
+                (current.getHigh().doubleValue() - current.getLow().doubleValue()) * 0.5) {
+            data.retraceCount++;
+        }
+    }
 
-        double totalBodyRatio = 0.0;
-        double totalUpperWickRatio = 0.0, totalLowerWickRatio = 0.0;
-        double totalCloseOpenGap = 0.0;
+    private void calculateBodyWickRatios(ProbabilityData data, Candle current) {
+        double totalRange = current.getHigh().doubleValue() - current.getLow().doubleValue();
+        if (totalRange > 0) {
+            double bodySize = Math.abs(current.getClose().doubleValue() - current.getOpen().doubleValue());
+            double upperWick = current.getHigh().doubleValue() - Math.max(current.getClose().doubleValue(), current.getOpen().doubleValue());
+            double lowerWick = Math.min(current.getClose().doubleValue(), current.getOpen().doubleValue()) - current.getLow().doubleValue();
 
-        int currentBullishStreak = 0, currentBearishStreak = 0;
-        Map<Integer, Integer> bullishStreaks = new HashMap<>();
-        Map<Integer, Integer> bearishStreaks = new HashMap<>();
+            data.totalBodyRatio += bodySize / totalRange;
+            data.totalUpperWickRatio += upperWick / totalRange;
+            data.totalLowerWickRatio += lowerWick / totalRange;
+        }
+    }
+
+    private void trackStreaks(ProbabilityData data, boolean isBullish) {
+        if (isBullish) {
+            data.currentBullishStreak++;
+            if (data.currentBearishStreak >= 2) {
+                data.bearishStreaks.merge(Math.min(data.currentBearishStreak, 3), 1, Integer::sum);
+            }
+            data.currentBearishStreak = 0;
+        } else {
+            data.currentBearishStreak++;
+            if (data.currentBullishStreak >= 2) {
+                data.bullishStreaks.merge(Math.min(data.currentBullishStreak, 3), 1, Integer::sum);
+            }
+            data.currentBullishStreak = 0;
+        }
+    }
+
+    private void finalizeStreakCounts(ProbabilityData data) {
+        if (data.currentBullishStreak >= 2) {
+            data.bullishStreaks.merge(Math.min(data.currentBullishStreak, 3), 1, Integer::sum);
+        }
+        if (data.currentBearishStreak >= 2) {
+            data.bearishStreaks.merge(Math.min(data.currentBearishStreak, 3), 1, Integer::sum);
+        }
+    }
+
+    private void calculateDominance(ProbabilityData data) {
+        int total = data.bullishCount + data.bearishCount;
+        data.bullishDominance = total == 0 ? 0.0 : (data.bullishCount * 100.0 / total);
+        data.bearishDominance = 100.0 - data.bullishDominance;
+    }
+    public Map<String, String> calculateContinuationProbabilities(String symbolStr, String timeframe,Integer numberLastestCandles) {
+        Optional<Symbol> symbol = symbolRepository.findBySymbol(symbolStr);
+        List<Candle> candles;
+        if (numberLastestCandles != null && numberLastestCandles > 0) {
+            candles = candleRepository.findBySymbolAndTimeframeOrderByDateAscLimitNumberLatestCandle(symbol, timeframe, numberLastestCandles);
+        } else {
+            candles = candleRepository.findBySymbolAndTimeframeOrderByDateAsc(symbol.get(), timeframe);
+        }
+
+        if (candles.isEmpty()) {
+            throw new IllegalStateException("Aucune donnée de bougie trouvée pour " + symbolStr);
+        }
+
+        // Initialisation des compteurs
+        ProbabilityData data = new ProbabilityData();
 
         for (int i = 0; i < candles.size(); i++) {
             Candle current = candles.get(i);
             boolean isBullish = current.getClose().compareTo(current.getOpen()) > 0;
-            double bodySize = Math.abs(current.getClose().doubleValue() - current.getOpen().doubleValue());
-            double totalRange = current.getHigh().doubleValue() - current.getLow().doubleValue();
-            double upperWick = current.getHigh().doubleValue() - Math.max(current.getClose().doubleValue(), current.getOpen().doubleValue());
-            double lowerWick = Math.min(current.getClose().doubleValue(), current.getOpen().doubleValue()) - current.getLow().doubleValue();
-
-            if (totalRange > 0) {
-                totalBodyRatio += bodySize / totalRange;
-                totalUpperWickRatio += upperWick / totalRange;
-                totalLowerWickRatio += lowerWick / totalRange;
-            }
 
             if (i < candles.size() - 1) {
-                Candle next = candles.get(i + 1);
-                boolean nextBullish = next.getClose().compareTo(next.getOpen()) > 0;
-
-                if (isBullish) {
-                    bullishCount++;
-                    if (nextBullish) bullishToBullish++;
-                    else bullishToBearish++;
-                } else {
-                    bearishCount++;
-                    if (nextBullish) bearishToBullish++;
-                    else bearishToBearish++;
-                }
-
-                if (isBullish && next.getClose().doubleValue() > current.getOpen().doubleValue() && next.getOpen().doubleValue() < current.getClose().doubleValue()) {
-                    bullishEngulfing++;
-                }
-                if (!isBullish && next.getClose().doubleValue() < current.getOpen().doubleValue() && next.getOpen().doubleValue() > current.getClose().doubleValue()) {
-                    bearishEngulfing++;
-                }
-
-                if (Math.abs(next.getOpen().doubleValue() - current.getClose().doubleValue()) > 0.0001) {
-                    gapCount++;
-                }
-
-                if ((isBullish && current.getLow().doubleValue() < current.getOpen().doubleValue()) ||
-                        (!isBullish && current.getHigh().doubleValue() > current.getOpen().doubleValue())) {
-                    openReboundCount++;
-                }
-
-                if (current.getHigh().doubleValue() - current.getOpen().doubleValue() >
-                        current.getOpen().doubleValue() - current.getLow().doubleValue()) {
-                    breakoutHighFirst++;
-                } else {
-                    breakoutLowFirst++;
-                }
-
-                if (Math.abs(current.getClose().doubleValue() - current.getOpen().doubleValue()) < totalRange * 0.5) {
-                    retraceCount++;
-                }
-
-                totalCloseOpenGap += Math.abs(next.getOpen().doubleValue() - current.getClose().doubleValue());
+                calculateTransitionProbabilities(data, candles.get(i), candles.get(i + 1));
+                calculateEngulfingPatterns(data, candles.get(i), candles.get(i + 1));
+                calculateGaps(data, candles.get(i), candles.get(i + 1));
             }
 
-            if (isBullish) {
-                currentBullishStreak++;
-                if (currentBearishStreak >= 2) {
-                    int key = Math.min(currentBearishStreak, 3);
-                    bearishStreaks.put(key, bearishStreaks.getOrDefault(key, 0) + 1);
-                }
-                currentBearishStreak = 0;
-            } else {
-                currentBearishStreak++;
-                if (currentBullishStreak >= 2) {
-                    int key = Math.min(currentBullishStreak, 3);
-                    bullishStreaks.put(key, bullishStreaks.getOrDefault(key, 0) + 1);
-                }
-                currentBullishStreak = 0;
-            }
+            calculateBreakoutAndRetrace(data, current);
+            calculateBodyWickRatios(data, current);
+            trackStreaks(data, isBullish);
         }
 
-        if (currentBullishStreak >= 2) {
-            int key = Math.min(currentBullishStreak, 3);
-            bullishStreaks.put(key, bullishStreaks.getOrDefault(key, 0) + 1);
+        finalizeStreakCounts(data);
+        calculateDominance(data);
+        computeAverages(data, candles.size());
+
+        return formatResults(data);
+    }
+
+    private void calculateGaps(ProbabilityData data, Candle current, Candle next) {
+        double gapSize = Math.abs(next.getOpen().doubleValue() - current.getClose().doubleValue());
+        if (gapSize > 0.0001) {
+            data.gapCount++;
         }
-        if (currentBearishStreak >= 2) {
-            int key = Math.min(currentBearishStreak, 3);
-            bearishStreaks.put(key, bearishStreaks.getOrDefault(key, 0) + 1);
+        data.totalCloseOpenGap += gapSize;
+    }
+
+    private void computeAverages(ProbabilityData data, int candleCount) {
+        data.totalBodyRatio /= candleCount;
+        data.totalUpperWickRatio /= candleCount;
+        data.totalLowerWickRatio /= candleCount;
+        data.totalCloseOpenGap /= candleCount;
+    }
+
+    private Map<String, String> formatResults(ProbabilityData data) {
+        Map<String, String> results = new HashMap<>();
+        DecimalFormat df = new DecimalFormat("0.00");
+
+        results.put("Bullish → Bullish", formatPercentage(data.getBullishToBullishProbability(), df));
+        results.put("Bearish → Bearish", formatPercentage(data.getBearishToBearishProbability(), df));
+        results.put("Bullish Engulfing", formatPercentage(data.getBullishEngulfingProbability(), df));
+        results.put("Bearish Engulfing", formatPercentage(data.getBearishEngulfingProbability(), df));
+        results.put("Bullish Dominance", formatPercentage(data.bullishDominance, df));
+        results.put("Bearish Dominance", formatPercentage(data.bearishDominance, df));
+        results.put("Bullish Streak 3+", formatPercentage(data.getBullishStreak3PlusProbability(), df));
+        results.put("Bearish Streak 3+", formatPercentage(data.getBearishStreak3PlusProbability(), df));
+
+        results.put("Gap Frequency", formatPercentage(data.getGapFrequency(), df));
+        results.put("Breakout High First", formatPercentage(data.getBreakoutHighFirstProbability(), df));
+        results.put("Breakout Low First", formatPercentage(data.getBreakoutLowFirstProbability(), df));
+        results.put("Retracement Probability", formatPercentage(data.getRetracementProbability(), df));
+
+        // Average values are between 0 and 1, so multiply by 100 for percentage display
+        results.put("Average Body Ratio", formatPercentage(data.totalBodyRatio * 100, df));
+        results.put("Average Upper Wick Ratio", formatPercentage(data.totalUpperWickRatio * 100, df));
+        results.put("Average Lower Wick Ratio", formatPercentage(data.totalLowerWickRatio * 100, df));
+
+        return results;
+    }
+
+
+    private static String formatPercentage(double value, DecimalFormat df) {
+        return df.format(value) + "%";
+    }
+
+    @Data
+    public class ProbabilityData {
+        int bullishCount = 0;
+        int bearishCount = 0;
+        int bullishToBullish = 0;
+        int bearishToBearish = 0;
+        int bullishToBearish = 0;
+        int bearishToBullish = 0;
+
+        int bullishEngulfing = 0;
+        int bearishEngulfing = 0;
+        int gapCount = 0;
+
+        int breakoutHighFirst = 0;
+        int breakoutLowFirst = 0;
+        int retraceCount = 0;
+
+        double totalBodyRatio = 0.0;
+        double totalUpperWickRatio = 0.0;
+        double totalLowerWickRatio = 0.0;
+        double totalCloseOpenGap = 0.0;
+
+        int currentBullishStreak = 0;
+        int currentBearishStreak = 0;
+        Map<Integer, Integer> bullishStreaks = new HashMap<>();
+        Map<Integer, Integer> bearishStreaks = new HashMap<>();
+
+        double bullishDominance = 0.0;
+        double bearishDominance = 0.0;
+
+        // Méthodes utilitaires pour éviter les divisions par zéro
+        public double getBullishToBullishProbability() {
+            return bullishCount == 0 ? 0.0 : (bullishToBullish * 100.0 / bullishCount);
         }
 
-        Map<String, Double> probabilities = new HashMap<>();
-        probabilities.put("Bullish → Bullish", bullishCount == 0 ? 0.0 : (bullishToBullish * 100.0 / bullishCount));
-        probabilities.put("Bullish → Bearish", bullishCount == 0 ? 0.0 : (bullishToBearish * 100.0 / bullishCount));
-        probabilities.put("Bearish → Bearish", bearishCount == 0 ? 0.0 : (bearishToBearish * 100.0 / bearishCount));
-        probabilities.put("Bearish → Bullish", bearishCount == 0 ? 0.0 : (bearishToBullish * 100.0 / bearishCount));
-        probabilities.put("Bullish Dominance", bullishCount * 100.0 / (bullishCount + bearishCount));
-        probabilities.put("Bearish Dominance", bearishCount * 100.0 / (bullishCount + bearishCount));
-        probabilities.put("Bullish Engulfing", bullishEngulfing * 100.0 / bullishCount);
-        probabilities.put("Bearish Engulfing", bearishEngulfing * 100.0 / bearishCount);
-        probabilities.put("Body Ratio", totalBodyRatio / candles.size() * 100);
-        probabilities.put("Upper Wick Ratio", totalUpperWickRatio / candles.size() * 100);
-        probabilities.put("Lower Wick Ratio", totalLowerWickRatio / candles.size() * 100);
-        probabilities.put("Gap Probability", gapCount * 100.0 / (candles.size() - 1));
-        probabilities.put("Rebound on Open", openReboundCount * 100.0 / candles.size());
-        probabilities.put("Breakout High First", breakoutHighFirst * 100.0 / candles.size());
-        probabilities.put("Retrace Probability", retraceCount * 100.0 / candles.size());
-        probabilities.put("Avg Close-Open Gap", totalCloseOpenGap / (candles.size() - 1));
-        probabilities.put("Bullish Streak 2", bullishStreaks.getOrDefault(2, 0) * 100.0 / bullishCount);
-        probabilities.put("Bullish Streak 3+", bullishStreaks.getOrDefault(3, 0) * 100.0 / bullishCount);
-        probabilities.put("Bearish Streak 2", bearishStreaks.getOrDefault(2, 0) * 100.0 / bearishCount);
-        probabilities.put("Bearish Streak 3+", bearishStreaks.getOrDefault(3, 0) * 100.0 / bearishCount);
+        public double getBearishToBearishProbability() {
+            return bearishCount == 0 ? 0.0 : (bearishToBearish * 100.0 / bearishCount);
+        }
 
-        return probabilities;
+        public double getBullishEngulfingProbability() {
+            return bullishCount == 0 ? 0.0 : (bullishEngulfing * 100.0 / bullishCount);
+        }
+
+        public double getBearishEngulfingProbability() {
+            return bearishCount == 0 ? 0.0 : (bearishEngulfing * 100.0 / bearishCount);
+        }
+
+        public double getBullishStreak3PlusProbability() {
+            int streak3Plus = bullishStreaks.getOrDefault(3, 0) + bullishStreaks.getOrDefault(4, 0) + bullishStreaks.getOrDefault(5, 0);
+            return bullishCount == 0 ? 0.0 : (streak3Plus * 100.0 / bullishCount);
+        }
+
+        public double getBearishStreak3PlusProbability() {
+            int streak3Plus = bearishStreaks.getOrDefault(3, 0) + bearishStreaks.getOrDefault(4, 0) + bearishStreaks.getOrDefault(5, 0);
+            return bearishCount == 0 ? 0.0 : (streak3Plus * 100.0 / bearishCount);
+        }
+
+        public double getGapFrequency() {
+            int total = bullishCount + bearishCount;
+            return total == 0 ? 0.0 : (gapCount * 100.0 / total);
+        }
+
+        public double getBreakoutHighFirstProbability() {
+            int total = breakoutHighFirst + breakoutLowFirst;
+            return total == 0 ? 0.0 : (breakoutHighFirst * 100.0 / total);
+        }
+
+        public double getBreakoutLowFirstProbability() {
+            int total = breakoutHighFirst + breakoutLowFirst;
+            return total == 0 ? 0.0 : (breakoutLowFirst * 100.0 / total);
+        }
+
+        public double getRetracementProbability() {
+            int total = bullishCount + bearishCount;
+            return total == 0 ? 0.0 : (retraceCount * 100.0 / total);
+        }
+
     }
 }
+
 

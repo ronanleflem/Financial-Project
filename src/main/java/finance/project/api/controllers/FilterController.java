@@ -1,6 +1,10 @@
 package finance.project.api.controllers;
 
+import finance.project.api.filters.rules.BenfordLawFilter;
 import finance.project.api.filters.rules.CandleStructureFilter;
+import finance.project.api.repositories.CandleRepository;
+import finance.project.api.repositories.SymbolRepository;
+import finance.project.api.services.CandleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,22 +27,58 @@ public class FilterController {
 
     private final CandleStructureFilter candleStructureFilter;
 
+    private final BenfordLawFilter benfordLawFilter;
+
+    private final CandleService candleService;
+
     @GetMapping("/bullish-bearish-stats")
-    public ResponseEntity<Map<String, Double>> getBullishContinuationProbability(@RequestParam String symbol, @RequestParam String timeframe) {
-        Map<String, Double> probability = candleStructureFilter.calculateContinuationProbabilities(symbol,timeframe);
+    public ResponseEntity<Map<String, String>> getBullishContinuationProbability(@RequestParam String symbol, @RequestParam String timeframe) {
+        Map<String, String> probability = candleStructureFilter.calculateContinuationProbabilities(symbol,timeframe, -1);
         return ResponseEntity.ok(probability);
     }
 
     @GetMapping("/bullish-bearish-stats/all")
-    public ResponseEntity<Map<String, Map<String, Double>>> getAllBullishContinuationProbability(
+    public ResponseEntity<Map<String, Map<String, String>>> getAllBullishContinuationProbability(
             @RequestParam String symbol) {
 
-        Map<String, Map<String, Double>> result = new HashMap<>();
+        Map<String, Map<String, String>> result = new HashMap<>();
 
         for (String tf : TIMEFRAMES) {
-            result.put(tf, candleStructureFilter.calculateContinuationProbabilities(symbol, tf));
+            result.put(tf, candleStructureFilter.calculateContinuationProbabilities(symbol, tf, -1));
         }
 
         return ResponseEntity.ok(result);
     }
+
+    @GetMapping("/bullish-bearish-stats/all/limit")
+    public ResponseEntity<Map<String, Map<String, String>>> getAllBullishContinuationProbabilityLimit(
+            @RequestParam String symbol,  @RequestParam Integer numberLastestCandles) {
+
+        Map<String, Map<String, String>> result = new HashMap<>();
+
+        for (String tf : TIMEFRAMES) {
+            result.put(tf, candleStructureFilter.calculateContinuationProbabilities(symbol, tf, numberLastestCandles));
+        }
+
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/benford/anomaly")
+    public ResponseEntity<Map<String, Double>> getBenfordAnomalyScore(
+            @RequestParam String symbol,
+            @RequestParam String timeframe,
+            @RequestParam int numberLastestCandles) {
+
+        // Récupération des variations de prix (exemple : différences entre open et close)
+        List<Double> priceChanges = candleService.getPriceVariations(symbol, timeframe, numberLastestCandles);
+
+        // Calcul du score de conformité
+        double benfordScore = benfordLawFilter.calculateBenfordScore(priceChanges);
+
+        Map<String, Double> result = new HashMap<>();
+        result.put("benfordScore", benfordScore);
+
+        return ResponseEntity.ok(result);
+    }
+
 }

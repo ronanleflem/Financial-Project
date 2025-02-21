@@ -2,14 +2,10 @@ package finance.project.api.services;
 
 import finance.project.api.entities.Candle;
 import finance.project.api.entities.Symbol;
-import finance.project.api.mappers.CandleMapper;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.model.SymbolDTO;
 import finance.project.api.repositories.CandleRepository;
 import finance.project.api.repositories.SymbolRepository;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -24,8 +20,6 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
 
 @Service
 @Primary
@@ -63,6 +57,20 @@ public class CandleServiceJPA implements CandleService {
             saveCandlesToDatabase(candlesFromYahoo, existingSymbol,"Daily");
         }
         return candlesFromYahoo;
+    }
+
+    @Override
+    public List<Double> getPriceVariations(String symbol, String timeframe, int limit) {
+        List<Candle> candles = candleRepository.findBySymbolAndTimeframeOrderByDateAscLimitNumberLatestCandle(symbolRepository.findBySymbol(symbol), timeframe, limit);
+
+        List<Double> priceVariations = new ArrayList<>();
+        for (Candle candle : candles) {
+            double variation = Math.abs(candle.getClose().subtract(candle.getOpen()).doubleValue());
+            if (variation > 0) { // Éviter les 0
+                priceVariations.add(variation);
+            }
+        }
+        return priceVariations;
     }
 
     @Override
