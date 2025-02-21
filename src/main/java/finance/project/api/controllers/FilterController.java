@@ -23,13 +23,13 @@ public class FilterController {
 
     private final CandleStructureFilter candleStructureFilter;
 
-    @GetMapping("/bullish-continuation")
+    @GetMapping("/bullish-bearish-stats")
     public ResponseEntity<Map<String, Double>> getBullishContinuationProbability(@RequestParam String symbol, @RequestParam String timeframe) {
         Map<String, Double> probability = candleStructureFilter.calculateContinuationProbabilities(symbol,timeframe);
         return ResponseEntity.ok(probability);
     }
 
-    @GetMapping("/bullish-continuation/all")
+    @GetMapping("/bullish-bearish-stats/all")
     public ResponseEntity<Map<String, Map<String, Double>>> getAllBullishContinuationProbability(
             @RequestParam String symbol) {
 
