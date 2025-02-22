@@ -9,10 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.text.DecimalFormat;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +17,25 @@ public class CandleStructureFilter {
 
     private final CandleRepository candleRepository;
     private final SymbolRepository symbolRepository;
+
+    /**
+     * Calcule l'écart-type d'une liste de valeurs.
+     */
+    private double calculateStandardDeviation(List<Double> values) {
+        if (values.isEmpty()) return 0.0;
+
+        double mean = values.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+        double variance = values.stream().mapToDouble(v -> Math.pow(v - mean, 2)).average().orElse(0.0);
+        return Math.sqrt(variance);
+    }
+
+    /**
+     * Calcule le Z-Score d'une valeur par rapport à une distribution donnée.
+     */
+    private double calculateZScore(double value, double mean, double standardDeviation) {
+        if (standardDeviation == 0) return 0.0; // Évite la division par zéro
+        return (value - mean) / standardDeviation;
+    }
 
     private void calculateTransitionProbabilities(ProbabilityData data, Candle current, Candle next) {
         boolean isBullish = current.getClose().compareTo(current.getOpen()) > 0;
@@ -121,10 +137,15 @@ public class CandleStructureFilter {
 
         // Initialisation des compteurs
         ProbabilityData data = new ProbabilityData();
+        List<Double> candleRanges = new ArrayList<>();
 
         for (int i = 0; i < candles.size(); i++) {
             Candle current = candles.get(i);
             boolean isBullish = current.getClose().compareTo(current.getOpen()) > 0;
+
+            // Calcul de la taille de la bougie (high - low)
+            double candleRange = current.getHigh().doubleValue() - current.getLow().doubleValue();
+            candleRanges.add(candleRange);
 
             if (i < candles.size() - 1) {
                 calculateTransitionProbabilities(data, candles.get(i), candles.get(i + 1));
@@ -141,7 +162,13 @@ public class CandleStructureFilter {
         calculateDominance(data);
         computeAverages(data, candles.size());
 
-        return formatResults(data);
+        // Calcul de l'écart-type et des Z-Scores
+        double standardDeviation = calculateStandardDeviation(candleRanges);
+        double mean = candleRanges.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+        double lastCandleRange = candleRanges.get(candleRanges.size() - 1);
+        double zScore = calculateZScore(lastCandleRange, mean, standardDeviation);
+
+        return formatResults(data, standardDeviation, zScore);
     }
 
     private void calculateGaps(ProbabilityData data, Candle current, Candle next) {
@@ -159,9 +186,10 @@ public class CandleStructureFilter {
         data.totalCloseOpenGap /= candleCount;
     }
 
-    private Map<String, String> formatResults(ProbabilityData data) {
+    private Map<String, String> formatResults(ProbabilityData data, double standardDeviation, double zScore) {
         Map<String, String> results = new HashMap<>();
         DecimalFormat df = new DecimalFormat("0.00");
+        DecimalFormat dfEcartType = new DecimalFormat("0.000000");
 
         results.put("Bullish → Bullish", formatPercentage(data.getBullishToBullishProbability(), df));
         results.put("Bearish → Bearish", formatPercentage(data.getBearishToBearishProbability(), df));
@@ -182,6 +210,9 @@ public class CandleStructureFilter {
         results.put("Average Upper Wick Ratio", formatPercentage(data.totalUpperWickRatio * 100, df));
         results.put("Average Lower Wick Ratio", formatPercentage(data.totalLowerWickRatio * 100, df));
 
+        // Ajout des nouvelles métriques
+        results.put("Standard Deviation (Écart-Type)", dfEcartType.format(standardDeviation));
+        results.put("Z-Score (Anomalie Bougie)", df.format(zScore));
         return results;
     }
 

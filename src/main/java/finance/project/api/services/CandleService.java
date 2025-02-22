@@ -8,6 +8,9 @@ import java.util.List;
 
 public interface CandleService {
     List<CandleDTO> getCandles(SymbolDTO symbol, String interval);
+
+    List<CandleDTO> getLastCandles(String symbol, String timeframe, int limit);
+
     List<CandleDTO> getCandles(String symbol);
 
     List<Double> getPriceVariations(String symbol, String timeframe, int limit);

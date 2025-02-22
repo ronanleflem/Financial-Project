@@ -5,6 +5,25 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 📌 Quelle granularité utiliser ?
+ *
+ *     M1 (1 minute) → Bonne précision pour détecter des anomalies courtes (idéal pour scalping).
+ *     M5 / M15 → Meilleur pour détecter des manipulations sur plusieurs heures.
+ *     H1 et plus → Analyse macro, utile pour voir si le marché est sain sur plusieurs jours.
+ *
+ * 📌 Approche hybride :
+ *
+ *     Vérifier sur M1 (1000 bougies) et M15 (500 bougies) pour voir si l’anomalie est localisée.
+ *     Si les deux confirment, alors forte probabilité de marché non naturel.
+ *
+ * 💡 Possibilités d'amélioration
+ *
+ *     Appliquer la loi de Benford sur d'autres metrics
+ *         Taille des mèches (high - low)
+ *         Volume
+ *         ATR (volatilité récente)
+ */
 @Service
 public class BenfordLawFilter {
 

@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @Primary
@@ -36,6 +37,17 @@ public class CandleServiceJPA implements CandleService {
 
     @Override
     public List<CandleDTO> getCandles(SymbolDTO symbol, String interval) {
+        return List.of();
+    }
+
+    @Override
+    public List<CandleDTO> getLastCandles(String symbol, String timeframe, int limit){
+        Optional<Symbol> existingSymbol = symbolRepository.findBySymbol(symbol);
+        List<Candle> candlesFromDB = candleRepository.findBySymbolAndTimeframeOrderByDateAscLimitNumberLatestCandle(existingSymbol,  timeframe, limit);
+        if (!candlesFromDB.isEmpty()) {
+            log.info("📊 Retour des données depuis la base pour {}", symbol);
+            return candlesFromDB.stream().map(this::mapToDTO).toList();
+        }
         return List.of();
     }
 

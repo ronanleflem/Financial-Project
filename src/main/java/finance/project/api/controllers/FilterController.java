@@ -1,10 +1,14 @@
 package finance.project.api.controllers;
 
 import finance.project.api.filters.rules.BenfordLawFilter;
+import finance.project.api.filters.rules.BiaisInstitutionalFilter;
 import finance.project.api.filters.rules.CandleStructureFilter;
+import finance.project.api.filters.rules.ContradictorySignalsFilter;
+import finance.project.api.model.CandleDTO;
 import finance.project.api.repositories.CandleRepository;
 import finance.project.api.repositories.SymbolRepository;
 import finance.project.api.services.CandleService;
+import finance.project.api.services.MarketDataService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,7 +33,12 @@ public class FilterController {
 
     private final BenfordLawFilter benfordLawFilter;
 
+    private final BiaisInstitutionalFilter biasInstitutionalFilter;
+
+    private final ContradictorySignalsFilter contradictorySignalsFilter;
+
     private final CandleService candleService;
+    private final MarketDataService marketDataService;
 
     @GetMapping("/bullish-bearish-stats")
     public ResponseEntity<Map<String, String>> getBullishContinuationProbability(@RequestParam String symbol, @RequestParam String timeframe) {
@@ -81,4 +90,47 @@ public class FilterController {
         return ResponseEntity.ok(result);
     }
 
+    @GetMapping("/institutional-bias")
+    public ResponseEntity<Map<String, Integer>> getInstitutionalBias(
+            @RequestParam String symbol, @RequestParam String timeframe) {
+
+        // Récupération des 1000 dernières bougies
+        List<CandleDTO> candlesLatest = candleService.getLastCandles(symbol, timeframe, 1000);
+
+        // Calcul du biais institutionnel
+        int bias = biasInstitutionalFilter.calculateInstitutionalBias(candlesLatest);
+
+        Map<String, Integer> result = new HashMap<>();
+        result.put("institutionalBias", bias);
+
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/contradictory-signals")
+    public ResponseEntity<Map<String, Integer>> getContradictionScore(
+            @RequestParam String symbol, @RequestParam String timeframe) {
+
+        List<CandleDTO> candlesLatest = candleService.getLastCandles(symbol, timeframe, 1000);
+
+        // Récupération des indicateurs
+        double price = marketDataService.getCurrentPrice(symbol);
+        double ema50 = marketDataService.calculateEMA(candlesLatest,50);
+        double ema200 = marketDataService.calculateEMA(candlesLatest,200);
+        double rsi = marketDataService.calculateRSI(symbol, timeframe);
+        double macd = marketDataService.calculateMACD(symbol, timeframe);
+        double macdSignal = marketDataService.calculateMACDSignal(symbol, timeframe);
+        double stochK = marketDataService.calculateStochasticK(symbol, timeframe);
+        double stochD = marketDataService.calculateStochasticD(symbol, timeframe);
+        double zScore = marketDataService.calculateZScore(symbol, timeframe);
+
+        // Calcul du score de contradiction
+        int contradictionScore = contradictorySignalsFilter.calculateContradictionScore(
+                price, ema50, ema200, rsi, macd, macdSignal, stochK, stochD, zScore
+        );
+
+        Map<String, Integer> result = new HashMap<>();
+        result.put("contradictionScore", contradictionScore);
+
+        return ResponseEntity.ok(result);
+    }
 }
