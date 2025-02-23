@@ -42,7 +42,9 @@ public class CandleController {
      */
     private final SymbolService symbolService;
 
-    private static final List<String> TIMEFRAMES = List.of("1m", "3m", "5m", "15m", "30m", "1h", "4h", "daily", "weekly", "monthly");
+    private static final List<String> TIMEFRAMES = List.of("1min", "3min", "5min", "15min", "30min", "1h", "4h", "daily", "weekly", "monthly");
+    private static final List<String> TIMEFRAMESVOL = List.of("1min", "3min", "5min", "10min", "15min", "30min", "1h", "2h","4h","8h", "12h", "daily", "weekly", "monthly");
+
 
     /**
      * Récupère une liste de bougies (candles) en fonction du symbole et de l'intervalle fournis.
@@ -91,14 +93,22 @@ public class CandleController {
 
     @GetMapping("/load-csv/tradingview")
     public ResponseEntity<List<CandleDTO>> loadTradingViewCsv(@RequestParam String symbol, @RequestParam String timeframe) {
-        List<CandleDTO> candles = candleService.loadCsvTradingView(symbol,timeframe);
+        List<CandleDTO> candles = candleService.loadCsvTradingView(symbol,timeframe,false);
         return new ResponseEntity<>(candles, HttpStatus.OK);
     }
 
     @GetMapping("/load-csv/tradingview/all")
     public ResponseEntity<List<CandleDTO>> loadAllTradingViewCsv(@RequestParam String symbol) {
         for(String timeframe : TIMEFRAMES){
-            candleService.loadCsvTradingView(symbol, timeframe);
+            candleService.loadCsvTradingView(symbol, timeframe,false);
+        }
+        return new ResponseEntity<>(HttpStatus.OK);
+    }
+
+    @GetMapping("/load-csv/tradingview-with-volume/all")
+    public ResponseEntity<List<CandleDTO>> loadAllTradingViewCsvWithVolume(@RequestParam String symbol) {
+        for(String timeframe : TIMEFRAMESVOL){
+            candleService.loadCsvTradingView(symbol, timeframe,true);
         }
         return new ResponseEntity<>(HttpStatus.OK);
     }

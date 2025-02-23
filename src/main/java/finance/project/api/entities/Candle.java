@@ -55,4 +55,10 @@ public class Candle {
     @Column(nullable = true, precision = 38, scale = 6)
     private BigDecimal volume;
 
+    @Column(nullable = true, precision = 38, scale = 6)
+    private BigDecimal volumeAverage;
+
+    @Column(nullable = true, precision = 38, scale = 6)
+    private BigDecimal openInterest;
+
 }

@@ -113,15 +113,16 @@ public class FilterController {
         List<CandleDTO> candlesLatest = candleService.getLastCandles(symbol, timeframe, 1000);
 
         // Récupération des indicateurs
-        double price = marketDataService.getCurrentPrice(symbol);
+        //double price = marketDataService.getCurrentPrice(symbol);
+        double price = 1.04200; // Fixme : VAL TEMPORAIRE
         double ema50 = marketDataService.calculateEMA(candlesLatest,50);
         double ema200 = marketDataService.calculateEMA(candlesLatest,200);
-        double rsi = marketDataService.calculateRSI(symbol, timeframe);
-        double macd = marketDataService.calculateMACD(symbol, timeframe);
-        double macdSignal = marketDataService.calculateMACDSignal(symbol, timeframe);
-        double stochK = marketDataService.calculateStochasticK(symbol, timeframe);
-        double stochD = marketDataService.calculateStochasticD(symbol, timeframe);
-        double zScore = marketDataService.calculateZScore(symbol, timeframe);
+        double rsi = marketDataService.calculateRSI(candlesLatest, 14);
+        double macd = marketDataService.calculateMACD(candlesLatest, 12, 26);
+        double macdSignal = marketDataService.calculateMACDSignal(candlesLatest, 12, 26, 9);
+        double stochK = marketDataService.calculateStochasticK(candlesLatest, 14);
+        double stochD = marketDataService.calculateStochasticD(candlesLatest, 14, 3);
+        double zScore = marketDataService.calculateZScore(candlesLatest, 20);
 
         // Calcul du score de contradiction
         int contradictionScore = contradictorySignalsFilter.calculateContradictionScore(

@@ -86,17 +86,23 @@ public class CandleServiceJPA implements CandleService {
     }
 
     @Override
-    public List<CandleDTO> loadCsvTradingView(String symbolName, String timeframe) {
+    public List<CandleDTO> loadCsvTradingView(String symbolName, String timeframe, Boolean volume) {
+        String filePath;
         // Charger le symbole depuis la base
         Symbol symbol = symbolRepository.findBySymbol(symbolName)
                 .orElseThrow(() -> new RuntimeException("Symbol not found: " + symbolName));
-
-        String filePath = "csvData/" + symbolName.toLowerCase() + "/"+timeframe+"/"+timeframe+".csv";
+        if(volume) {
+            filePath = "csvData/" + symbolName.toLowerCase() + "/" + timeframe + "/" + timeframe + "Vol.csv";
+        }
+        else{
+            filePath = "csvData/" + symbolName.toLowerCase() + "/"+timeframe+"/"+timeframe+".csv";
+        }
         List<CandleDTO> candles = new ArrayList<>();
 
         try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
             String line;
             boolean isFirstLine = true;
+            CandleDTO candleDTO;
             while ((line = br.readLine()) != null) {
                 // Ignorer la première ligne si elle contient du texte
                 if (isFirstLine) {
@@ -105,17 +111,32 @@ public class CandleServiceJPA implements CandleService {
                 }
                 String[] values = line.split(",");
                 if (values.length < 5) continue;
-
-                CandleDTO candleDTO = CandleDTO.builder()
-                        .date(Instant.ofEpochSecond(Long.parseLong(values[0])).atZone(ZoneId.of("UTC")).toLocalDateTime())
-                        .open(new BigDecimal(values[1]))
-                        .high(new BigDecimal(values[2]))
-                        .timeframe(timeframe)
-                        .low(new BigDecimal(values[3]))
-                        .close(new BigDecimal(values[4]))
-                        .symbol(SymbolDTO.builder().id(symbol.getId()).name(symbol.getName()).build())
-                        .build();
-
+                if(!volume){
+                    candleDTO = CandleDTO.builder()
+                            .date(Instant.ofEpochSecond(Long.parseLong(values[0])).atZone(ZoneId.of("UTC")).toLocalDateTime())
+                            .open(new BigDecimal(values[1]))
+                            .high(new BigDecimal(values[2]))
+                            .timeframe(timeframe)
+                            .low(new BigDecimal(values[3]))
+                            .close(new BigDecimal(values[4]))
+                            .symbol(SymbolDTO.builder().id(symbol.getId()).name(symbol.getName()).build())
+                            .build();
+                }
+                else {
+                    candleDTO = CandleDTO.builder()
+                            .date(Instant.ofEpochSecond(Long.parseLong(values[0])).atZone(ZoneId.of("UTC")).toLocalDateTime())
+                            .open(new BigDecimal(values[1]))
+                            .high(new BigDecimal(values[2]))
+                            .timeframe(timeframe)
+                            .low(new BigDecimal(values[3]))
+                            .close(new BigDecimal(values[4]))
+                            .volume(new BigDecimal(values[5]))
+                            //.volumeAverage(new BigDecimal(values[6]))
+                            .volumeAverage(null)
+                            .openInterest(new BigDecimal(values[14]))
+                            .symbol(SymbolDTO.builder().id(symbol.getId()).name(symbol.getName()).build())
+                            .build();
+                }
                 candles.add(candleDTO);
             }
         } catch (IOException e) {

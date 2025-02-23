@@ -89,22 +89,22 @@ public class ComparisonControllerTest {
         Candle candleAAPLStart = new Candle(1L, "test",symbol1, LocalDateTime.of(2023, 1, 1,1,1),
                 BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00),
                 BigDecimal.valueOf(105.00), BigDecimal.valueOf(95.00),
-                BigDecimal.valueOf(1000000));
+                BigDecimal.valueOf(1000000),BigDecimal.valueOf(0.00),BigDecimal.valueOf(0.00));
 
         Candle candleAAPLEnd = new Candle(2L,"test",symbol1, LocalDateTime.of(2023, 12, 31,1,1),
                 BigDecimal.valueOf(110.00), BigDecimal.valueOf(110.00),
                 BigDecimal.valueOf(115.00), BigDecimal.valueOf(105.00),
-                BigDecimal.valueOf(1000000));
+                BigDecimal.valueOf(1000000),BigDecimal.valueOf(0.00),BigDecimal.valueOf(0.00));
 
         Candle candleGOOGLStart = new Candle(3L, "test",symbol2, LocalDateTime.of(2023, 1, 1,1,1),
                 BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00),
                 BigDecimal.valueOf(105.00), BigDecimal.valueOf(95.00),
-                BigDecimal.valueOf(1000000));
+                BigDecimal.valueOf(1000000),BigDecimal.valueOf(0.00),BigDecimal.valueOf(0.00));
 
         Candle candleGOOGLEnd = new Candle(4L,"test",symbol2, LocalDateTime.of(2023, 12, 31,1,1),
                 BigDecimal.valueOf(115.00), BigDecimal.valueOf(115.00),
                 BigDecimal.valueOf(120.00), BigDecimal.valueOf(110.00),
-                BigDecimal.valueOf(1000000));
+                BigDecimal.valueOf(1000000),BigDecimal.valueOf(0.00),BigDecimal.valueOf(0.00));
 
         given(symbolRepository.findBySymbol(request.getSymbol1())).willReturn(Optional.of(symbol1));
         given(candleRepository.findBySymbolAndDateBetween(symbol1,LocalDate.of(2023, 1, 1), LocalDate.of(2023, 12, 31)))
