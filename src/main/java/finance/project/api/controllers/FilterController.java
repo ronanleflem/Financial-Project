@@ -134,4 +134,179 @@ public class FilterController {
 
         return ResponseEntity.ok(result);
     }
+
+    @GetMapping("/cycles")
+    public ResponseEntity<Map<String, Double>> getMarketCycles(
+            @RequestParam String symbol, @RequestParam String timeframe) {
+
+        // Récupération des variations de prix
+        List<Double> prices = candleService.getPriceVariations(symbol, timeframe, 200);
+
+        // Calcul du coefficient de détermination R²
+        double rSquared = cyclesFilter.calculateR2(prices);
+
+        // Détection du cycle dominant (en nombre de bougies)
+        int dominantCycle = cyclesFilter.detectDominantCycle(prices);
+
+        Map<String, Double> result = new HashMap<>();
+        result.put("rSquared", rSquared);
+        result.put("dominantCycle", (double) dominantCycle); // Converti en Double pour le JSON
+
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/entropy")
+    public ResponseEntity<Map<String, Double>> getMarketEntropy(
+            @RequestParam String symbol, @RequestParam String timeframe) {
+
+        List<Double> priceChanges = candleService.getPriceVariations(symbol, timeframe, 200);
+        double entropy = entropyMarketFilter.calculateMarketEntropy(priceChanges);
+
+        Map<String, Double> result = new HashMap<>();
+        result.put("entropy", entropy);
+
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/fractal-analysis")
+    public ResponseEntity<Map<String, Double>> getFractalAnalysis(
+            @RequestParam String symbol, @RequestParam String timeframe) {
+
+        // Récupération des variations de prix sous forme de rendements
+        List<Double> returns = candleService.getPriceReturns(symbol, timeframe, 200);
+
+        // Calcul du Ratio de Hurst
+        double hurstExponent = fractalAnalysisFilter.calculateHurstExponent(returns);
+
+        // Calcul de la Kurtosis et Skewness
+        double kurtosis = fractalAnalysisFilter.calculateKurtosis(returns);
+        double skewness = fractalAnalysisFilter.calculateSkewness(returns);
+
+        Map<String, Double> result = new HashMap<>();
+        result.put("hurstExponent", hurstExponent);
+        result.put("kurtosis", kurtosis);
+        result.put("skewness", skewness);
+
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/market-manipulation")
+    public ResponseEntity<Map<String, Integer>> detectMarketManipulation(
+            @RequestParam String symbol, @RequestParam String timeframe) {
+
+        List<Double> priceChanges = candleService.getPriceVariations(symbol, timeframe, 200);
+        int manipulationScore = marketManipulationFilter.detectManipulationZone(priceChanges);
+
+        Map<String, Integer> result = new HashMap<>();
+        result.put("manipulationScore", manipulationScore);
+
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/high-timeframe-zones")
+    public ResponseEntity<Map<String, Integer>> getHighTimeframeZones(
+            @RequestParam String symbol) {
+
+        // Récupération du prix actuel et des niveaux institutionnels
+        double price = candleService.getCurrentPrice(symbol);
+        List<Double> keyLevels = candleService.getInstitutionalLevels(symbol);
+
+        // Calcul du score de confluence
+        int confluenceScore = highTimeframeZoneFilter.checkInstitutionalConfluence(price, keyLevels);
+
+        Map<String, Integer> result = new HashMap<>();
+        result.put("confluenceScore", confluenceScore);
+
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/high-timeframe-zones-with-orderflow")
+    public ResponseEntity<Map<String, Integer>> getHighTimeframeZonesWithOrderFlow(
+            @RequestParam String symbol) {
+
+        // Récupération des prix et zones institutionnelles
+        double price = candleService.getCurrentPrice(symbol);
+        List<Double> keyLevels = candleService.getInstitutionalLevels(symbol);
+
+        // Récupération du flux d’ordres
+        List<Double> buyVolumes = orderFlowService.getBuyVolumes(symbol, keyLevels);
+        List<Double> sellVolumes = orderFlowService.getSellVolumes(symbol, keyLevels);
+
+        // Calcul du score final
+        int confluenceScore = highTimeframeZoneFilter.checkInstitutionalConfluenceWithOrderFlow(price, keyLevels, buyVolumes, sellVolumes);
+
+        Map<String, Integer> result = new HashMap<>();
+        result.put("confluenceScore", confluenceScore);
+
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/donchian-channels")
+    public ResponseEntity<Map<String, Double>> getDonchianChannels(
+            @RequestParam String symbol, @RequestParam String timeframe,
+            @RequestParam(defaultValue = "20") int period) {
+
+        // Récupération des prix hauts et bas sur la période demandée
+        List<Double> highs = candleService.getHighs(symbol, timeframe, period);
+        List<Double> lows = candleService.getLows(symbol, timeframe, period);
+
+        // Calcul des Donchian Channels
+        double[] donchianBands = donchianChannelsFilter.calculateDonchianBands(highs, lows);
+
+        Map<String, Double> result = new HashMap<>();
+        result.put("Upper Band", donchianBands[0]);
+        result.put("Lower Band", donchianBands[1]);
+        result.put("Middle Band", donchianBands[2]);
+
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/liquidity")
+    public ResponseEntity<Map<String, Double>> getMarketLiquidity(
+            @RequestParam String symbol, @RequestParam String timeframe,
+            @RequestParam(defaultValue = "20") int period) {
+
+        // Récupération des données de marché
+        List<Double> closes = candleService.getCloses(symbol, timeframe, period);
+        List<Double> highs = candleService.getHighs(symbol, timeframe, period);
+        List<Double> lows = candleService.getLows(symbol, timeframe, period);
+        List<Double> volumes = candleService.getVolumes(symbol, timeframe, period);
+
+        // Calcul du CMF
+        double cmf = liquidityFilter.calculateCMF(closes, highs, lows, volumes);
+
+        Map<String, Double> result = new HashMap<>();
+        result.put("CMF", cmf);
+
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/lower-timeframe-confluence")
+    public ResponseEntity<Map<String, Integer>> getLowerTimeframeConfluence(
+            @RequestParam String symbol) {
+
+        // Récupération des prix et indicateurs
+        List<Double> closes = candleService.getCloses(symbol, "M5", 50);
+        List<Double> highs = candleService.getHighs(symbol, "M5", 50);
+        List<Double> lows = candleService.getLows(symbol, "M5", 50);
+
+        double momentum = lowerTimeframeConfluenceFilter.calculateMomentum(closes, 10);
+        double adx = lowerTimeframeConfluenceFilter.calculateADX(highs, lows, closes, 14);
+        boolean trendAligned = lowerTimeframeConfluenceFilter.isTrendAligned(
+                marketDataService.getEMA(symbol, "M5", 20),
+                marketDataService.getEMA(symbol, "M5", 50),
+                marketDataService.getEMA(symbol, "M5", 200)
+        );
+
+        double vwapDistance = marketDataService.getVWAP(symbol, "M5") - closes.get(closes.size() - 1);
+        double deltaVolume = orderFlowService.getDeltaVolume(symbol, "M5");
+
+        // Calcul du score de confluence
+        int confluenceScore = lowerTimeframeConfluenceFilter.calculateConfluenceScore(momentum, adx, trendAligned, vwapDistance, deltaVolume);
+
+        Map<String, Integer> result = new HashMap<>();
+        result.put("confluenceScore", confluenceScore);
+
+        return ResponseEntity.ok(result);
+    }
 }
