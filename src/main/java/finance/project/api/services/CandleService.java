@@ -16,4 +16,7 @@ public interface CandleService {
     List<Double> getPriceVariations(String symbol, String timeframe, int limit);
 
     List<CandleDTO> loadCsvTradingView(String symbolName, String timeframe, Boolean volume);
+
+    List<Double> getPriceReturns(String symbol, String timeframe, int period);
+
 }

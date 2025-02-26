@@ -1,10 +1,20 @@
 package finance.project.api.filters.rules;
 
+import finance.project.api.filters.OrderFlowAnalyzer;
+import finance.project.api.services.OrderFlowService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Repository;
+import org.springframework.stereotype.Service;
+
 import java.util.List;
 
+@Service
+@RequiredArgsConstructor
 public class HighTimeframeZoneFilter {
 
     private static final double PROXIMITY_THRESHOLD = 0.0015; // ≈ 15 pips pour EUR/USD
+
+    private final OrderFlowAnalyzer orderFlowAnalyzer;
 
     /**
      * Vérifie si le prix actuel est proche d'une zone institutionnelle clé.

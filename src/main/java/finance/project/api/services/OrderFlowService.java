@@ -1,5 +1,10 @@
 package finance.project.api.services;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
 @Service
 public class OrderFlowService {
 
@@ -18,5 +23,26 @@ public class OrderFlowService {
      */
     public List<Double> getSellVolumes(String symbol, List<Double> keyLevels) {
         return orderFlowRepository.findSellVolumesForLevels(symbol, keyLevels);
+    }
+
+    /**
+     * Récupère le Delta Volume (différence entre les achats et les ventes).
+     *
+     * @param symbol Actif à analyser
+     * @param timeframe Unité de temps (ex: M5, M15)
+     * @return Delta Volume (positif = pression acheteuse, négatif = pression vendeuse)
+     */
+    public double getDeltaVolume(String symbol, String timeframe) {
+        List<Double> buyVolumes = orderFlowRepository.findBuyVolumes(symbol, timeframe);
+        List<Double> sellVolumes = orderFlowRepository.findSellVolumes(symbol, timeframe);
+
+        if (buyVolumes.size() != sellVolumes.size() || buyVolumes.isEmpty()) {
+            throw new IllegalArgumentException("Données Order Flow invalides.");
+        }
+
+        double totalBuyVolume = buyVolumes.stream().mapToDouble(Double::doubleValue).sum();
+        double totalSellVolume = sellVolumes.stream().mapToDouble(Double::doubleValue).sum();
+
+        return totalBuyVolume - totalSellVolume; // Delta Volume
     }
 }

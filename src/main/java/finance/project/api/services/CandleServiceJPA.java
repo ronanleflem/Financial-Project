@@ -253,4 +253,31 @@ public class CandleServiceJPA implements CandleService {
         return candleRepository.findLatestPrice(symbol);
     }
 
+    /**
+     * Calcule les retours (Price Returns) à partir des prix de clôture.
+     *
+     * @param symbol Actif à analyser
+     * @param timeframe Unité de temps (M1, M5, H1, etc.)
+     * @param period Nombre de bougies à récupérer
+     * @return Liste des rendements successifs
+     */
+    public List<Double> getPriceReturns(String symbol, String timeframe, int period) {
+        Optional<Symbol> symbolOp = symbolRepository.findBySymbol(symbol);
+        List<Candle> candles = candleRepository.findBySymbolAndTimeframeOrderByDateAscLimitNumberLatestCandle(symbolOp, timeframe, period);
+
+        if (candles.size() < 2) {
+            throw new IllegalArgumentException("Pas assez de données pour calculer les retours.");
+        }
+
+        List<Double> returns = new ArrayList<>();
+        for (int i = 1; i < candles.size(); i++) {
+            double closePrev = candles.get(i - 1).getClose().doubleValue();
+            double closeCurrent = candles.get(i).getClose().doubleValue();
+            double priceReturn = (closeCurrent - closePrev) / closePrev;
+            returns.add(priceReturn);
+        }
+
+        return returns;
+    }
+
 }

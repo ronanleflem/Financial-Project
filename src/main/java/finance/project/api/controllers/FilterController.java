@@ -1,14 +1,12 @@
 package finance.project.api.controllers;
 
-import finance.project.api.filters.rules.BenfordLawFilter;
-import finance.project.api.filters.rules.BiaisInstitutionalFilter;
-import finance.project.api.filters.rules.CandleStructureFilter;
-import finance.project.api.filters.rules.ContradictorySignalsFilter;
+import finance.project.api.filters.rules.*;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.repositories.CandleRepository;
 import finance.project.api.repositories.SymbolRepository;
 import finance.project.api.services.CandleService;
 import finance.project.api.services.MarketDataService;
+import finance.project.api.services.OrderFlowService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,15 +28,21 @@ public class FilterController {
     private static final List<String> TIMEFRAMES = List.of("1min", "3min", "5min", "15min", "30min", "1h", "4h", "daily", "weekly", "monthly");
 
     private final CandleStructureFilter candleStructureFilter;
-
     private final BenfordLawFilter benfordLawFilter;
-
     private final BiaisInstitutionalFilter biasInstitutionalFilter;
-
     private final ContradictorySignalsFilter contradictorySignalsFilter;
+    private final CyclesFilter cyclesFilter;
+    private final EntropyMarketFilter entropyMarketFilter;
+    private final FractalAnalysisFilter fractalAnalysisFilter;
+    private final MarketManipulationFilter marketManipulationFilter;
+    private final HighTimeframeZoneFilter highTimeframeZoneFilter;
+    private final DonchianChannelsFilter donchianChannelsFilter;
+    private final LiquidityFilter liquidityFilter;
+    private final LowerTimeframeConfluenceFilter lowerTimeframeConfluenceFilter;
 
     private final CandleService candleService;
     private final MarketDataService marketDataService;
+    private final OrderFlowService orderFlowService;
 
     @GetMapping("/bullish-bearish-stats")
     public ResponseEntity<Map<String, String>> getBullishContinuationProbability(@RequestParam String symbol, @RequestParam String timeframe) {
@@ -205,11 +209,11 @@ public class FilterController {
 
     @GetMapping("/high-timeframe-zones")
     public ResponseEntity<Map<String, Integer>> getHighTimeframeZones(
-            @RequestParam String symbol) {
+            @RequestParam String symbol, @RequestParam String timeframe) {
 
         // Récupération du prix actuel et des niveaux institutionnels
-        double price = candleService.getCurrentPrice(symbol);
-        List<Double> keyLevels = candleService.getInstitutionalLevels(symbol);
+        double price = candleService.getLastCandles(symbol,"1min",1).get(0).getClose().doubleValue(); // Plus petite bougie pour récupèrer le prix le plus proches
+        List<Double> keyLevels = null;//candleService.getInstitutionalLevels(symbol,timeframe);
 
         // Calcul du score de confluence
         int confluenceScore = highTimeframeZoneFilter.checkInstitutionalConfluence(price, keyLevels);
@@ -225,8 +229,8 @@ public class FilterController {
             @RequestParam String symbol) {
 
         // Récupération des prix et zones institutionnelles
-        double price = candleService.getCurrentPrice(symbol);
-        List<Double> keyLevels = candleService.getInstitutionalLevels(symbol);
+        double price = candleService.getLastCandles(symbol,"1min",1).get(0).getClose().doubleValue();
+        List<Double> keyLevels = null;//candleService.getInstitutionalLevels(symbol); // IL FAUT QUE JE CREE UNE TABLE POUR SA
 
         // Récupération du flux d’ordres
         List<Double> buyVolumes = orderFlowService.getBuyVolumes(symbol, keyLevels);
@@ -246,9 +250,10 @@ public class FilterController {
             @RequestParam String symbol, @RequestParam String timeframe,
             @RequestParam(defaultValue = "20") int period) {
 
-        // Récupération des prix hauts et bas sur la période demandée
-        List<Double> highs = candleService.getHighs(symbol, timeframe, period);
-        List<Double> lows = candleService.getLows(symbol, timeframe, period);
+        List<CandleDTO> candlesLatest = candleService.getLastCandles(symbol, timeframe, period);
+        // Extraction des closes, highs et lows
+        List<Double> highs = candlesLatest.stream().map(c -> c.getHigh().doubleValue()).toList();
+        List<Double> lows = candlesLatest.stream().map(c -> c.getLow().doubleValue()).toList();
 
         // Calcul des Donchian Channels
         double[] donchianBands = donchianChannelsFilter.calculateDonchianBands(highs, lows);
@@ -266,11 +271,12 @@ public class FilterController {
             @RequestParam String symbol, @RequestParam String timeframe,
             @RequestParam(defaultValue = "20") int period) {
 
-        // Récupération des données de marché
-        List<Double> closes = candleService.getCloses(symbol, timeframe, period);
-        List<Double> highs = candleService.getHighs(symbol, timeframe, period);
-        List<Double> lows = candleService.getLows(symbol, timeframe, period);
-        List<Double> volumes = candleService.getVolumes(symbol, timeframe, period);
+        List<CandleDTO> candlesLatest = candleService.getLastCandles(symbol, timeframe, period);
+        // Extraction des closes, highs et lows
+        List<Double> closes = candlesLatest.stream().map(c -> c.getClose().doubleValue()).toList();
+        List<Double> highs = candlesLatest.stream().map(c -> c.getHigh().doubleValue()).toList();
+        List<Double> lows = candlesLatest.stream().map(c -> c.getLow().doubleValue()).toList();
+        List<Double> volumes = candlesLatest.stream().map(c -> c.getVolume().doubleValue()).toList();
 
         // Calcul du CMF
         double cmf = liquidityFilter.calculateCMF(closes, highs, lows, volumes);
@@ -283,22 +289,27 @@ public class FilterController {
 
     @GetMapping("/lower-timeframe-confluence")
     public ResponseEntity<Map<String, Integer>> getLowerTimeframeConfluence(
-            @RequestParam String symbol) {
+            @RequestParam String symbol, @RequestParam String timeframe) {
 
         // Récupération des prix et indicateurs
-        List<Double> closes = candleService.getCloses(symbol, "M5", 50);
-        List<Double> highs = candleService.getHighs(symbol, "M5", 50);
-        List<Double> lows = candleService.getLows(symbol, "M5", 50);
+
+        List<CandleDTO> candlesLatest = candleService.getLastCandles(symbol, timeframe, 500);
+        // Extraction des closes, highs et lows
+        List<Double> closes = candlesLatest.stream().map(c -> c.getClose().doubleValue()).toList();
+        List<Double> highs = candlesLatest.stream().map(c -> c.getHigh().doubleValue()).toList();
+        List<Double> lows = candlesLatest.stream().map(c -> c.getLow().doubleValue()).toList();
+
+
 
         double momentum = lowerTimeframeConfluenceFilter.calculateMomentum(closes, 10);
         double adx = lowerTimeframeConfluenceFilter.calculateADX(highs, lows, closes, 14);
         boolean trendAligned = lowerTimeframeConfluenceFilter.isTrendAligned(
-                marketDataService.getEMA(symbol, "M5", 20),
-                marketDataService.getEMA(symbol, "M5", 50),
-                marketDataService.getEMA(symbol, "M5", 200)
+                marketDataService.calculateEMA(candlesLatest,  20),
+                marketDataService.calculateEMA(candlesLatest, 50),
+                marketDataService.calculateEMA(candlesLatest, 200)
         );
 
-        double vwapDistance = marketDataService.getVWAP(symbol, "M5") - closes.get(closes.size() - 1);
+        double vwapDistance = marketDataService.calculateVWAP(candlesLatest) - closes.get(closes.size() - 1);
         double deltaVolume = orderFlowService.getDeltaVolume(symbol, "M5");
 
         // Calcul du score de confluence
