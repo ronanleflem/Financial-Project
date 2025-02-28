@@ -1,13 +1,16 @@
 package finance.project.api.controllers;
 
 
+import finance.project.api.entities.Candle;
 import finance.project.api.entities.Symbol;
 import finance.project.api.model.CandleDTO;
+import finance.project.api.model.CandleFilterDTO;
 import finance.project.api.model.SymbolDTO;
 import finance.project.api.services.CandleService;
 import finance.project.api.services.SymbolService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -111,5 +115,34 @@ public class CandleController {
             candleService.loadCsvTradingView(symbol, timeframe,true);
         }
         return new ResponseEntity<>(HttpStatus.OK);
+    }
+
+    /**
+     *  Candle filtrée - à utiliser pour vérifier l'efficacité d'une stratégie selon un condition spécifique
+     *      (killzone - jours spécifique - mois spécifique - Semestre / Trimestre - année spécifique)
+     * @param session
+     * @param marketCondition
+     * @param newsEvent
+     * @param startDate
+     * @param endDate
+     * @return
+     */
+    @GetMapping("/candles")
+    public ResponseEntity<List<Candle>> getFilteredCandles(
+            @RequestParam(required = false) String session,
+            @RequestParam(required = false) String marketCondition,
+            @RequestParam(required = false) String newsEvent,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+
+        CandleFilterDTO filter = new CandleFilterDTO();
+        filter.setSession(session);
+        filter.setMarketCondition(marketCondition);
+        filter.setNewsEvent(newsEvent);
+        filter.setStartDate(startDate);
+        filter.setEndDate(endDate);
+
+        List<Candle> candles = candleService.getFilteredCandles(filter);
+        return ResponseEntity.ok(candles);
     }
 }

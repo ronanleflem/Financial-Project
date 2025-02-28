@@ -3,9 +3,11 @@ package finance.project.api.services;
 import finance.project.api.entities.Candle;
 import finance.project.api.entities.Symbol;
 import finance.project.api.model.CandleDTO;
+import finance.project.api.model.CandleFilterDTO;
 import finance.project.api.model.SymbolDTO;
 import finance.project.api.repositories.CandleRepository;
 import finance.project.api.repositories.SymbolRepository;
+import finance.project.api.utils.CandleSpecification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -278,6 +280,21 @@ public class CandleServiceJPA implements CandleService {
         }
 
         return returns;
+    }
+
+    /**
+     * Récupère les données des Candle en fonction du filtre donné
+     *  - Market condition
+     *  - News events
+     *  - Session
+     *  - Start date et end date (à améliorer surement pour éviter de taper trop de fois dans la BDD
+     *
+     *
+     * @param filter
+     * @return
+     */
+    public List<Candle> getFilteredCandles(CandleFilterDTO filter) {
+        return candleRepository.findAll(new CandleSpecification(filter));
     }
 
 }
