@@ -11,9 +11,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
-public class CandleSpecification implements Specification<Candle> {
+public class CandleSpecification /*implements Specification<Candle>*/ {
     private CandleFilterDTO filter;
 
+    /*
     @Override
     public Predicate toPredicate(Root<Candle> root, CriteriaQuery<?> query, CriteriaBuilder cb) {
         List<Predicate> predicates = new ArrayList<>();
@@ -32,5 +33,5 @@ public class CandleSpecification implements Specification<Candle> {
         }
 
         return cb.and(predicates.toArray(new Predicate[0]));
-    }
+    }*/
 }

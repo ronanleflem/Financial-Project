@@ -7,6 +7,5 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface KillzoneRepository extends JpaRepository<Killzone, Long> {
-    List<Killzone> findByYear(int year);
+public interface OrderFlowRepository extends JpaRepository<Killzone, Long>{
 }

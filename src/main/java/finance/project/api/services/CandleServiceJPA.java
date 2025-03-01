@@ -205,9 +205,9 @@ public class CandleServiceJPA implements CandleService {
      * @return Liste des niveaux institutionnels pertinents
      */
     public List<Double> getInstitutionalLevels(String symbol) {
-        List<CandleDTO> dailyCandles = candleRepository.findLastNCandles(symbol, "D", 10);
-        List<CandleDTO> weeklyCandles = candleRepository.findLastNCandles(symbol, "W", 10);
-        List<CandleDTO> monthlyCandles = candleRepository.findLastNCandles(symbol, "M", 10);
+        List<Candle> dailyCandles = candleRepository.findBySymbolAndTimeframeOrderByDateAscLimitNumberLatestCandle(symbolRepository.findBySymbol(symbol), "daily", 10);
+        List<Candle> weeklyCandles = candleRepository.findBySymbolAndTimeframeOrderByDateAscLimitNumberLatestCandle(symbolRepository.findBySymbol(symbol), "weekly", 10);
+        List<Candle> monthlyCandles = candleRepository.findBySymbolAndTimeframeOrderByDateAscLimitNumberLatestCandle(symbolRepository.findBySymbol(symbol), "monthly", 10);
 
         // 1️⃣ Previous Highs & Lows (Daily, Weekly, Monthly)
         double prevDailyHigh = dailyCandles.get(dailyCandles.size() - 2).getHigh().doubleValue();
@@ -249,10 +249,10 @@ public class CandleServiceJPA implements CandleService {
     }
 
     /**
-     * Récupère le prix actuel.
+     * Récupère le prix actuel. Fixme: A modif
      */
     public double getCurrentPrice(String symbol) {
-        return candleRepository.findLatestPrice(symbol);
+        return 0.0; //candleRepository.findLatestPrice(symbol);
     }
 
     /**
@@ -291,10 +291,10 @@ public class CandleServiceJPA implements CandleService {
      *
      *
      * @param filter
-     * @return
+     * @return : FIXME: A modifier
      */
     public List<Candle> getFilteredCandles(CandleFilterDTO filter) {
-        return candleRepository.findAll(new CandleSpecification(filter));
+        return null; //candleRepository.findAll(new CandleSpecification(filter));
     }
 
 }

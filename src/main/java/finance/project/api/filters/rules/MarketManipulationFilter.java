@@ -1,6 +1,4 @@
 package finance.project.api.filters.rules;
-
-import org.apache.commons.math3.stat.descriptive.moment.Kurtosis;
 import org.springframework.stereotype.Service;
 import java.util.List;
 

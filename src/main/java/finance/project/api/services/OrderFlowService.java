@@ -1,5 +1,6 @@
 package finance.project.api.services;
 
+import finance.project.api.repositories.OrderFlowRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -12,17 +13,17 @@ public class OrderFlowService {
     private OrderFlowRepository orderFlowRepository;
 
     /**
-     * Récupère les volumes acheteurs par niveau institutionnel.
+     * Récupère les volumes acheteurs par niveau institutionnel. FIXME
      */
     public List<Double> getBuyVolumes(String symbol, List<Double> keyLevels) {
-        return orderFlowRepository.findBuyVolumesForLevels(symbol, keyLevels);
+        return null; //orderFlowRepository.findBuyVolumesForLevels(symbol, keyLevels);
     }
 
     /**
-     * Récupère les volumes vendeurs par niveau institutionnel.
+     * Récupère les volumes vendeurs par niveau institutionnel. FIXME
      */
     public List<Double> getSellVolumes(String symbol, List<Double> keyLevels) {
-        return orderFlowRepository.findSellVolumesForLevels(symbol, keyLevels);
+        return null; //orderFlowRepository.findSellVolumesForLevels(symbol, keyLevels);
     }
 
     /**
@@ -30,11 +31,11 @@ public class OrderFlowService {
      *
      * @param symbol Actif à analyser
      * @param timeframe Unité de temps (ex: M5, M15)
-     * @return Delta Volume (positif = pression acheteuse, négatif = pression vendeuse)
+     * @return Delta Volume (positif = pression acheteuse, négatif = pression vendeuse) FIXME
      */
     public double getDeltaVolume(String symbol, String timeframe) {
-        List<Double> buyVolumes = orderFlowRepository.findBuyVolumes(symbol, timeframe);
-        List<Double> sellVolumes = orderFlowRepository.findSellVolumes(symbol, timeframe);
+        List<Double> buyVolumes = null; //orderFlowRepository.findBuyVolumes(symbol, timeframe);
+        List<Double> sellVolumes = null; //orderFlowRepository.findSellVolumes(symbol, timeframe);
 
         if (buyVolumes.size() != sellVolumes.size() || buyVolumes.isEmpty()) {
             throw new IllegalArgumentException("Données Order Flow invalides.");

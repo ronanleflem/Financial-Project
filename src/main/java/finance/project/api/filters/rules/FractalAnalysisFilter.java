@@ -8,6 +8,7 @@ import java.util.List;
 public class FractalAnalysisFilter {
 
     /**
+     * FIXME
      * Calcule le Ratio de Hurst pour mesurer le comportement fractal du marché.
      *
      * @param priceChanges Liste des variations de prix
@@ -28,10 +29,10 @@ public class FractalAnalysisFilter {
             sumSquaredDeviations += Math.pow(priceChanges.get(i) - mean, 2);
         }
 
-        double R = Math.max(cumulativeSeries) - Math.min(cumulativeSeries);
+        //double R = Math.max(cumulativeSeries) - Math.min(cumulativeSeries);
         double S = Math.sqrt(sumSquaredDeviations / N);
 
-        return (S == 0) ? 0.5 : Math.log(R / S) / Math.log(N);
+        return 0.0;//(S == 0) ? 0.5 : Math.log(R / S) / Math.log(N);
     }
     /**
      * Calcule la Kurtosis des rendements du marché.
@@ -42,8 +43,8 @@ public class FractalAnalysisFilter {
     public double calculateKurtosis(List<Double> returns) {
         if (returns.size() < 20) return 0.0; // Besoin d'un minimum de données
 
-        Kurtosis kurtosis = new Kurtosis();
-        return kurtosis.evaluate(returns.stream().mapToDouble(Double::doubleValue).toArray());
+        //Kurtosis kurtosis = new Kurtosis();
+        return 0.0;//kurtosis.evaluate(returns.stream().mapToDouble(Double::doubleValue).toArray());
     }
 
     /**
@@ -55,7 +56,7 @@ public class FractalAnalysisFilter {
     public double calculateSkewness(List<Double> returns) {
         if (returns.size() < 20) return 0.0;
 
-        Skewness skewness = new Skewness();
-        return skewness.evaluate(returns.stream().mapToDouble(Double::doubleValue).toArray());
+        //Skewness skewness = new Skewness();
+        return 0.0;//skewness.evaluate(returns.stream().mapToDouble(Double::doubleValue).toArray());
     }
 }

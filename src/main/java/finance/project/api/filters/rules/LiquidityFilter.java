@@ -1,6 +1,5 @@
 package finance.project.api.filters.rules;
 
-package finance.project.api.filters.rules;
 
 import org.springframework.stereotype.Service;
 import java.util.List;
