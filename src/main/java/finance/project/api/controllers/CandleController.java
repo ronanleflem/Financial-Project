@@ -58,16 +58,16 @@ public class CandleController {
      * </p>
      *
      * @param symbol le symbole de négociation pour lequel les bougies doivent être récupérées (ex: "AAPL")
-     * @param interval l'intervalle de temps pour les bougies (ex: "daily", "hourly")
+     * @param timeframe l'intervalle de temps pour les bougies (ex: "daily", "hourly")
      * @return une réponse HTTP contenant la liste des bougies correspondant au symbole et à l'intervalle spécifiés
      */
-    @GetMapping
-    public ResponseEntity<List<CandleDTO>> getCandles(@RequestParam String symbol, @RequestParam String interval) {
+    @GetMapping("/candles")
+    public ResponseEntity<List<CandleDTO>> getCandles(@RequestParam String symbol, @RequestParam String timeframe) {
 
         SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
         System.out.println(symbolDTO);
-        List<CandleDTO> data = candleService.getCandles(symbolDTO, interval);
-        System.out.println("Data controller"+data);
+        List<CandleDTO> data = candleService.getLastCandles(symbol,timeframe,1000);
+        System.out.println("Data sended : "+data.size());
         return new ResponseEntity<>(data, HttpStatus.OK);
     }
 
@@ -127,7 +127,7 @@ public class CandleController {
      * @param endDate
      * @return
      */
-    @GetMapping("/candles")
+    @GetMapping("/candlesFiltered")
     public ResponseEntity<List<Candle>> getFilteredCandles(
             @RequestParam(required = false) String session,
             @RequestParam(required = false) String marketCondition,
