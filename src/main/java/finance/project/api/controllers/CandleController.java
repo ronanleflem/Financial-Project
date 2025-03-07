@@ -7,6 +7,8 @@ import finance.project.api.model.CandleDTO;
 import finance.project.api.model.CandleFilterDTO;
 import finance.project.api.model.SymbolDTO;
 import finance.project.api.services.CandleService;
+import finance.project.api.services.CurrencyLayerService;
+import finance.project.api.services.MarketstackService;
 import finance.project.api.services.SymbolService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +22,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Le contrôleur {@code CandleController} est un contrôleur REST qui gère les requêtes HTTP liées aux bougies (candles) financières.
@@ -40,6 +44,10 @@ public class CandleController {
      * Service pour la gestion des bougies.
      */
     private final CandleService candleService;
+
+    private final MarketstackService marketstackService;
+
+    private final CurrencyLayerService currencyLayerService;
 
     /**
      * Service pour la gestion des symboles.
@@ -144,5 +152,29 @@ public class CandleController {
 
         List<Candle> candles = candleService.getFilteredCandles(filter);
         return ResponseEntity.ok(candles);
+    }
+
+    @GetMapping("/marketstack/historical")
+    public ResponseEntity<List<Map<String, Object>>> getHistoricalData() {
+        List<Map<String, Object>> data = marketstackService.getHistoricalEURUSD();
+        return ResponseEntity.ok(data);
+    }
+
+    @GetMapping("/currencyLayer/live")
+    public ResponseEntity<Map<String, Double>> getLiveExchangeRate() {
+        double rate = currencyLayerService.getLiveExchangeRate();
+        Map<String, Double> result = new HashMap<>();
+        result.put("EUR/USD", rate);
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/currencyLayer/historical")
+    public ResponseEntity<Map<String, Double>> getHistoricalExchangeRate(
+            @RequestParam String date) {
+
+        double rate = currencyLayerService.getHistoricalExchangeRate(date);
+        Map<String, Double> result = new HashMap<>();
+        result.put("EUR/USD (" + date + ")", rate);
+        return ResponseEntity.ok(result);
     }
 }
