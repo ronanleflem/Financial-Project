@@ -16,6 +16,7 @@ public class CandleDTO {
     private Long id;
     private String timeframe;
     private SymbolDTO symbol; // Utilisation du DTO au lieu de l'entité
+    private String symbolFuture;
     private LocalDateTime date;
     private BigDecimal open;
     private BigDecimal close;
@@ -24,5 +25,6 @@ public class CandleDTO {
     private BigDecimal volume;
     private BigDecimal volumeAverage;
     private BigDecimal openInterest;
+
 
 }

@@ -31,3 +31,5 @@ build/
 
 ### VS Code ###
 .vscode/
+/csvData/eurusd/1min/1minCME.csv
+/csvData/eurusd/1min/month/

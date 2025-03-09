@@ -23,4 +23,5 @@ public interface CandleService {
 
     List<Candle> getFilteredCandles(CandleFilterDTO filter);
 
+    List<CandleDTO> loadCsvCME(String symbol, String timeframe);
 }

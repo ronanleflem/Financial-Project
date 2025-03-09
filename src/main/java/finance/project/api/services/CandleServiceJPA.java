@@ -8,6 +8,7 @@ import finance.project.api.model.SymbolDTO;
 import finance.project.api.repositories.CandleRepository;
 import finance.project.api.repositories.SymbolRepository;
 import finance.project.api.utils.CandleSpecification;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
@@ -150,9 +152,70 @@ public class CandleServiceJPA implements CandleService {
 
         return candles;
     }
+    /*
+    public void saveCandlesToDatabaseCME(List<CandleDTO> candles, Symbol symbol, String timeframe) {
 
+        int batchSize = 500; // batch limité pour stabilité
+        List<Candle> batch = new ArrayList<>();
+        int totalCandles = candles.size();
+
+        log.info("🚀 Début d'import de {} bougies pour le symbole {}", totalCandles, symbol.getSymbol());
+
+        long startTime = System.currentTimeMillis();
+        int count = 0;
+
+        for (CandleDTO dto : candles) {
+            try {
+                Candle candle = Candle.builder()
+                        .symbol(symbol)
+                        .timeframe(timeframe)
+                        .date(dto.getDate())
+                        .open(dto.getOpen())
+                        .close(dto.getClose())
+                        .high(dto.getHigh())
+                        .low(dto.getLow())
+                        .volume(dto.getVolume())
+                        .symbolFuture(dto.getSymbolFuture() != null ? dto.getSymbolFuture() : null)
+                        .build();
+
+                batch.add(candle);
+                count++;
+
+                // Quand on atteint la taille du batch : save + clear + log
+                if (batch.size() >= batchSize) {
+                    candleRepository.saveAll(batch);
+                    // Hibernate optimization si tu es en JPA
+                    entityManager.flush();
+                    entityManager.clear();
+
+                    long elapsedTime = System.currentTimeMillis() - startTime;
+                    log.info("✅ Batch inséré ({} / {}) | Temps écoulé : {} sec", count, totalCandles, elapsedTime / 1000);
+
+                    batch.clear(); // reset batch
+                }
+
+            } catch (Exception e) {
+                // Catch de n'importe quelle erreur sur la ligne et poursuite
+                log.warn("⚠️  Problème sur la candle {} : {}", dto, e.getMessage());
+            }
+        }
+
+        // Sauvegarde du dernier batch
+        if (!batch.isEmpty()) {
+            candleRepository.saveAll(batch);
+            entityManager.flush();
+            entityManager.clear();
+
+            long elapsedTime = System.currentTimeMillis() - startTime;
+            log.info("✅ Dernier batch inséré ({} / {}) | Temps total : {} sec", count, totalCandles, elapsedTime / 1000);
+
+            batch.clear();
+        }
+
+        log.info("🎉 Import terminé de {} bougies pour {} en {} secondes", totalCandles, symbol.getSymbol(), (System.currentTimeMillis() - startTime) / 1000);
+    }*/
     public void saveCandlesToDatabase(List<CandleDTO> candles, Symbol symbol, String timeframe) {
-        int batchSize = 50;  // On insère 50 bougies à la fois
+        int batchSize = 500;  // On insère 1000 bougies à la fois
         List<Candle> batch = new ArrayList<>();
 
         for (CandleDTO dto : candles) {
@@ -165,6 +228,7 @@ public class CandleServiceJPA implements CandleService {
                     .high(dto.getHigh())
                     .low(dto.getLow())
                     .volume(dto.getVolume())
+                    .symbolFuture(dto.getSymbolFuture() != null ? dto.getSymbolFuture() : null)
                     .build());
 
             if (batch.size() >= batchSize) {
@@ -295,6 +359,60 @@ public class CandleServiceJPA implements CandleService {
      */
     public List<Candle> getFilteredCandles(CandleFilterDTO filter) {
         return null; //candleRepository.findAll(new CandleSpecification(filter));
+    }
+
+    @Override
+    public List<CandleDTO> loadCsvCME(String symbolName, String timeframe) {
+
+        //String filePath = "csvData/" + symbolName.toLowerCase() + "/" + timeframe + "/" + timeframe + "CME.csv";
+        String filePath = "csvData/" + symbolName.toLowerCase() + "/" + timeframe + "/month/data_2010-06.csv";
+
+        // Récupération du Symbol depuis la base
+        Symbol symbol = symbolRepository.findBySymbol(symbolName)
+                .orElseThrow(() -> new RuntimeException("Symbol not found: " + symbolName));
+
+        List<CandleDTO> candles = new ArrayList<>();
+
+        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
+            String line;
+            boolean isFirstLine = true;
+
+            while ((line = br.readLine()) != null) {
+                if (isFirstLine) {
+                    isFirstLine = false;
+                    if (line.toLowerCase().contains("ts_event")) continue;
+                }
+
+                String[] values = line.split(",");
+                if (values.length < 10) continue;
+
+                LocalDateTime dateTime = Instant.ofEpochSecond(Long.parseLong(values[0]) / 1_000_000_000, Long.parseLong(values[0]) % 1_000_000_000)
+                        .atZone(ZoneId.of("UTC"))
+                        .toLocalDateTime();
+
+                CandleDTO candleDTO = CandleDTO.builder()
+                        .date(dateTime)
+                        .open(new BigDecimal(values[4]))
+                        .high(new BigDecimal(values[5]))
+                        .low(new BigDecimal(values[6]))
+                        .close(new BigDecimal(values[7]))
+                        .volume(new BigDecimal(values[8]))
+                        .timeframe(timeframe)
+                        .symbol(SymbolDTO.builder().id(symbol.getId()).name(symbol.getName()).build())
+                        .symbolFuture(values[9])
+                        .build();
+
+                candles.add(candleDTO);
+            }
+
+        } catch (IOException e) {
+            throw new RuntimeException("Error reading CME CSV file: " + filePath, e);
+        }
+
+        // Sauvegarde en base
+        saveCandlesToDatabase(candles, symbol, timeframe);
+
+        return candles;
     }
 
 }

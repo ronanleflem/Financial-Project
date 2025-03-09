@@ -177,4 +177,12 @@ public class CandleController {
         result.put("EUR/USD (" + date + ")", rate);
         return ResponseEntity.ok(result);
     }
+
+    @GetMapping("/load-csv/cme")
+    public ResponseEntity<List<CandleDTO>> loadCmeCsv(
+            @RequestParam String symbol, @RequestParam String timeframe) {
+
+        List<CandleDTO> candles = candleService.loadCsvCME(symbol, timeframe);
+        return new ResponseEntity<>(candles, HttpStatus.OK);
+    }
 }

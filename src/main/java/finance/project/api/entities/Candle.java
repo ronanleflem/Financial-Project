@@ -33,6 +33,10 @@ public class Candle {
     private Symbol symbol;
 
     @NotNull
+    @Column(nullable = true)
+    private String symbolFuture;
+
+    @NotNull
     @Column(nullable = false)
     private LocalDateTime date;
 
