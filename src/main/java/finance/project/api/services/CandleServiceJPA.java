@@ -45,7 +45,7 @@ public class CandleServiceJPA implements CandleService {
     @Override
     public List<CandleDTO> getLastCandles(String symbol, String timeframe, int limit){
         Optional<Symbol> existingSymbol = symbolRepository.findBySymbol(symbol);
-        List<Candle> candlesFromDB = candleRepository.findBySymbolAndTimeframeOrderByDateAscLimitNumberLatestCandle(existingSymbol,  timeframe, limit);
+        List<Candle> candlesFromDB = candleRepository.findBySymbolAndTimeframeOrderByDateDescLimitNumberLatestCandle(existingSymbol,  timeframe, limit);
         if (!candlesFromDB.isEmpty()) {
             log.info("📊 Retour des données depuis la base pour {}", symbol);
             return candlesFromDB.stream().map(this::mapToDTO).toList();

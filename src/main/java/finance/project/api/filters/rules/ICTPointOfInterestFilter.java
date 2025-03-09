@@ -78,10 +78,10 @@ public class ICTPointOfInterestFilter {
 
             double gap = Math.abs(currentCandle.getOpen().doubleValue() - prevCandle.getClose().doubleValue());
             if (gap > 0.0002) { // Seuil pour éviter les faux gaps
-                gaps.add(new PointOfInterest(
+                gaps.add(new PointOfInterest( "Normal Gap", 2,
                         currentCandle.getOpen().doubleValue(),
                         prevCandle.getClose().doubleValue(),
-                        true, 2, "Normal Gap", currentCandle.getDatetime(),
+                        true,  currentCandle.getDate(),
                         0, 0, false, 0, "None"
                 ));
 
@@ -101,19 +101,19 @@ public class ICTPointOfInterestFilter {
             CandleDTO c3 = candles.get(i);
 
             if (c3.getLow().doubleValue() > c1.getHigh().doubleValue()) {
-                fvgPoints.add(new PointOfInterest(
+                fvgPoints.add(new PointOfInterest("Fair Value Gap", 3,
                         c1.getHigh().doubleValue(),
                         c3.getLow().doubleValue(),
-                        true, 3, "Fair Value Gap", c3.getDatetime(),
+                        true, c3.getDate(),
                         0, 0, false, 0, "None"
                 ));
             }
 
             if (c3.getHigh().doubleValue() < c1.getLow().doubleValue()) {
-                fvgPoints.add(new PointOfInterest(
+                fvgPoints.add(new PointOfInterest("Inverted Fair Value Gap",4,
                         c3.getHigh().doubleValue(),
                         c1.getLow().doubleValue(),
-                        true, 4, "Inverted Fair Value Gap", c3.getDatetime(),
+                        true, c3.getDate(),
                         0, 0, false, 0, "None"
                 ));
             }
@@ -134,8 +134,20 @@ public class ICTPointOfInterestFilter {
             if (candle.getTimeframe().equals("D")) {
                 prevDailyHigh = candle.getHigh().doubleValue();
                 prevDailyLow = candle.getLow().doubleValue();
-                previousLevels.add(new PointOfInterest(prevDailyHigh, null, true, 5, "Prev Daily High", candle.getDatetime(), 0, 0, false, 0, "None"));
-                previousLevels.add(new PointOfInterest(prevDailyLow, null, true, 5, "Prev Daily Low", candle.getDatetime(), 0, 0, false, 0, "None"));
+                previousLevels.add(new PointOfInterest( "Prev Daily High",5,prevDailyHigh, null, true,  candle.getDate(), 0, 0, false, 0, "None"));
+                previousLevels.add(new PointOfInterest("Prev Daily Low",5,prevDailyLow, null, true, candle.getDate(), 0, 0, false, 0, "None"));
+            }
+            if (candle.getTimeframe().equals("W")) {
+                prevWeeklyHigh = candle.getHigh().doubleValue();
+                prevWeeklyLow = candle.getLow().doubleValue();
+                previousLevels.add(new PointOfInterest( "Prev Weekly High",5,prevWeeklyHigh, null, true,  candle.getDate(), 0, 0, false, 0, "None"));
+                previousLevels.add(new PointOfInterest("Prev Weekly Low",5,prevWeeklyLow, null, true, candle.getDate(), 0, 0, false, 0, "None"));
+            }
+            if (candle.getTimeframe().equals("M")) {
+                prevMonthlyHigh = candle.getHigh().doubleValue();
+                prevMonthlyLow = candle.getLow().doubleValue();
+                previousLevels.add(new PointOfInterest( "Prev Monthly High",5,prevMonthlyHigh, null, true,  candle.getDate(), 0, 0, false, 0, "None"));
+                previousLevels.add(new PointOfInterest("Prev Monthly Low",5,prevMonthlyLow, null, true, candle.getDate(), 0, 0, false, 0, "None"));
             }
         }
         return previousLevels;

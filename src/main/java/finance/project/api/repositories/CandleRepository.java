@@ -24,9 +24,15 @@ public interface CandleRepository extends JpaRepository<Candle, Long> {
 
     List<Candle> findBySymbolAndTimeframeOrderByDateAsc(Symbol symbol, String timeframe);
 
+    List<Candle> findBySymbolAndTimeframeOrderByDateDesc(Symbol symbol, String timeframe);
 
     @Query(value = "SELECT c FROM Candle c WHERE c.symbol = :symbol AND c.timeframe = :timeframe ORDER BY c.date ASC LIMIT :numberLastestCandles")
     List<Candle> findBySymbolAndTimeframeOrderByDateAscLimitNumberLatestCandle(
+            @Param("symbol") Optional<Symbol> symbol,
+            @Param("timeframe") String timeframe,
+            @Param("numberLastestCandles") int numberLastestCandles);
+    @Query(value = "SELECT c FROM Candle c WHERE c.symbol = :symbol AND c.timeframe = :timeframe ORDER BY c.date DESC LIMIT :numberLastestCandles")
+    List<Candle> findBySymbolAndTimeframeOrderByDateDescLimitNumberLatestCandle(
             @Param("symbol") Optional<Symbol> symbol,
             @Param("timeframe") String timeframe,
             @Param("numberLastestCandles") int numberLastestCandles);

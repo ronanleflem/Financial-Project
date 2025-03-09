@@ -74,7 +74,7 @@ public class CandleController {
 
         SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
         System.out.println(symbolDTO);
-        List<CandleDTO> data = candleService.getLastCandles(symbol,timeframe,1000);
+        List<CandleDTO> data = candleService.getLastCandles(symbol,timeframe,50);
         System.out.println("Data sended : "+data.size());
         return new ResponseEntity<>(data, HttpStatus.OK);
     }
