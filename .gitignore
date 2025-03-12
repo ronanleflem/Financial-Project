@@ -33,3 +33,4 @@ build/
 .vscode/
 /csvData/eurusd/1min/1minCME.csv
 /csvData/eurusd/1min/month/
+/csvData/eurusd/symbology/symbology.json
