@@ -10,13 +10,22 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface CandleRepository extends JpaRepository<Candle, Long> {
 
+    @Query("SELECT c FROM Candle c WHERE c.symbolFuture = :symbolFuture AND c.date BETWEEN :startDate AND :endDate ORDER BY c.date ASC")
+    List<Candle> findBySymbolFutureAndDateBetween(
+            @Param("symbolFuture") String symbolFuture,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
+
     List<Candle> findBySymbolAndDateBetween(Symbol symbol, LocalDate startDate, LocalDate endDate);
+
     @Transactional(readOnly = true)
     List<Candle> findBySymbol(Symbol symbol);
 
@@ -25,6 +34,12 @@ public interface CandleRepository extends JpaRepository<Candle, Long> {
     List<Candle> findBySymbolAndTimeframeOrderByDateAsc(Symbol symbol, String timeframe);
 
     List<Candle> findBySymbolAndTimeframeOrderByDateDesc(Symbol symbol, String timeframe);
+
+    @Query("SELECT c FROM Candle c WHERE c.date BETWEEN :startDate AND :endDate ORDER BY c.date ASC")
+    List<Candle> findByDateBetween(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
 
     @Query(value = "SELECT c FROM Candle c WHERE c.symbol = :symbol AND c.timeframe = :timeframe ORDER BY c.date ASC LIMIT :numberLastestCandles")
     List<Candle> findBySymbolAndTimeframeOrderByDateAscLimitNumberLatestCandle(
