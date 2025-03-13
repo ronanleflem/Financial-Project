@@ -29,7 +29,7 @@ public class VolumeBasedRolloverController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
             @RequestParam(defaultValue = "2") int analysisPeriodDays // 2 jours par défaut
     ) {
-        List<CandleDTO> candles = volumeBasedRolloverService.getDynamicRolloverCandlesPerMinuteWithFallback(startDate, endDate, analysisPeriodDays);
+        List<CandleDTO> candles = volumeBasedRolloverService.getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, analysisPeriodDays);
         return ResponseEntity.ok(candles);
     }
 
