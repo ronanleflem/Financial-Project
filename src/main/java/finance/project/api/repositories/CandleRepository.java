@@ -24,6 +24,12 @@ public interface CandleRepository extends JpaRepository<Candle, Long> {
             @Param("endDate") LocalDateTime endDate
     );
 
+    @Query("SELECT c FROM Candle c WHERE c.symbolFuture = :symbolFuture AND c.date = :date")
+    Optional<Candle> findBySymbolFutureAndDate(
+            @Param("symbolFuture") String symbolFuture,
+            @Param("date") LocalDateTime date
+    );
+
     List<Candle> findBySymbolAndDateBetween(Symbol symbol, LocalDate startDate, LocalDate endDate);
 
     @Transactional(readOnly = true)

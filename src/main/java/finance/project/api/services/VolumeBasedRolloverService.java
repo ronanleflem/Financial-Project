@@ -23,7 +23,7 @@ public class VolumeBasedRolloverService {
     private final CandleRepository candleRepository;
     private final CandleMapper candleMapper;
 
-    public List<CandleDTO> getDynamicRolloverCandlesBasedOnVolume(
+    public List<CandleDTO> getDynamicRolloverCandlesBasedOnVolumeOld(
             LocalDateTime startDateTime,
             LocalDateTime endDateTime,
             int analysisPeriodDays) {
@@ -105,6 +105,93 @@ public class VolumeBasedRolloverService {
         resultCandles.sort(Comparator.comparing(Candle::getDate));
 
         log.info("🎉 Flux final généré : {} candles sur {} -> {}", resultCandles.size(), startDateTime, endDateTime);
+
+        return resultCandles.stream().map(candleMapper::toDto).toList();
+    }
+
+    public List<CandleDTO> getDynamicRolloverCandlesPerMinuteWithFallback(
+            LocalDateTime startDateTime,
+            LocalDateTime endDateTime,
+            int analysisPeriodDays) {
+
+        List<Candle> resultCandles = new ArrayList<>();
+        LocalDateTime currentMinute = startDateTime;
+
+        log.info("🚀 Démarrage de l'analyse minute par minute avec fallback sur la période {} -> {}", startDateTime, endDateTime);
+
+        while (!currentMinute.isAfter(endDateTime)) {
+
+            DayOfWeek day = currentMinute.getDayOfWeek();
+            if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
+                log.info("⏭️ Weekend ignoré : {}", currentMinute);
+                currentMinute = currentMinute.plusMinutes(1);
+                continue;
+            }
+
+            // Fenêtre d'analyse pour déterminer les contrats dominants
+            LocalDateTime analysisStart = currentMinute.minusDays(analysisPeriodDays);
+            LocalDateTime analysisEnd = currentMinute;
+
+            log.info("🔎 Analyse volume sur la fenêtre {} -> {}", analysisStart, analysisEnd);
+
+            List<Candle> analysisCandles = candleRepository.findByDateBetween(analysisStart, analysisEnd);
+
+            if (analysisCandles.isEmpty()) {
+                log.warn("❌ Aucune candle trouvée pour l'analyse volume de {} -> {}", analysisStart, analysisEnd);
+                currentMinute = currentMinute.plusMinutes(1);
+                continue;
+            }
+
+            // Classement des symboles par volume décroissant
+            List<Map.Entry<String, Double>> sortedVolumes = analysisCandles.stream()
+                    .collect(Collectors.groupingBy(
+                            Candle::getSymbolFuture,
+                            Collectors.summingDouble(c -> c.getVolume() != null ? c.getVolume().doubleValue() : 0.0)
+                    ))
+                    .entrySet()
+                    .stream()
+                    .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                    .toList();
+
+            if (sortedVolumes.isEmpty()) {
+                log.warn("❌ Aucun symbole dominant sur la fenêtre {} -> {}", analysisStart, analysisEnd);
+                currentMinute = currentMinute.plusMinutes(1);
+                continue;
+            }
+
+            // Recherche de la candle sur cette minute, par ordre de dominance
+            Candle candleForThisMinute = null;
+
+            for (Map.Entry<String, Double> entry : sortedVolumes) {
+                String candidateSymbol = entry.getKey();
+                Double candidateVolume = entry.getValue();
+
+                log.debug("🔎 Tentative récupération candle à {} pour {} (volume cumulé : {})", currentMinute, candidateSymbol, candidateVolume);
+
+                Optional<Candle> candleOpt = candleRepository.findBySymbolFutureAndDate(
+                        candidateSymbol, currentMinute
+                );
+
+                if (candleOpt.isPresent()) {
+                    candleForThisMinute = candleOpt.get();
+                    log.info("✅ Candle trouvée pour {} à {} : {}", candidateSymbol, currentMinute, candleForThisMinute);
+                    break; // Stop dès qu'on en trouve une
+                }
+            }
+
+            if (candleForThisMinute != null) {
+                resultCandles.add(candleForThisMinute);
+            } else {
+                log.warn("⚠️ Aucune candle trouvée pour la minute {}", currentMinute);
+            }
+
+            currentMinute = currentMinute.plusMinutes(1);
+        }
+
+        // Tri final (normalement inutile, mais on assure)
+        resultCandles.sort(Comparator.comparing(Candle::getDate));
+
+        log.info("🎉 Flux final généré avec {} candles sur {} -> {}", resultCandles.size(), startDateTime, endDateTime);
 
         return resultCandles.stream().map(candleMapper::toDto).toList();
     }
