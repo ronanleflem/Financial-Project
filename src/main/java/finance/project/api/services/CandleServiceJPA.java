@@ -365,7 +365,7 @@ public class CandleServiceJPA implements CandleService {
     public List<CandleDTO> loadCsvCME(String symbolName, String timeframe) {
 
         //String filePath = "csvData/" + symbolName.toLowerCase() + "/" + timeframe + "/" + timeframe + "CME.csv";
-        String filePath = "csvData/" + symbolName.toLowerCase() + "/" + timeframe + "/month/data_2010-06.csv";
+        String filePath = "csvData/" + symbolName.toLowerCase() + "/" + timeframe + "/month/data_2025-02.csv";
 
         // Récupération du Symbol depuis la base
         Symbol symbol = symbolRepository.findBySymbol(symbolName)
