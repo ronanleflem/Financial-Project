@@ -1,14 +1,19 @@
 package finance.project.api.services;
 
 import finance.project.api.entities.Candle;
+import finance.project.api.mappers.CandleMapper;
+import finance.project.api.model.CandleDTO;
 import finance.project.api.repositories.CandleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import java.time.DayOfWeek;
 
 @Service
 @RequiredArgsConstructor
@@ -16,8 +21,9 @@ import java.util.stream.Collectors;
 public class VolumeBasedRolloverService {
 
     private final CandleRepository candleRepository;
+    private final CandleMapper candleMapper;
 
-    public List<Candle> getDynamicRolloverCandlesBasedOnVolume(
+    public List<CandleDTO> getDynamicRolloverCandlesBasedOnVolume(
             LocalDateTime startDateTime,
             LocalDateTime endDateTime,
             int analysisPeriodDays) {
@@ -30,6 +36,13 @@ public class VolumeBasedRolloverService {
         log.info("🚀 Démarrage de l'analyse dynamique sur la période {} -> {}", startDateTime, endDateTime);
 
         while (currentStart.isBefore(endDateTime)) {
+
+            DayOfWeek day = currentStart.getDayOfWeek();
+            if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
+                log.info("⏭️ Skip weekend : {}", currentStart);
+                currentStart = currentStart.plusDays(1);
+                continue;
+            }
 
             // Période d'analyse
             LocalDateTime analysisStart = currentStart.minusDays(analysisPeriodDays);
@@ -93,6 +106,71 @@ public class VolumeBasedRolloverService {
 
         log.info("🎉 Flux final généré : {} candles sur {} -> {}", resultCandles.size(), startDateTime, endDateTime);
 
-        return resultCandles;
+        return resultCandles.stream().map(candleMapper::toDto).toList();
     }
+
+    public Map<LocalDateTime, String> getDominantContractsPerDay(
+            LocalDateTime startDateTime,
+            LocalDateTime endDateTime,
+            int analysisPeriodDays) {
+
+        Map<LocalDateTime, String> dominanceMap = new LinkedHashMap<>();
+        LocalDateTime currentDateTime = startDateTime;
+
+        log.info("🚀 Génération de la heatmap de dominance (DateTime) de {} à {}", startDateTime, endDateTime);
+
+        while (!currentDateTime.isAfter(endDateTime)) {
+
+            DayOfWeek dayOfWeek = currentDateTime.getDayOfWeek();
+            if (dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY) {
+                log.info("⏭️ Weekend ignoré : {}", currentDateTime);
+                currentDateTime = currentDateTime.plusDays(1);
+                continue;
+            }
+
+            // La période d'analyse se termine à currentDateTime
+            LocalDateTime analysisStartDateTime = currentDateTime.minusDays(analysisPeriodDays);
+            LocalDateTime analysisEndDateTime = currentDateTime;
+
+            log.info("🔎 Analyse de dominance à {} sur les {} derniers jours ({} -> {})",
+                    currentDateTime, analysisPeriodDays, analysisStartDateTime, analysisEndDateTime);
+
+            // On récupère les candles sur la période d'analyse
+            List<Candle> analysisCandles = candleRepository.findByDateBetween(
+                    analysisStartDateTime, analysisEndDateTime
+            );
+
+            if (analysisCandles.isEmpty()) {
+                log.warn("❌ Aucune donnée trouvée pour la fenêtre {} -> {}", analysisStartDateTime, analysisEndDateTime);
+                dominanceMap.put(currentDateTime, "AUCUN");
+                currentDateTime = currentDateTime.plusDays(1);
+                continue;
+            }
+
+            // Calcul du volume cumulé par symbolFuture
+            Map<String, Double> volumeBySymbolFuture = analysisCandles.stream()
+                    .collect(Collectors.groupingBy(
+                            Candle::getSymbolFuture,
+                            Collectors.summingDouble(c -> c.getVolume() != null ? c.getVolume().doubleValue() : 0.0)
+                    ));
+
+            // Trouver le dominant
+            Optional<Map.Entry<String, Double>> dominantEntry = volumeBySymbolFuture.entrySet().stream()
+                    .max(Map.Entry.comparingByValue());
+
+            String dominantSymbol = dominantEntry.map(Map.Entry::getKey).orElse("AUCUN");
+
+            dominanceMap.put(currentDateTime, dominantSymbol);
+
+            log.info("✅ Dominant sur {} : {}", currentDateTime, dominantSymbol);
+
+            // Incrémente d'un jour (on pourrait passer à 1h si tu veux plus précis)
+            currentDateTime = currentDateTime.plusDays(1);
+        }
+
+        log.info("🎉 Heatmap DateTime générée avec {} points", dominanceMap.size());
+
+        return dominanceMap;
+    }
+
 }
