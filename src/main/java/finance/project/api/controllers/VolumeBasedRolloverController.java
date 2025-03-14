@@ -2,6 +2,7 @@ package finance.project.api.controllers;
 
 import finance.project.api.entities.Candle;
 import finance.project.api.model.CandleDTO;
+import finance.project.api.services.CandleAggregationService;
 import finance.project.api.services.VolumeBasedRolloverService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -19,6 +20,7 @@ import java.util.Map;
 public class VolumeBasedRolloverController {
 
     private final VolumeBasedRolloverService volumeBasedRolloverService;
+    private final CandleAggregationService candleAggregationService;
 
     /**
      * Endpoint de récupération des candles avec rollover basé sur la dominance volume
@@ -27,10 +29,12 @@ public class VolumeBasedRolloverController {
     public ResponseEntity<List<CandleDTO>> getCandlesBasedOnVolume(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
-            @RequestParam(defaultValue = "2") int analysisPeriodDays // 2 jours par défaut
+            @RequestParam(defaultValue = "2") int analysisPeriodDays,
+            @RequestParam(defaultValue = "M1") String timeframe
     ) {
         List<CandleDTO> candles = volumeBasedRolloverService.getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, analysisPeriodDays);
-        return ResponseEntity.ok(candles);
+        List<CandleDTO> aggregatedCandles = candleAggregationService.aggregateCandles(candles, timeframe);
+        return ResponseEntity.ok(aggregatedCandles);
     }
 
     @GetMapping("/heatmap-dominance")
