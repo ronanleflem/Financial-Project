@@ -6,10 +6,7 @@ import finance.project.api.entities.Symbol;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.model.CandleFilterDTO;
 import finance.project.api.model.SymbolDTO;
-import finance.project.api.services.CandleService;
-import finance.project.api.services.CurrencyLayerService;
-import finance.project.api.services.MarketstackService;
-import finance.project.api.services.SymbolService;
+import finance.project.api.services.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -49,6 +46,8 @@ public class CandleController {
 
     private final CurrencyLayerService currencyLayerService;
 
+    private final CandleAggregationService candleAggregationService;
+
     /**
      * Service pour la gestion des symboles.
      */
@@ -56,6 +55,7 @@ public class CandleController {
 
     private static final List<String> TIMEFRAMES = List.of("1min", "3min", "5min", "15min", "30min", "1h", "4h", "daily", "weekly", "monthly");
     private static final List<String> TIMEFRAMESVOL = List.of("1min", "3min", "5min", "10min", "15min", "30min", "1h", "2h","4h","8h", "12h", "daily", "weekly", "monthly");
+    private static final List<String> TIMEFRAMESVOLCME = List.of("5min", "15min", "30min", "1h", "4h","daily");
 
 
     /**
@@ -183,6 +183,20 @@ public class CandleController {
             @RequestParam String symbol, @RequestParam String timeframe) {
 
         List<CandleDTO> candles = candleService.loadCsvCME(symbol, timeframe);
+        return new ResponseEntity<>(candles, HttpStatus.OK);
+    }
+    @GetMapping("/load-csv/cme/all-timeframes")
+    public ResponseEntity<List<CandleDTO>> loadCmeCsvAllTimeframe(
+            @RequestParam String symbol, @RequestParam String timeframe) {
+
+        List<CandleDTO> candles = candleService.loadCsvCME(symbol, timeframe);
+        List<CandleDTO> aggregatedCandles;
+
+        for (String e : TIMEFRAMESVOLCME){
+            aggregatedCandles = candleAggregationService.aggregateCandles(candles, e);
+            candleService.saveCandlesToDatabase(aggregatedCandles,symbol,e);
+        }
+
         return new ResponseEntity<>(candles, HttpStatus.OK);
     }
 }

@@ -244,6 +244,37 @@ public class CandleServiceJPA implements CandleService {
         log.info("💾 {} bougies enregistrées pour {}", candles.size(), symbol.getSymbol());
     }
 
+
+    public void saveCandlesToDatabase(List<CandleDTO> candles, String symbol, String timeframe) {
+        int batchSize = 500;  // On insère 1000 bougies à la fois
+        List<Candle> batch = new ArrayList<>();
+
+        for (CandleDTO dto : candles) {
+            batch.add(Candle.builder()
+                    .symbol(symbolRepository.findBySymbol(symbol).orElseThrow())
+                    .timeframe(timeframe)
+                    .date(dto.getDate())
+                    .open(dto.getOpen())
+                    .close(dto.getClose())
+                    .high(dto.getHigh())
+                    .low(dto.getLow())
+                    .volume(dto.getVolume())
+                    .symbolFuture(dto.getSymbolFuture() != null ? dto.getSymbolFuture() : null)
+                    .build());
+
+            if (batch.size() >= batchSize) {
+                candleRepository.saveAll(batch);
+                batch.clear(); // On vide la liste pour le prochain batch
+            }
+        }
+
+        if (!batch.isEmpty()) { // Sauvegarde du reste des données
+            candleRepository.saveAll(batch);
+        }
+
+        log.info("💾 {} bougies enregistrées pour {}", candles.size(), symbol);
+    }
+
     private CandleDTO mapToDTO(Candle candle) {
         return CandleDTO.builder()
                 .id(candle.getId())
