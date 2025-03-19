@@ -248,10 +248,10 @@ public class CandleServiceJPA implements CandleService {
     public void saveCandlesToDatabase(List<CandleDTO> candles, String symbol, String timeframe) {
         int batchSize = 500;  // On insère 1000 bougies à la fois
         List<Candle> batch = new ArrayList<>();
-
+        Symbol symbol1 = symbolRepository.findBySymbol(symbol).orElseThrow();
         for (CandleDTO dto : candles) {
             batch.add(Candle.builder()
-                    .symbol(symbolRepository.findBySymbol(symbol).orElseThrow())
+                    .symbol(symbol1)
                     .timeframe(timeframe)
                     .date(dto.getDate())
                     .open(dto.getOpen())

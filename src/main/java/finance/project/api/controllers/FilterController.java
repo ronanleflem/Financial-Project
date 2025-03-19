@@ -26,6 +26,7 @@ import java.util.Map;
 public class FilterController {
 
     private static final List<String> TIMEFRAMES = List.of("1min", "3min", "5min", "15min", "30min", "1h", "4h", "daily", "weekly", "monthly");
+    private static final List<String> TIMEFRAMESVOLCME = List.of("5min", "15min", "30min", "1h", "4h","daily");
 
     private final CandleStructureFilter candleStructureFilter;
     private final BenfordLawFilter benfordLawFilter;
@@ -56,7 +57,7 @@ public class FilterController {
 
         Map<String, Map<String, String>> result = new HashMap<>();
 
-        for (String tf : TIMEFRAMES) {
+        for (String tf : TIMEFRAMESVOLCME) {
             result.put(tf, candleStructureFilter.calculateContinuationProbabilities(symbol, tf, -1));
         }
 
@@ -69,7 +70,7 @@ public class FilterController {
 
         Map<String, Map<String, String>> result = new HashMap<>();
 
-        for (String tf : TIMEFRAMES) {
+        for (String tf : TIMEFRAMESVOLCME) {
             result.put(tf, candleStructureFilter.calculateContinuationProbabilities(symbol, tf, numberLastestCandles));
         }
 
@@ -94,12 +95,12 @@ public class FilterController {
         return ResponseEntity.ok(result);
     }
 
-    @GetMapping("/institutional-bias")
+    @GetMapping("/institutional-biais")
     public ResponseEntity<Map<String, Integer>> getInstitutionalBias(
-            @RequestParam String symbol, @RequestParam String timeframe) {
+            @RequestParam String symbol, @RequestParam String timeframe, @RequestParam int maxCandle) {
 
         // Récupération des 1000 dernières bougies
-        List<CandleDTO> candlesLatest = candleService.getLastCandles(symbol, timeframe, 1000);
+        List<CandleDTO> candlesLatest = candleService.getLastCandles(symbol, timeframe, maxCandle);
 
         // Calcul du biais institutionnel
         int bias = biasInstitutionalFilter.calculateInstitutionalBias(candlesLatest);
@@ -112,13 +113,13 @@ public class FilterController {
 
     @GetMapping("/contradictory-signals")
     public ResponseEntity<Map<String, Integer>> getContradictionScore(
-            @RequestParam String symbol, @RequestParam String timeframe) {
+            @RequestParam String symbol, @RequestParam String timeframe, @RequestParam int maxCandle) {
 
-        List<CandleDTO> candlesLatest = candleService.getLastCandles(symbol, timeframe, 1000);
+        List<CandleDTO> candlesLatest = candleService.getLastCandles(symbol, timeframe, maxCandle);
 
         // Récupération des indicateurs
         //double price = marketDataService.getCurrentPrice(symbol);
-        double price = 1.04200; // Fixme : VAL TEMPORAIRE
+        double price = candlesLatest.getFirst().getClose().doubleValue(); // Fixme : VAL TEMPORAIRE
         double ema50 = marketDataService.calculateEMA(candlesLatest,50);
         double ema200 = marketDataService.calculateEMA(candlesLatest,200);
         double rsi = marketDataService.calculateRSI(candlesLatest, 14);
@@ -141,10 +142,10 @@ public class FilterController {
 
     @GetMapping("/cycles")
     public ResponseEntity<Map<String, Double>> getMarketCycles(
-            @RequestParam String symbol, @RequestParam String timeframe) {
+            @RequestParam String symbol, @RequestParam String timeframe,@RequestParam int maxCandle) {
 
         // Récupération des variations de prix
-        List<Double> prices = candleService.getPriceVariations(symbol, timeframe, 200);
+        List<Double> prices = candleService.getPriceVariations(symbol, timeframe, maxCandle);
 
         // Calcul du coefficient de détermination R²
         double rSquared = cyclesFilter.calculateR2(prices);
@@ -161,9 +162,9 @@ public class FilterController {
 
     @GetMapping("/entropy")
     public ResponseEntity<Map<String, Double>> getMarketEntropy(
-            @RequestParam String symbol, @RequestParam String timeframe) {
+            @RequestParam String symbol, @RequestParam String timeframe, @RequestParam int maxCandle) {
 
-        List<Double> priceChanges = candleService.getPriceVariations(symbol, timeframe, 200);
+        List<Double> priceChanges = candleService.getPriceVariations(symbol, timeframe, maxCandle);
         double entropy = entropyMarketFilter.calculateMarketEntropy(priceChanges);
 
         Map<String, Double> result = new HashMap<>();
@@ -172,12 +173,19 @@ public class FilterController {
         return ResponseEntity.ok(result);
     }
 
+    /**
+     * TO FIXME
+     * @param symbol
+     * @param timeframe
+     * @param maxCandle
+     * @return
+     */
     @GetMapping("/fractal-analysis")
     public ResponseEntity<Map<String, Double>> getFractalAnalysis(
-            @RequestParam String symbol, @RequestParam String timeframe) {
+            @RequestParam String symbol, @RequestParam String timeframe, @RequestParam int maxCandle) {
 
         // Récupération des variations de prix sous forme de rendements
-        List<Double> returns = candleService.getPriceReturns(symbol, timeframe, 200);
+        List<Double> returns = candleService.getPriceReturns(symbol, timeframe, maxCandle);
 
         // Calcul du Ratio de Hurst
         double hurstExponent = fractalAnalysisFilter.calculateHurstExponent(returns);
@@ -196,9 +204,9 @@ public class FilterController {
 
     @GetMapping("/market-manipulation")
     public ResponseEntity<Map<String, Integer>> detectMarketManipulation(
-            @RequestParam String symbol, @RequestParam String timeframe) {
+            @RequestParam String symbol, @RequestParam String timeframe, @RequestParam int maxCandle) {
 
-        List<Double> priceChanges = candleService.getPriceVariations(symbol, timeframe, 200);
+        List<Double> priceChanges = candleService.getPriceVariations(symbol, timeframe, maxCandle);
         int manipulationScore = marketManipulationFilter.detectManipulationZone(priceChanges);
 
         Map<String, Integer> result = new HashMap<>();

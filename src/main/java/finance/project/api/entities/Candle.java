@@ -32,7 +32,6 @@ public class Candle {
     @JoinColumn(name = "symbol_id", nullable = false, columnDefinition = "BINARY(16)")
     private Symbol symbol;
 
-    @NotNull
     @Column(nullable = true)
     private String symbolFuture;
 
