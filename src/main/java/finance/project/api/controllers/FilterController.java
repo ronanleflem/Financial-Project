@@ -274,6 +274,14 @@ public class FilterController {
         return ResponseEntity.ok(result);
     }
 
+    /**
+     *
+     * pRESSION ACHETEUSE VENDEUSE
+     * @param symbol
+     * @param timeframe
+     * @param period
+     * @return
+     */
     @GetMapping("/liquidity")
     public ResponseEntity<Map<String, Double>> getMarketLiquidity(
             @RequestParam String symbol, @RequestParam String timeframe,
@@ -297,11 +305,11 @@ public class FilterController {
 
     @GetMapping("/lower-timeframe-confluence")
     public ResponseEntity<Map<String, Integer>> getLowerTimeframeConfluence(
-            @RequestParam String symbol, @RequestParam String timeframe) {
+            @RequestParam String symbol, @RequestParam String timeframe, @RequestParam int period) {
 
         // Récupération des prix et indicateurs
 
-        List<CandleDTO> candlesLatest = candleService.getLastCandles(symbol, timeframe, 500);
+        List<CandleDTO> candlesLatest = candleService.getLastCandles(symbol, timeframe, period);
         // Extraction des closes, highs et lows
         List<Double> closes = candlesLatest.stream().map(c -> c.getClose().doubleValue()).toList();
         List<Double> highs = candlesLatest.stream().map(c -> c.getHigh().doubleValue()).toList();
@@ -318,7 +326,7 @@ public class FilterController {
         );
 
         double vwapDistance = marketDataService.calculateVWAP(candlesLatest) - closes.get(closes.size() - 1);
-        double deltaVolume = orderFlowService.getDeltaVolume(symbol, "M5");
+        double deltaVolume = orderFlowService.getDeltaVolume(symbol, "M5"); // FIXME : faire en sorte d'avoir les volumes pour VWAP
 
         // Calcul du score de confluence
         int confluenceScore = lowerTimeframeConfluenceFilter.calculateConfluenceScore(momentum, adx, trendAligned, vwapDistance, deltaVolume);
