@@ -8,6 +8,7 @@ import finance.project.api.services.CandleService;
 import finance.project.api.services.MarketDataService;
 import finance.project.api.services.OrderFlowService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,14 +16,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+
 
 @RestController
 @RequestMapping("/filter")
 @RequiredArgsConstructor
+@Slf4j
 public class FilterController {
 
     private static final List<String> TIMEFRAMES = List.of("1min", "3min", "5min", "15min", "30min", "1h", "4h", "daily", "weekly", "monthly");
@@ -50,6 +50,41 @@ public class FilterController {
         Map<String, String> probability = candleStructureFilter.calculateContinuationProbabilities(symbol,timeframe, -1);
         return ResponseEntity.ok(probability);
     }
+
+    @GetMapping("/bullish-bearish-stats/multi-timeframes")
+    public ResponseEntity<Map<String, Map<String, String>>> getBullishContinuationProbabilityForMultipleTimeframes(
+            @RequestParam String symbol,
+            @RequestParam String timeframes // timeframes passés séparés par des virgules
+    ) {
+        Map<String, Map<String, String>> result = new HashMap<>();
+
+        // 1. On split les timeframes
+        List<String> requestedTimeframes = Arrays.stream(timeframes.split(","))
+                .map(String::trim)
+                .map(String::toLowerCase) // ou pas selon ta convention
+                .toList();
+
+        // 2. Validation
+        List<String> validTimeframes = requestedTimeframes.stream()
+                .filter(TIMEFRAMESVOLCME::contains)
+                .toList();
+
+        if (validTimeframes.isEmpty()) {
+            log.warn("❌ Aucun timeframe valide parmi : {}", requestedTimeframes);
+            return ResponseEntity.badRequest().body(Map.of("error", Map.of("message", "Aucun timeframe valide !")));
+        }
+
+        // 3. Boucle sur les timeframes et calcul des stats
+        for (String tf : validTimeframes) {
+            log.info("🔎 Calcul de la probabilité de continuation pour symbol {} sur timeframe {}", symbol, tf);
+
+            Map<String, String> probability = candleStructureFilter.calculateContinuationProbabilities(symbol, tf, -1);
+            result.put(tf, probability);
+        }
+
+        return ResponseEntity.ok(result);
+    }
+
 
     @GetMapping("/bullish-bearish-stats/all")
     public ResponseEntity<Map<String, Map<String, String>>> getAllBullishContinuationProbability(
