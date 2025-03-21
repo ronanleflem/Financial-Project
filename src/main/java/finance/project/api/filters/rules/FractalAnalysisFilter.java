@@ -1,14 +1,16 @@
 package finance.project.api.filters.rules;
 
 
+import finance.project.api.utils.Kurtosis;
+import finance.project.api.utils.Skewness;
 import org.springframework.stereotype.Service;
 import java.util.List;
 
 @Service
 public class FractalAnalysisFilter {
-
+    private final Kurtosis kurtosis = new Kurtosis();
+    private final Skewness skewness = new Skewness();
     /**
-     * FIXME
      * Calcule le Ratio de Hurst pour mesurer le comportement fractal du marché.
      *
      * @param priceChanges Liste des variations de prix
@@ -16,24 +18,61 @@ public class FractalAnalysisFilter {
      */
     public double calculateHurstExponent(List<Double> priceChanges) {
         int N = priceChanges.size();
-        if (N < 20) return 0.5; // Pas assez de données
+        if (N < 20) {
+            return 0.5; // Pas assez de données, on retourne la valeur d'un marché aléatoire.
+        }
 
-        double mean = priceChanges.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
-        double cumulativeDeviation = 0;
-        double sumSquaredDeviations = 0;
+        // Moyenne des variations de prix
+        double mean = priceChanges.stream()
+                .mapToDouble(Double::doubleValue)
+                .average()
+                .orElse(0.0);
 
+        // Création de la série cumulative (X(t) - moyenne)
         double[] cumulativeSeries = new double[N];
+        double cumulativeDeviation = 0.0;
         for (int i = 0; i < N; i++) {
             cumulativeDeviation += priceChanges.get(i) - mean;
             cumulativeSeries[i] = cumulativeDeviation;
-            sumSquaredDeviations += Math.pow(priceChanges.get(i) - mean, 2);
         }
 
-        //double R = Math.max(cumulativeSeries) - Math.min(cumulativeSeries);
+        // Calcul de la plage R = max - min de la série cumulative
+        double maxCumulative = cumulativeSeries[0];
+        double minCumulative = cumulativeSeries[0];
+        for (int i = 1; i < N; i++) {
+            if (cumulativeSeries[i] > maxCumulative) {
+                maxCumulative = cumulativeSeries[i];
+            }
+            if (cumulativeSeries[i] < minCumulative) {
+                minCumulative = cumulativeSeries[i];
+            }
+        }
+        double R = maxCumulative - minCumulative;
+
+        // Calcul de l'écart type S des variations de prix
+        double sumSquaredDeviations = 0.0;
+        for (int i = 0; i < N; i++) {
+            sumSquaredDeviations += Math.pow(priceChanges.get(i) - mean, 2);
+        }
         double S = Math.sqrt(sumSquaredDeviations / N);
 
-        return 0.0;//(S == 0) ? 0.5 : Math.log(R / S) / Math.log(N);
+        // Évitons la division par zéro
+        if (S == 0) {
+            return 0.5; // Pas de volatilité => comportement aléatoire
+        }
+
+        // Calcul du ratio R/S
+        double rescaledRange = R / S;
+
+        // Calcul du Hurst exponent : log(R/S) / log(N)
+        double hurstExponent = Math.log(rescaledRange) / Math.log(N);
+
+        // Assurons-nous que le résultat est dans [0, 1]
+        hurstExponent = Math.max(0.0, Math.min(hurstExponent, 1.0));
+
+        return hurstExponent;
     }
+
     /**
      * Calcule la Kurtosis des rendements du marché.
      *
@@ -41,10 +80,9 @@ public class FractalAnalysisFilter {
      * @return Kurtosis (Valeur élevée = pics extrêmes fréquents)
      */
     public double calculateKurtosis(List<Double> returns) {
-        if (returns.size() < 20) return 0.0; // Besoin d'un minimum de données
-
-        //Kurtosis kurtosis = new Kurtosis();
-        return 0.0;//kurtosis.evaluate(returns.stream().mapToDouble(Double::doubleValue).toArray());
+        if (returns.size() < 20) return 0.0;
+        double[] data = returns.stream().mapToDouble(Double::doubleValue).toArray();
+        return kurtosis.evaluate(data);
     }
 
     /**
@@ -55,8 +93,7 @@ public class FractalAnalysisFilter {
      */
     public double calculateSkewness(List<Double> returns) {
         if (returns.size() < 20) return 0.0;
-
-        //Skewness skewness = new Skewness();
-        return 0.0;//skewness.evaluate(returns.stream().mapToDouble(Double::doubleValue).toArray());
+        double[] data = returns.stream().mapToDouble(Double::doubleValue).toArray();
+        return skewness.evaluate(data);
     }
 }
