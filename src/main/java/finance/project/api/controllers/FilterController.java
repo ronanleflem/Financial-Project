@@ -1,5 +1,6 @@
 package finance.project.api.controllers;
 
+import finance.project.api.entities.PointOfInterest;
 import finance.project.api.filters.rules.*;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.repositories.CandleRepository;
@@ -16,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 
 
@@ -40,6 +43,7 @@ public class FilterController {
     private final DonchianChannelsFilter donchianChannelsFilter;
     private final LiquidityFilter liquidityFilter;
     private final LowerTimeframeConfluenceFilter lowerTimeframeConfluenceFilter;
+    private final ICTPointOfInterestFilter ictPointOfInterestFilter;
 
     private final CandleService candleService;
     private final MarketDataService marketDataService;
@@ -255,8 +259,8 @@ public class FilterController {
             @RequestParam String symbol, @RequestParam String timeframe) {
 
         // Récupération du prix actuel et des niveaux institutionnels
-        double price = candleService.getLastCandles(symbol,"1min",1).get(0).getClose().doubleValue(); // Plus petite bougie pour récupèrer le prix le plus proches
-        List<Double> keyLevels = null;//candleService.getInstitutionalLevels(symbol,timeframe);
+        double price = candleService.getLastCandles(symbol,"5min",1).get(0).getClose().doubleValue(); // Plus petite bougie pour récupèrer le prix le plus proches
+        List<PointOfInterest> keyLevels = candleService.getInstitutionalLevels(symbol,timeframe);
 
         // Calcul du score de confluence
         int confluenceScore = highTimeframeZoneFilter.checkInstitutionalConfluence(price, keyLevels);
@@ -272,12 +276,12 @@ public class FilterController {
             @RequestParam String symbol) {
 
         // Récupération des prix et zones institutionnelles
-        double price = candleService.getLastCandles(symbol,"1min",1).get(0).getClose().doubleValue();
-        List<Double> keyLevels = null;//candleService.getInstitutionalLevels(symbol); // IL FAUT QUE JE CREE UNE TABLE POUR SA
+        double price = candleService.getLastCandles(symbol,"5min",1).get(0).getClose().doubleValue();
+        List<PointOfInterest> keyLevels = candleService.getInstitutionalLevels(symbol,"5min"); // IL FAUT QUE JE CREE UNE TABLE POUR SA
 
         // Récupération du flux d’ordres
-        List<Double> buyVolumes = orderFlowService.getBuyVolumes(symbol, keyLevels);
-        List<Double> sellVolumes = orderFlowService.getSellVolumes(symbol, keyLevels);
+        List<Double> buyVolumes = orderFlowService.getBuyVolumes(symbol, keyLevels, LocalDateTime.now(), LocalDateTime.now()); // FIXME : A changer plus tard pour la date
+        List<Double> sellVolumes = orderFlowService.getSellVolumes(symbol, keyLevels, LocalDateTime.now(), LocalDateTime.now()); // FIXME : A changer plus tard pour la date
 
         // Calcul du score final
         int confluenceScore = highTimeframeZoneFilter.checkInstitutionalConfluenceWithOrderFlow(price, keyLevels, buyVolumes, sellVolumes);
@@ -361,7 +365,7 @@ public class FilterController {
         );
 
         double vwapDistance = marketDataService.calculateVWAP(candlesLatest) - closes.get(closes.size() - 1);
-        double deltaVolume = orderFlowService.getDeltaVolume(symbol, "M5"); // FIXME : faire en sorte d'avoir les volumes pour VWAP
+        double deltaVolume = orderFlowService.getDeltaVolume(symbol, "5min",LocalDateTime.now(),LocalDateTime.now()); // FIXME : faudra changer les dates
 
         // Calcul du score de confluence
         int confluenceScore = lowerTimeframeConfluenceFilter.calculateConfluenceScore(momentum, adx, trendAligned, vwapDistance, deltaVolume);
@@ -370,5 +374,45 @@ public class FilterController {
         result.put("confluenceScore", confluenceScore);
 
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Endpoint pour analyser les points d'intérêt ICT sur un symbole et un timeframe donné.
+     *
+     * @param symbol Le symbole à analyser (ex : EURUSD)
+     * @param timeframe Le timeframe à analyser (ex : "4h", "daily", etc.)
+     * @param candleLimit Nombre de candles à analyser (facultatif)
+     * @return Liste des Points Of Interest détectés
+     */
+    @GetMapping("/analyzeICTpoi")
+    public ResponseEntity<List<PointOfInterest>> analyzeICTPoints(
+            @RequestParam String symbol,
+            @RequestParam String timeframe,
+            @RequestParam(required = false, defaultValue = "200") int candleLimit // Par défaut on prend les 200 dernières bougies
+    ) {
+        try {
+            // 1. Récupération des candles depuis ton candleService (existant)
+            List<CandleDTO> candles = candleService.getLastCandles(symbol, timeframe, candleLimit);
+
+            if (candles == null || candles.isEmpty()) {
+                return ResponseEntity.badRequest().body(Collections.emptyList());
+            }
+
+            // 2. Analyse des points d'intérêt
+            List<PointOfInterest> pointsOfInterest = ictPointOfInterestFilter.analyzeICTPoints(candles);
+
+            if (pointsOfInterest.isEmpty()) {
+                return ResponseEntity.ok(Collections.emptyList());
+            }
+
+            // 3. Retourne la réponse avec les points détectés
+            return ResponseEntity.ok(pointsOfInterest);
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Collections.emptyList());
+        } catch (Exception e) {
+            // Gestion d'erreur si besoin
+            return ResponseEntity.internalServerError().body(Collections.emptyList());
+        }
     }
 }

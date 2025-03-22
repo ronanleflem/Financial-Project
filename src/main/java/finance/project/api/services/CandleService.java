@@ -1,6 +1,7 @@
 package finance.project.api.services;
 
 import finance.project.api.entities.Candle;
+import finance.project.api.entities.PointOfInterest;
 import finance.project.api.entities.Symbol;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.model.CandleFilterDTO;
@@ -28,5 +29,7 @@ public interface CandleService {
     void saveCandlesToDatabase(List<CandleDTO> candles, Symbol symbol, String timeframe);
 
     void saveCandlesToDatabase(List<CandleDTO> candles, String symbol, String timeframe);
+
+    List<PointOfInterest> getInstitutionalLevels(String symbol, String timeframe);
 
 }

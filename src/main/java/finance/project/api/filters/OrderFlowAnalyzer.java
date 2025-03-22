@@ -1,6 +1,7 @@
 package finance.project.api.filters;
 
 
+import finance.project.api.entities.PointOfInterest;
 import org.springframework.stereotype.Service;
 import java.util.List;
 
@@ -22,11 +23,11 @@ public class OrderFlowAnalyzer {
      * @param sellVolumes Liste des volumes vendeurs sur chaque niveau
      * @return Score de validation des niveaux (0 = non valide, 1-2 = modéré, 3+ = fort)
      */
-    public int validateZonesWithOrderFlow(double price, List<Double> keyLevels, List<Double> buyVolumes, List<Double> sellVolumes) {
+    public int validateZonesWithOrderFlow(double price, List<PointOfInterest> keyLevels, List<Double> buyVolumes, List<Double> sellVolumes) {
         int validationScore = 0;
 
         for (int i = 0; i < keyLevels.size(); i++) {
-            double level = keyLevels.get(i);
+            double level = (keyLevels.get(i).getHigh()+keyLevels.get(i).getLow()) /2;
             double deltaVolume = buyVolumes.get(i) - sellVolumes.get(i);
 
             if (Math.abs(price - level) <= 0.0015) { // Zone proche

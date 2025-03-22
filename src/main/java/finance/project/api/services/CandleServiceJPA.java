@@ -1,11 +1,13 @@
 package finance.project.api.services;
 
 import finance.project.api.entities.Candle;
+import finance.project.api.entities.PointOfInterest;
 import finance.project.api.entities.Symbol;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.model.CandleFilterDTO;
 import finance.project.api.model.SymbolDTO;
 import finance.project.api.repositories.CandleRepository;
+import finance.project.api.repositories.PointOfInterestRepository;
 import finance.project.api.repositories.SymbolRepository;
 import finance.project.api.utils.CandleSpecification;
 import jakarta.persistence.EntityManager;
@@ -23,6 +25,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -36,6 +39,7 @@ public class CandleServiceJPA implements CandleService {
     private final CandleRepository candleRepository;
     private final SymbolRepository symbolRepository;
     private final AlphaVantageService alphaVantageService;
+    private final PointOfInterestRepository pointOfInterestRepository;
 
 
 
@@ -290,6 +294,7 @@ public class CandleServiceJPA implements CandleService {
                 .high(candle.getHigh())
                 .low(candle.getLow())
                 .volume(candle.getVolume())
+                .timeframe(candle.getTimeframe())
                 .build();
     }
 
@@ -446,4 +451,29 @@ public class CandleServiceJPA implements CandleService {
         return candles;
     }
 
+    /**
+     * Retourne les niveaux institutionnels pour un symbol et un timeframe donnés.
+     * @param symbol Le symbole (ex: EURUSD)
+     * @param timeframe Le timeframe (ex: "4h")
+     * @return Une liste des niveaux clés (prix)
+     */
+    public List<PointOfInterest> getInstitutionalLevels(String symbol, String timeframe) {
+
+        // 1. On récupère les levels depuis la base
+        List<PointOfInterest> levels = pointOfInterestRepository.findBySymbolAndTimeframe(symbol, timeframe);
+
+        if (levels.isEmpty()) {
+            log.warn("❌ Aucun niveau institutionnel trouvé pour {} sur le timeframe {}", symbol, timeframe);
+            return Collections.emptyList();
+        }
+
+        // 2. On extrait juste les priceLevel
+        List<PointOfInterest> keyLevels = levels.stream()
+                .filter(level -> Boolean.TRUE.equals(level.isValid())) // On ne prend que les niveaux validés
+                .toList();
+
+        log.info("✅ {} niveaux institutionnels récupérés pour {} sur {}", keyLevels.size(), symbol, timeframe);
+
+        return keyLevels;
+    }
 }

@@ -1,5 +1,6 @@
 package finance.project.api.filters.rules;
 
+import finance.project.api.entities.PointOfInterest;
 import finance.project.api.filters.OrderFlowAnalyzer;
 import finance.project.api.services.OrderFlowService;
 import lombok.RequiredArgsConstructor;
@@ -23,11 +24,11 @@ public class HighTimeframeZoneFilter {
      * @param keyLevels Liste des niveaux institutionnels détectés
      * @return Score de confluence basé sur le nombre de zones proches
      */
-    public int checkInstitutionalConfluence(double price, List<Double> keyLevels) {
+    public int checkInstitutionalConfluence(double price, List<PointOfInterest> keyLevels) {
         int confluenceScore = 0;
 
-        for (double level : keyLevels) {
-            if (Math.abs(price - level) <= PROXIMITY_THRESHOLD) {
+        for (PointOfInterest level : keyLevels) {
+            if (Math.abs(price - (level.getHigh()+level.getLow()/2) ) <= PROXIMITY_THRESHOLD) {
                 confluenceScore++;
             }
         }
@@ -44,12 +45,12 @@ public class HighTimeframeZoneFilter {
      * @param sellVolumes Liste des volumes vendeurs par niveau
      * @return Score pondéré basé sur la confluence entre zone et Order Flow
      */
-    public int checkInstitutionalConfluenceWithOrderFlow(double price, List<Double> keyLevels, List<Double> buyVolumes, List<Double> sellVolumes) {
+    public int checkInstitutionalConfluenceWithOrderFlow(double price, List<PointOfInterest> keyLevels, List<Double> buyVolumes, List<Double> sellVolumes) {
         int confluenceScore = 0;
 
         // Vérification de proximité des niveaux institutionnels
-        for (double level : keyLevels) {
-            if (Math.abs(price - level) <= 0.0015) {
+        for (PointOfInterest level : keyLevels) {
+            if (Math.abs(price - (level.getHigh()+level.getLow()/2)) <= 0.0015) {
                 confluenceScore++;
             }
         }
