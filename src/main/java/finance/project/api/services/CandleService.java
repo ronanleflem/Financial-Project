@@ -7,11 +7,13 @@ import finance.project.api.model.CandleDTO;
 import finance.project.api.model.CandleFilterDTO;
 import finance.project.api.model.SymbolDTO;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface CandleService {
     List<CandleDTO> getCandles(SymbolDTO symbol, String interval);
 
+    List<CandleDTO> getCandlesByTimeframeAndIntervalDate(String symbol, String timeframe, LocalDateTime startDate, LocalDateTime endDate);
     List<CandleDTO> getLastCandles(String symbol, String timeframe, int limit);
 
     List<CandleDTO> getCandles(String symbol);
@@ -24,7 +26,7 @@ public interface CandleService {
 
     List<Candle> getFilteredCandles(CandleFilterDTO filter);
 
-    List<CandleDTO> loadCsvCME(String symbol, String timeframe);
+    List<CandleDTO> loadCsvCME(String symbol, String timeframe, String data);
 
     void saveCandlesToDatabase(List<CandleDTO> candles, Symbol symbol, String timeframe);
 

@@ -1,12 +1,15 @@
 package finance.project.api.controllers;
 
 
+
 import finance.project.api.entities.Candle;
 import finance.project.api.entities.Symbol;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.model.CandleFilterDTO;
 import finance.project.api.model.SymbolDTO;
 import finance.project.api.services.*;
+import org.apache.commons.lang3.tuple.Pair;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -18,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -48,6 +53,7 @@ public class CandleController {
 
     private final CandleAggregationService candleAggregationService;
 
+    private final VolumeBasedRolloverService volumeBasedRolloverService;
     /**
      * Service pour la gestion des symboles.
      */
@@ -55,7 +61,7 @@ public class CandleController {
 
     private static final List<String> TIMEFRAMES = List.of("1min", "3min", "5min", "15min", "30min", "1h", "4h", "daily", "weekly", "monthly");
     private static final List<String> TIMEFRAMESVOL = List.of("1min", "3min", "5min", "10min", "15min", "30min", "1h", "2h","4h","8h", "12h", "daily", "weekly", "monthly");
-    private static final List<String> TIMEFRAMESVOLCME = List.of("5min", "15min", "30min", "1h", "4h","daily");
+    private static final List<String> TIMEFRAMESVOLCME = List.of("3min", "5min", "10min", "15min", "30min", "1h", "2h","4h","8h", "12h", "daily", "weekly", "monthly");
 
 
     /**
@@ -77,6 +83,33 @@ public class CandleController {
         List<CandleDTO> data = candleService.getLastCandles(symbol,timeframe,50);
         System.out.println("Data sended : "+data.size());
         return new ResponseEntity<>(data, HttpStatus.OK);
+    }
+
+    /** FIXME : Ajouter le symbol dans getDynamicRollover
+     *
+     * @param symbol
+     * @param timeframe
+     * @param startDate
+     * @param endDate
+     * @param analysisPeriodDays
+     * @return
+     */
+    @GetMapping("/candles/date-time")
+    public ResponseEntity<List<CandleDTO>> getCandlesDateTime(@RequestParam String symbol, @RequestParam String timeframe,
+                                                              @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+                                                              @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate, @RequestParam(defaultValue = "2") int analysisPeriodDays) {
+
+        if(timeframe.equals("1min")){
+            List<CandleDTO> candlesFilteredByVolume = volumeBasedRolloverService.getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, analysisPeriodDays);
+            return new ResponseEntity<>(candlesFilteredByVolume, HttpStatus.OK);
+        }
+        SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
+        System.out.println(symbolDTO);
+
+        List<CandleDTO> candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
+
+        System.out.println("Number candles sended : "+candles.size());
+        return new ResponseEntity<>(candles, HttpStatus.OK);
     }
 
     /**
@@ -180,23 +213,62 @@ public class CandleController {
 
     @GetMapping("/load-csv/cme")
     public ResponseEntity<List<CandleDTO>> loadCmeCsv(
-            @RequestParam String symbol, @RequestParam String timeframe) {
+            @RequestParam String symbol, @RequestParam String timeframe, @RequestParam String data) {
 
-        List<CandleDTO> candles = candleService.loadCsvCME(symbol, timeframe);
+        List<CandleDTO> candles = candleService.loadCsvCME(symbol, timeframe, data);
         return new ResponseEntity<>(candles, HttpStatus.OK);
     }
+    private Pair<LocalDateTime, LocalDateTime> getStartAndEndDateFromData(String data) {
+        try {
+            // Exemple data : "data_2025-02"
+            String[] split = data.split("_");
+            if (split.length < 2) {
+                throw new IllegalArgumentException("Format du paramètre 'data' incorrect. Ex: data_YYYY-MM");
+            }
+
+            String yearMonthStr = split[1];
+            YearMonth yearMonth = YearMonth.parse(yearMonthStr);
+
+            LocalDateTime startDateTime = yearMonth.atDay(1).atStartOfDay();
+            LocalDateTime endDateTime = yearMonth.atEndOfMonth().atTime(23, 59, 59);
+
+            return Pair.of(startDateTime, endDateTime);
+
+        } catch (Exception e) {
+            throw new RuntimeException("❌ Erreur lors du parsing de la période depuis 'data' : " + data, e);
+        }
+    }
+
     @GetMapping("/load-csv/cme/all-timeframes")
     public ResponseEntity<List<CandleDTO>> loadCmeCsvAllTimeframe(
-            @RequestParam String symbol, @RequestParam String timeframe) {
+            @RequestParam String symbol,
+            @RequestParam String timeframe,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam(defaultValue = "2") int analysisPeriodDays,
+            @RequestParam String data
+    ) {
+        // Si pas de startDate / endDate -> on utilise data_YYYY-MM pour déduire
+        if (startDate == null || endDate == null) {
+            var dates = getStartAndEndDateFromData(data);
+            startDate = dates.getLeft();
+            endDate = dates.getRight();
+        }
 
-        List<CandleDTO> candles = candleService.loadCsvCME(symbol, timeframe);
-        List<CandleDTO> aggregatedCandles;
+        // Charger les candles du fichier CSV spécifique
+        List<CandleDTO> candles = candleService.loadCsvCME(symbol, timeframe, data);
 
-        for (String e : TIMEFRAMESVOLCME){
-            aggregatedCandles = candleAggregationService.aggregateCandles(candles, e);
-            candleService.saveCandlesToDatabase(aggregatedCandles,symbol,e);
+        // Récupérer les candles filtrées par volume / rollover dynamique
+        List<CandleDTO> candlesFiltredByVolume = volumeBasedRolloverService
+                .getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, analysisPeriodDays);
+
+        // Agrégation sur toutes les timeframes que tu as défini
+        for (String e : TIMEFRAMESVOLCME) {
+            List<CandleDTO> aggregatedCandles = candleAggregationService.aggregateCandles(candlesFiltredByVolume, e);
+            candleService.saveCandlesToDatabase(aggregatedCandles, symbol, e);
         }
 
         return new ResponseEntity<>(candles, HttpStatus.OK);
     }
+
 }

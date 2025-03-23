@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -50,14 +51,22 @@ public class CandleAggregationService {
     }
 
     private int convertTimeframeToMinutes(String timeframe) {
-        return switch (timeframe) {
+        return switch (timeframe.toLowerCase()) {
             case "1min" -> 1;
+            case "3min" -> 3;
             case "5min" -> 5;
+            case "10min" -> 10;
             case "15min" -> 15;
             case "30min" -> 30;
+            case "45min" -> 45;
             case "1h" -> 60;
+            case "2h" -> 120;
             case "4h" -> 240;
+            case "8h" -> 480;
+            case "12h" -> 720;
             case "daily" -> 1440;
+            case "weekly" -> 10080;    // 7 * 1440
+            case "monthly" -> 43200;   // 30 * 1440 (approx)
             default -> {
                 log.warn("⚠️ Timeframe non supporté '{}', fallback à M1", timeframe);
                 yield 1;
@@ -65,26 +74,56 @@ public class CandleAggregationService {
         };
     }
 
+
     private LocalDateTime getBucketStartTime(LocalDateTime dateTime, int tfMinutes) {
+
         if (tfMinutes < 60) {
-            // Timeframe basé sur les minutes (M5, M15, M30, etc.)
+            // Timeframes en minutes : 1min, 3min, 5min, 10min, 15min, 30min, 45min
             int minuteOfPeriod = (dateTime.getMinute() / tfMinutes) * tfMinutes;
             return dateTime.withMinute(minuteOfPeriod).withSecond(0).withNano(0);
+
         } else if (tfMinutes == 60) {
-            // H1 → On aligne à l'heure
+            // H1
             return dateTime.withMinute(0).withSecond(0).withNano(0);
+
+        } else if (tfMinutes == 120) {
+            // 2H
+            int hourOfPeriod = (dateTime.getHour() / 2) * 2;
+            return dateTime.withHour(hourOfPeriod).withMinute(0).withSecond(0).withNano(0);
+
         } else if (tfMinutes == 240) {
-            // H4 → 00h, 04h, 08h, 12h, 16h, 20h
+            // 4H → 00h, 04h, 08h, etc.
             int hourOfPeriod = (dateTime.getHour() / 4) * 4;
             return dateTime.withHour(hourOfPeriod).withMinute(0).withSecond(0).withNano(0);
+
+        } else if (tfMinutes == 480) {
+            // 8H → 00h, 08h, 16h
+            int hourOfPeriod = (dateTime.getHour() / 8) * 8;
+            return dateTime.withHour(hourOfPeriod).withMinute(0).withSecond(0).withNano(0);
+
+        } else if (tfMinutes == 720) {
+            // 12H → 00h, 12h
+            int hourOfPeriod = (dateTime.getHour() / 12) * 12;
+            return dateTime.withHour(hourOfPeriod).withMinute(0).withSecond(0).withNano(0);
+
         } else if (tfMinutes == 1440) {
             // D1 → début de journée
             return dateTime.toLocalDate().atStartOfDay();
+
+        } else if (tfMinutes == 10080) {
+            // Weekly → début de semaine (lundi)
+            return dateTime.with(DayOfWeek.MONDAY).toLocalDate().atStartOfDay();
+
+        } else if (tfMinutes == 43200) {
+            // Monthly → 1er jour du mois
+            return dateTime.withDayOfMonth(1).toLocalDate().atStartOfDay();
+
         } else {
             log.warn("⚠️ Timeframe non standard '{} minutes'. Fallback à date brute", tfMinutes);
             return dateTime.withSecond(0).withNano(0);
         }
     }
+
 
 
     private CandleDTO aggregateBucket(List<CandleDTO> candles, LocalDateTime bucketStart, String timeframe) {

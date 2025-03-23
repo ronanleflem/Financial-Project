@@ -39,6 +39,11 @@
 			<version>3.45.3.0</version>
 		</dependency>-->
 		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+			<version>3.12.0</version> <!-- ou la dernière -->
+		</dependency>
+		<dependency>
 			<groupId>com.mysql</groupId>
 			<artifactId>mysql-connector-j</artifactId>
 			<version>8.2.0</version> <!-- Adapte selon la dernière version stable -->

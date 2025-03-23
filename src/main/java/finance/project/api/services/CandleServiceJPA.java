@@ -49,6 +49,42 @@ public class CandleServiceJPA implements CandleService {
     }
 
     @Override
+    public List<CandleDTO> getCandlesByTimeframeAndIntervalDate(String symbol, String timeframe, LocalDateTime startDate, LocalDateTime endDate) {
+
+        // 1. Récupère le symbole (gestion d'erreur si non trouvé)
+        Optional<Symbol> existingSymbolOpt = symbolRepository.findBySymbol(symbol);
+
+        if (existingSymbolOpt.isEmpty()) {
+            log.warn("❌ Symbole '{}' introuvable en base", symbol);
+            return List.of();
+        }
+
+        Symbol existingSymbol = existingSymbolOpt.get();
+
+        // 2. Récupère les candles correspondant au timeframe + période
+        List<Candle> candlesFromDB = candleRepository.findBySymbolAndTimeframeAndDateBetween(
+                existingSymbol,
+                timeframe,
+                startDate,
+                endDate
+        );
+
+        // 3. Check si résultat
+        if (candlesFromDB.isEmpty()) {
+            log.warn("❌ Aucune candle trouvée pour {} sur {} entre {} et {}", symbol, timeframe, startDate, endDate);
+            return List.of();
+        }
+
+        log.info("📊 {} candles récupérées depuis la base pour {} sur {} entre {} et {}", candlesFromDB.size(), symbol, timeframe, startDate, endDate);
+
+        // 4. Map vers DTO
+        return candlesFromDB.stream()
+                .map(this::mapToDTO)
+                .toList();
+    }
+
+
+    @Override
     public List<CandleDTO> getLastCandles(String symbol, String timeframe, int limit){
         Optional<Symbol> existingSymbol = symbolRepository.findBySymbol(symbol);
         List<Candle> candlesFromDB = candleRepository.findBySymbolAndTimeframeOrderByDateDescLimitNumberLatestCandle(existingSymbol,  timeframe, limit);
@@ -295,6 +331,7 @@ public class CandleServiceJPA implements CandleService {
                 .low(candle.getLow())
                 .volume(candle.getVolume())
                 .timeframe(candle.getTimeframe())
+                .symbolFuture(candle.getSymbolFuture())
                 .build();
     }
 
@@ -398,10 +435,10 @@ public class CandleServiceJPA implements CandleService {
     }
 
     @Override
-    public List<CandleDTO> loadCsvCME(String symbolName, String timeframe) {
+    public List<CandleDTO> loadCsvCME(String symbolName, String timeframe,String data) {
 
         //String filePath = "csvData/" + symbolName.toLowerCase() + "/" + timeframe + "/" + timeframe + "CME.csv";
-        String filePath = "csvData/" + symbolName.toLowerCase() + "/" + timeframe + "/month/data_2025-02.csv";
+        String filePath = "csvData/" + symbolName.toLowerCase() + "/" + timeframe + "/month/"+data+".csv";
 
         // Récupération du Symbol depuis la base
         Symbol symbol = symbolRepository.findBySymbol(symbolName)
