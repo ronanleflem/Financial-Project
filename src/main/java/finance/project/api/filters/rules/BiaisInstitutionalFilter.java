@@ -30,7 +30,7 @@ public class BiaisInstitutionalFilter {
         double price = candlesLatest.get(candlesLatest.size() - 1).getClose().doubleValue(); // Dernier prix
         double ema50 = marketDataService.calculateEMA(candlesLatest.subList(candlesLatest.size() - 50, candlesLatest.size()), 50);
         double ema200 = marketDataService.calculateEMA(candlesLatest.subList(candlesLatest.size() - 200, candlesLatest.size()), 200);
-        //double vwap = marketDataService.calculateVWAP(candlesLatest);
+        double vwap = marketDataService.calculateVWAP(candlesLatest);
 
         int bias = 0;
 
@@ -42,12 +42,12 @@ public class BiaisInstitutionalFilter {
         }
 
         // Biais basé sur le VWAP
-        /*
+
         if (price > vwap) {
             bias += 1; // Pression acheteuse
         } else {
             bias -= 1; // Pression vendeuse
-        }*/
+        }
 
         return Integer.compare(bias, 0);
     }
