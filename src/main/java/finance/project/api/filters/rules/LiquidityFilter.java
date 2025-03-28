@@ -30,7 +30,11 @@ import java.util.List;
  * ✅ Coupler CMF avec l’Order Flow pour voir si les ordres passifs confirment la liquidité ?
  * ✅ Associer CMF avec le Market Profile pour voir si le volume est sur un niveau clé ?
  *
+ *
  * Dis-moi comment tu veux l’améliorer ! 🚀🔥
+ *
+ *  A IMPLEMENTER : Analyse du carnet d'ordre, des liquidités visibles/invisibles.
+ *  Détection d’absorption, spoofing, empilement d’ordres.
  */
 @Service
 public class LiquidityFilter {

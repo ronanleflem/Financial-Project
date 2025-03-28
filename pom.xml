@@ -32,6 +32,11 @@
 		<javafx.version>23</javafx.version>
 	</properties>
 	<dependencies>
+		<dependency>
+			<groupId>org.ta4j</groupId>
+			<artifactId>ta4j-core</artifactId>
+			<version>0.17</version>
+		</dependency>
 		<!--
 		<dependency>
 			<groupId>org.xerial</groupId>

@@ -7,10 +7,12 @@ public class MarketManipulationFilter {
 
     private final EntropyMarketFilter entropyMarketFilter;
     private final FractalAnalysisFilter fractalAnalysisFilter;
+    private final VolatilityFilter volatilityFilter;
 
-    public MarketManipulationFilter(EntropyMarketFilter entropyMarketFilter, FractalAnalysisFilter fractalAnalysisFilter) {
+    public MarketManipulationFilter(EntropyMarketFilter entropyMarketFilter, FractalAnalysisFilter fractalAnalysisFilter, VolatilityFilter volatilityFilter) {
         this.entropyMarketFilter = entropyMarketFilter;
         this.fractalAnalysisFilter = fractalAnalysisFilter;
+        this.volatilityFilter = volatilityFilter;
     }
 
     /**
@@ -22,7 +24,7 @@ public class MarketManipulationFilter {
     public int detectManipulationZone(List<Double> priceChanges) {
         if (priceChanges.size() < 20) return 0; // Pas assez de données
 
-        double entropy = entropyMarketFilter.calculateMarketEntropy(priceChanges);
+        double entropy = volatilityFilter.calculateMarketEntropy(priceChanges);
         double kurtosis = fractalAnalysisFilter.calculateKurtosis(priceChanges);
 
         int manipulationScore = 0;

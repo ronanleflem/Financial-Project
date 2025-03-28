@@ -3,13 +3,13 @@ package finance.project.api.controllers;
 import finance.project.api.entities.PointOfInterest;
 import finance.project.api.filters.rules.*;
 import finance.project.api.model.CandleDTO;
+import finance.project.api.model.SymbolDTO;
 import finance.project.api.repositories.CandleRepository;
 import finance.project.api.repositories.SymbolRepository;
-import finance.project.api.services.CandleService;
-import finance.project.api.services.MarketDataService;
-import finance.project.api.services.OrderFlowService;
+import finance.project.api.services.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,6 +48,11 @@ public class FilterController {
     private final CandleService candleService;
     private final MarketDataService marketDataService;
     private final OrderFlowService orderFlowService;
+    private final VolatilityFilter volatilityFilter;
+
+    private final VolumeBasedRolloverService volumeBasedRolloverService;
+    private final SymbolService symbolService;
+    private final TA4JService ta4JService;
 
     @GetMapping("/bullish-bearish-stats")
     public ResponseEntity<Map<String, String>> getBullishContinuationProbability(@RequestParam String symbol, @RequestParam String timeframe) {
@@ -204,7 +209,7 @@ public class FilterController {
             @RequestParam String symbol, @RequestParam String timeframe, @RequestParam int maxCandle) {
 
         List<Double> priceChanges = candleService.getPriceVariations(symbol, timeframe, maxCandle);
-        double entropy = entropyMarketFilter.calculateMarketEntropy(priceChanges);
+        double entropy = volatilityFilter.calculateMarketEntropy(priceChanges);
 
         Map<String, Double> result = new HashMap<>();
         result.put("entropy", entropy);
@@ -414,5 +419,33 @@ public class FilterController {
             // Gestion d'erreur si besoin
             return ResponseEntity.internalServerError().body(Collections.emptyList());
         }
+    }
+
+    /**
+     * http://localhost:8090/filter/volatility?symbol=EURUSD&timeframe=5min&startDate=2025-02-10T00:00:00&endDate=2025-02-15T00:00:00
+     * @param symbol
+     * @param timeframe
+     * @param startDate
+     * @param endDate
+     * @return
+     */
+    @GetMapping("/volatility")
+    public Map<String, Double> getVolatilityAnalysis(@RequestParam String symbol, @RequestParam String timeframe,
+                                                     @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+                                                     @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
+        List<CandleDTO> candles;
+        if(timeframe.equals("1min")){
+
+            candles = volumeBasedRolloverService.getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, 2);
+
+        }
+        else {
+            SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
+            System.out.println(symbolDTO);
+
+            candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
+        }
+
+        return volatilityFilter.analyzeVolatility(ta4JService.convertToTimeSeries(candles,timeframe));
     }
 }
