@@ -5,12 +5,10 @@ import java.util.List;
 @Service
 public class MarketManipulationFilter {
 
-    private final EntropyMarketFilter entropyMarketFilter;
     private final FractalAnalysisFilter fractalAnalysisFilter;
     private final VolatilityFilter volatilityFilter;
 
-    public MarketManipulationFilter(EntropyMarketFilter entropyMarketFilter, FractalAnalysisFilter fractalAnalysisFilter, VolatilityFilter volatilityFilter) {
-        this.entropyMarketFilter = entropyMarketFilter;
+    public MarketManipulationFilter( FractalAnalysisFilter fractalAnalysisFilter, VolatilityFilter volatilityFilter) {
         this.fractalAnalysisFilter = fractalAnalysisFilter;
         this.volatilityFilter = volatilityFilter;
     }
@@ -23,13 +21,13 @@ public class MarketManipulationFilter {
      */
     public int detectManipulationZone(List<Double> priceChanges) {
         if (priceChanges.size() < 20) return 0; // Pas assez de données
-
-        double entropy = volatilityFilter.calculateMarketEntropy(priceChanges);
+        //10000 Car EURUSD, à adapter
+        double entropy = volatilityFilter.calculateMarketEntropy(priceChanges,10000);
         double kurtosis = fractalAnalysisFilter.calculateKurtosis(priceChanges);
 
         int manipulationScore = 0;
 
-        // Entropie élevée (marché chaotique)
+        // Entropie élevée (marché chaotique)NE
         if (entropy > 0.7) {
             manipulationScore++;
         }

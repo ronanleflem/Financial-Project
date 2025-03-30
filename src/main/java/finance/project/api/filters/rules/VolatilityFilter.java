@@ -26,23 +26,24 @@ import java.util.Map;
 @Service
 public class VolatilityFilter {
 
-    private final BarSeries series = null;
     private Indicator<Num> closePrice = null;
     private final int atrPeriod = 14;
     private final int bollingerPeriod = 20;
-    private final double bollingerMultiplier = 2.0;
 
     /**
      * Calcule l'entropie de Shannon des variations de prix.
-     *
+     * Tu peux l'ajuster selon le contexte :
+     * Pour l’EUR/USD en pips → scaleFactor = 10000 (car 1 pip = 0.0001)
+     * Pour un indice comme le Nasdaq → scaleFactor = 1 ou 10 (car il bouge en points entiers)
+     * Si tu veux lisser davantage → scaleFactor = 1000 pour regrouper par 0.1 pip
      * @param priceChanges Liste des variations de prix successives
      * @return Valeur d'entropie (0 = marché structuré, proche de 1 = marché chaotique)
      */
-    public double calculateMarketEntropy(List<Double> priceChanges) {
+    public double calculateMarketEntropy(List<Double> priceChanges, int scaleFactor) {
         Map<Integer, Integer> frequencyMap = new HashMap<>();
 
         for (double change : priceChanges) {
-            int bucket = (int) Math.round(change * 1000); // Regroupement des valeurs
+            int bucket = (int) Math.round(change * scaleFactor); // Regroupement des valeurs
             frequencyMap.put(bucket, frequencyMap.getOrDefault(bucket, 0) + 1);
         }
 
@@ -57,16 +58,29 @@ public class VolatilityFilter {
         return entropy / Math.log(totalCount);
     }
 
-    public double calculateVIXApproximation() {
+    /**
+     * A utiliser dans la grosse fonction sinon faut initialiser closePrice
+     * APPROXIMATION FAUSSE
+     * @param series
+     * @return
+     */
+    public double calculateVIXApproximation(BarSeries series) {
         ATRIndicator atr = new ATRIndicator(series, atrPeriod);
+
         double atrValue = atr.getValue(series.getEndIndex()).doubleValue();
 
         StandardDeviationIndicator stdDev = new StandardDeviationIndicator(closePrice, bollingerPeriod);
         double stdDevValue = stdDev.getValue(series.getEndIndex()).doubleValue();
 
-        return (atrValue / stdDevValue) * 100; // Normalisation arbitraire
+        return stdDevValue == 0 ? 0 : (atrValue / stdDevValue) * 100;// Normalisation arbitraire
     }
 
+    public double calculateHistoricalVolatility(BarSeries series, int period) {
+        ClosePriceIndicator closePrice = new ClosePriceIndicator(series);
+        StandardDeviationIndicator standardDeviation = new StandardDeviationIndicator(closePrice, period);
+        Num stdDevValue = standardDeviation.getValue(series.getEndIndex());
+        return stdDevValue.doubleValue();
+    }
 
     public Map<String, Double> analyzeVolatility(BarSeries series) {
         Map<String, Double> volatilityData = new HashMap<>();
@@ -90,7 +104,8 @@ public class VolatilityFilter {
         volatilityData.put("ATR", atrValue);
         volatilityData.put("BollingerUpper", upperValue);
         volatilityData.put("BollingerLower", lowerValue);
-        volatilityData.put("VIX_Approximation", calculateVIXApproximation());
+        volatilityData.put("VIX_Approximation", calculateVIXApproximation(series));
+        volatilityData.put("Historical volatility : ", calculateHistoricalVolatility(series, 50));
 
         return volatilityData;
     }

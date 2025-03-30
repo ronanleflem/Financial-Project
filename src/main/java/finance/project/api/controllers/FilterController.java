@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 
 @RestController
@@ -44,6 +45,7 @@ public class FilterController {
     private final LiquidityFilter liquidityFilter;
     private final LowerTimeframeConfluenceFilter lowerTimeframeConfluenceFilter;
     private final ICTPointOfInterestFilter ictPointOfInterestFilter;
+    private final MeanReversionProbabilityFilter meanReversionProbabilityFilter;
 
     private final CandleService candleService;
     private final MarketDataService marketDataService;
@@ -172,10 +174,11 @@ public class FilterController {
         double stochK = marketDataService.calculateStochasticK(candlesLatest, 14);
         double stochD = marketDataService.calculateStochasticD(candlesLatest, 14, 3);
         double zScore = marketDataService.calculateZScore(candlesLatest, 20);
+        double williamsR = marketDataService.calculateWilliamsR(candlesLatest, 14);
 
         // Calcul du score de contradiction
         int contradictionScore = contradictorySignalsFilter.calculateContradictionScore(
-                price, ema50, ema200, rsi, macd, macdSignal, stochK, stochD, zScore
+                price, ema50, ema200, rsi, macd, macdSignal, stochK, stochD,williamsR, zScore
         );
 
         Map<String, Integer> result = new HashMap<>();
@@ -209,7 +212,8 @@ public class FilterController {
             @RequestParam String symbol, @RequestParam String timeframe, @RequestParam int maxCandle) {
 
         List<Double> priceChanges = candleService.getPriceVariations(symbol, timeframe, maxCandle);
-        double entropy = volatilityFilter.calculateMarketEntropy(priceChanges);
+        // 10000 car EURSUD, à adapter pour le symbole
+        double entropy = volatilityFilter.calculateMarketEntropy(priceChanges,10000);
 
         Map<String, Double> result = new HashMap<>();
         result.put("entropy", entropy);
@@ -422,7 +426,7 @@ public class FilterController {
     }
 
     /**
-     * http://localhost:8090/filter/volatility?symbol=EURUSD&timeframe=5min&startDate=2025-02-10T00:00:00&endDate=2025-02-15T00:00:00
+     *
      * @param symbol
      * @param timeframe
      * @param startDate
@@ -448,4 +452,111 @@ public class FilterController {
 
         return volatilityFilter.analyzeVolatility(ta4JService.convertToTimeSeries(candles,timeframe));
     }
+
+    @GetMapping("/sharpe-ratio")
+    public double getSharpeRatio(@RequestParam String symbol,
+                                 @RequestParam String timeframe,
+                                 @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+                                 @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
+        List<CandleDTO> candles;
+        if(timeframe.equals("1min")){
+
+            candles = volumeBasedRolloverService.getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, 2);
+
+        }
+        else {
+            SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
+            System.out.println(symbolDTO);
+
+            candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
+        }
+        return marketDataService.calculateSharpeRatio(candles);
+    }
+
+    @GetMapping("/sortino-ratio")
+    public double getSortinoRatio(@RequestParam String symbol,
+                                  @RequestParam String timeframe,
+                                  @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+                                  @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
+        List<CandleDTO> candles;
+        if(timeframe.equals("1min")){
+
+            candles = volumeBasedRolloverService.getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, 2);
+
+        }
+        else {
+            SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
+            System.out.println(symbolDTO);
+
+            candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
+        }
+        return marketDataService.calculateSortinoRatio(candles);
+    }
+
+    @GetMapping("/mean-reversion-signal")
+    public boolean getMeanReversionSignal(@RequestParam String symbol,
+                                          @RequestParam String timeframe,
+                                          @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+                                          @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+                                          @RequestParam int period) {
+        List<CandleDTO> candlesLatest = candleService.getLastCandles(symbol, timeframe, period);
+        return meanReversionProbabilityFilter.isMeanReversionSignal(candlesLatest,period, timeframe);
+    }
+
+    @GetMapping("/stationarity-signal")
+    public boolean getStationaritySignal(
+            @RequestParam String symbol,
+            @RequestParam String timeframe,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam int period) {
+        List<CandleDTO> candles = candleService.getCandles(symbol, timeframe, startDate, endDate);
+        List<Double> closePrices = candles.stream()
+                .map(candle -> candle.getClose().doubleValue())
+                .collect(Collectors.toList());
+        StationarityFilter stationarityFilter = new StationarityFilter(0.05);
+        return stationarityFilter.isStationary(closePrices);
+    }
+
+    @GetMapping("/psychological-and-news-signal")
+    public boolean getPsychologicalAndNewsSignal(
+            @RequestParam String symbol,
+            @RequestParam String timeframe,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam int period) {
+        // Récupérer les chandeliers correspondant aux paramètres
+        List<CandleDTO> candles = candleService.getCandles(symbol, timeframe, startDate, endDate);
+        // Extraire les prix de clôture
+        List<Double> closePrices = candles.stream()
+                .map(candle -> candle.getClose().doubleValue())
+                .collect(Collectors.toList());
+        // Appliquer le filtre PsychologicalAndNewsFilter
+        PsychoSlogicalAndNewsFilter filter = new PsychologicalAndNewsFilter();
+        return filter.evaluate(closePrices, period);
+    }
+
+    @GetMapping("/statistical-arbitrage-signal")
+    public boolean getStatisticalArbitrageSignal(
+            @RequestParam String symbol1,
+            @RequestParam String symbol2,
+            @RequestParam String timeframe,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam int period) {
+        // Récupérer les chandeliers pour les deux symboles
+        List<CandleDTO> candles1 = candleService.getCandles(symbol1, timeframe, startDate, endDate);
+        List<CandleDTO> candles2 = candleService.getCandles(symbol2, timeframe, startDate, endDate);
+        // Extraire les prix de clôture
+        List<Double> closePrices1 = candles1.stream()
+                .map(candle -> candle.getClose().doubleValue())
+                .collect(Collectors.toList());
+        List<Double> closePrices2 = candles2.stream()
+                .map(candle -> candle.getClose().doubleValue())
+                .collect(Collectors.toList());
+        // Appliquer le filtre StatisticalArbitrageFilter
+        StatisticalArbitrageFilter filter = new StatisticalArbitrageFilter();
+        return filter.identifyArbitrageOpportunities(closePrices1, closePrices2, period);
+    }
+
 }

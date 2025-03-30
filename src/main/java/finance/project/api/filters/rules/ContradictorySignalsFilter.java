@@ -21,12 +21,12 @@ public class ContradictorySignalsFilter {
      */
     public int calculateContradictionScore(double price, double ema50, double ema200,
                                            double rsi, double macd, double macdSignal,
-                                           double stochK, double stochD, double zScore) {
+                                           double stochK, double stochD,double williamsR, double zScore) {
 
         int contradictionScore = 0;
 
-        // Contradiction RSI vs Tendance
-        if ((rsi > 70 && price > ema50) || (rsi < 30 && price < ema50)) {
+        // Contradiction RSI vs Tendance EMA 50 et 200
+        if ((rsi > 70 && price > ema50 && price > ema200) || (rsi < 30 && price < ema50 && price < ema200)) {
             contradictionScore++;
         }
 
@@ -35,13 +35,19 @@ public class ContradictorySignalsFilter {
             contradictionScore++;
         }
 
-        // Contradiction Stochastique vs MACD
-        if ((stochK > 80 && macd > macdSignal) || (stochK < 20 && macd < macdSignal)) {
+        // Contradiction Stochastique K/D vs MACD
+        if ((stochK > 80 && stochD > 80 && macd > macdSignal) || (stochK < 20 && stochD < 20 && macd < macdSignal)) {
             contradictionScore++;
         }
 
-        // Contradiction Stochastique vs RSI
-        if ((stochK > 80 && rsi < 30) || (stochK < 20 && rsi > 70)) {
+        // Contradiction Stochastique K/D vs RSI
+        if ((stochK > 80 && stochD > 80 && rsi < 30) || (stochK < 20 && stochD < 20 && rsi > 70)) {
+            contradictionScore++;
+        }
+
+        // Contradiction Williams %R vs RSI / Stochastique
+        if ((williamsR > -20 && (rsi < 30 || stochK < 20 || stochD < 20)) ||
+                (williamsR < -80 && (rsi > 70 || stochK > 80 || stochD > 80))) {
             contradictionScore++;
         }
 

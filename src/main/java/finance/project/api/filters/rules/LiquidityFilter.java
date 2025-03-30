@@ -58,7 +58,7 @@ public class LiquidityFilter {
 
         for (int i = 0; i < closes.size(); i++) {
             double mfMultiplier = ((closes.get(i) - lows.get(i)) - (highs.get(i) - closes.get(i))) / (highs.get(i) - lows.get(i));
-            double mfVolume = mfMultiplier * volumes.get(i);
+            double mfVolume = mfMultiplier * volumes.get(i); // Money Flow Volume - Calcul du volume de flux monétaire
 
             sumMFVolume += mfVolume;
             sumVolume += volumes.get(i);
