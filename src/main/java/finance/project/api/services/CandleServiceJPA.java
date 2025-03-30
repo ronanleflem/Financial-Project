@@ -130,6 +130,22 @@ public class CandleServiceJPA implements CandleService {
     }
 
     @Override
+    public List<Double> getPriceVariations(String symbol, String timeframe, LocalDateTime startDate, LocalDateTime endDate) {
+        List<Candle> candles = candleRepository.findBySymbolAndTimeframeAndDateBetween(symbolRepository.findBySymbol(symbol).get(), timeframe, startDate,endDate);
+
+        List<Double> priceVariations = new ArrayList<>();
+        for (Candle candle : candles) {
+            double variation = Math.abs(candle.getClose().subtract(candle.getOpen()).doubleValue());
+            if (variation > 0) { // Éviter les 0
+                priceVariations.add(variation);
+            }
+        }
+        return priceVariations;
+    }
+
+
+
+    @Override
     public List<CandleDTO> loadCsvTradingView(String symbolName, String timeframe, Boolean volume) {
         String filePath;
         // Charger le symbole depuis la base

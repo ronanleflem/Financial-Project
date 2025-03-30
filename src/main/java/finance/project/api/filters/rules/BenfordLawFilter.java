@@ -1,6 +1,10 @@
 package finance.project.api.filters.rules;
 
 import finance.project.api.filters.Filter;
+import finance.project.api.model.TradeRequestDTO;
+import finance.project.api.repositories.CandleRepository;
+import finance.project.api.services.CandleService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import java.util.HashMap;
 import java.util.List;
@@ -28,10 +32,27 @@ import java.util.Map;
 @Service
 public class BenfordLawFilter implements Filter {
 
+    private final CandleService candleService;
+
     // Distribution théorique des premiers chiffres selon la loi de Benford
     private static final double[] BENFORD_DISTRIBUTION = {
             0.0, 0.301, 0.176, 0.125, 0.097, 0.079, 0.067, 0.058, 0.051, 0.046
     };
+
+    private static final double THRESHOLD = 0.02; // Seuil d'anomalie acceptable
+
+    @Autowired
+    public BenfordLawFilter(CandleService candleService) {
+        this.candleService = candleService;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest) {
+        List<Double> priceChanges = candleService.getPriceVariations("EURUSD", "1min", tradeRequest.getTimestamp(),tradeRequest.getTimestamp().minusMinutes(1000)); // Supposons que la DTO contient ces données
+        double score = calculateBenfordScore(priceChanges);
+
+        return (score > THRESHOLD) ? 1 : 0; // 1 = anomalie détectée, 0 = conforme
+    }
 
     /**
      * Calcule le score de conformité à la loi de Benford sur une liste de variations de prix.

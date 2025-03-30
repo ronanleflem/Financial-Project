@@ -14,5 +14,5 @@ public interface Filter {
      * @param priceChanges Liste des variations de prix.
      * @return Score du filtre (0 = conforme, > 0 = anomalie détectée).
      */
-    double evaluate(List<Double> priceChanges);
+    int evaluate(TradeRequestDTO priceChanges);
 }

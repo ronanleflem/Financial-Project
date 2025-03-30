@@ -18,6 +18,7 @@ public class EmaCrossoverStrategy extends BaseStrategy {
 
     @Override
     protected TradeSignalDTO generateRawSignal(MarketData marketData) {
+
         ClosePriceIndicator closePrice = new ClosePriceIndicator(marketData.getTimeSeries());
         EMAIndicator ema50 = new EMAIndicator(closePrice, 50);
 
@@ -27,5 +28,10 @@ public class EmaCrossoverStrategy extends BaseStrategy {
         } else {
             return new TradeSignalDTO("SELL", marketData.getCurrentCandle());
         }
+    }
+
+    @Override
+    public TradeSignalDTO generateTradeSignal(MarketData marketData) {
+        return null;
     }
 }

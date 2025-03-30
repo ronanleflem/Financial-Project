@@ -20,13 +20,13 @@ public abstract class BaseStrategy implements Strategy {
     protected abstract TradeSignalDTO generateRawSignal(MarketData marketData);
 
     public void execute(MarketData marketData) {
-        /*
+
         TradeSignalDTO rawSignal = generateRawSignal(marketData);
         if (rawSignal != null && isTradeValid(new TradeRequestDTO(rawSignal), marketData)) {
             executeTrade(rawSignal);
         } else {
             System.out.println("🚫 Signal rejeté par les filtres.");
-        }*/
+        }
         System.out.println("🚫 Signal rejeté par les filtres.");
     }
 

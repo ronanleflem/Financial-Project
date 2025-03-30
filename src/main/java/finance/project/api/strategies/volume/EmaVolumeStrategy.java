@@ -1,5 +1,7 @@
 package finance.project.api.strategies.volume;
 
+import org.springframework.stereotype.Service;
+import org.ta4j.core.BarSeries;
 import org.ta4j.core.BaseStrategy;
 import org.ta4j.core.Rule;
 import org.ta4j.core.Strategy;
@@ -10,9 +12,10 @@ import org.ta4j.core.indicators.helpers.VolumeIndicator;
 import org.ta4j.core.rules.OverIndicatorRule;
 import org.ta4j.core.rules.UnderIndicatorRule;
 
+@Service
 public class EmaVolumeStrategy {
 
-    public static Strategy buildStrategy(TimeSeries series) {
+    public Strategy buildStrategy(BarSeries series) {
         ClosePriceIndicator closePrice = new ClosePriceIndicator(series);
         EMAIndicator shortEma = new EMAIndicator(closePrice, 10);
         EMAIndicator longEma = new EMAIndicator(closePrice, 50);
