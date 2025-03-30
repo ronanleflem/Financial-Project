@@ -1,5 +1,7 @@
 package finance.project.api.filters.rules;
 
+import org.springframework.stereotype.Service;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -9,6 +11,7 @@ import java.util.List;
  *     NewsImpactFilter.java → Éviter les annonces économiques à fort impact.
  *     TraderPsychologyFilter.java → Influence des comportements de foule.
  */
+@Service
 public class PsychologicAndNewsFilter {
 
     public double calculatePercentageDrawdown(double currentClose, double highestClose) {

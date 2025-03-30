@@ -1,8 +1,10 @@
 package finance.project.api.filters.rules;
 
+import org.springframework.stereotype.Service;
+
 import java.util.ArrayList;
 import java.util.List;
-
+@Service
 public class StatisticalArbitrageFilter {
 
     public List<Double> calculateDailyReturns(List<Double> prices) {

@@ -6,6 +6,8 @@ import finance.project.api.model.TradeSignalDTO;
 import finance.project.api.services.TradeFilterService;
 import finance.project.api.strategies.BaseStrategy;
 import org.springframework.stereotype.Component;
+import org.ta4j.core.indicators.EMAIndicator;
+import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 
 @Component
 public class EmaCrossoverStrategy extends BaseStrategy {
@@ -16,28 +18,14 @@ public class EmaCrossoverStrategy extends BaseStrategy {
 
     @Override
     protected TradeSignalDTO generateRawSignal(MarketData marketData) {
-        /*
-        Candle latestCandle = marketData.getLatestCandle();
-        if (latestCandle == null) return null;
+        ClosePriceIndicator closePrice = new ClosePriceIndicator(marketData.getTimeSeries());
+        EMAIndicator ema50 = new EMAIndicator(closePrice, 50);
 
-        double ema50 = marketData.getEma(50);
-        double ema200 = marketData.getEma(200);
-
-        if (ema50 > ema200) {
-            return new TradeSignalDTO("BUY", latestCandle.getTimestamp());
-        } else if (ema50 < ema200) {
-            return new TradeSignalDTO("SELL", latestCandle.getTimestamp());
-        }*/
-        return null;
-    }
-
-    private double calculateEMA(int period, Candle candle, MarketData marketData) {
-        // Implémente le calcul de l'EMA selon ta logique
-        return 0.0;
-    }
-
-    @Override
-    public TradeSignalDTO generateTradeSignal(MarketData marketData) {
-        return null;
+        int lastIndex = marketData.getTimeSeries().getEndIndex();
+        if (closePrice.getValue(lastIndex).isGreaterThan(ema50.getValue(lastIndex))) {
+            return new TradeSignalDTO("BUY", marketData.getCurrentCandle());
+        } else {
+            return new TradeSignalDTO("SELL", marketData.getCurrentCandle());
+        }
     }
 }

@@ -1,5 +1,6 @@
 package finance.project.api.filters.rules;
 
+import finance.project.api.filters.Filter;
 import org.springframework.stereotype.Service;
 import java.util.HashMap;
 import java.util.List;
@@ -25,7 +26,7 @@ import java.util.Map;
  *         ATR (volatilité récente)
  */
 @Service
-public class BenfordLawFilter {
+public class BenfordLawFilter implements Filter {
 
     // Distribution théorique des premiers chiffres selon la loi de Benford
     private static final double[] BENFORD_DISTRIBUTION = {

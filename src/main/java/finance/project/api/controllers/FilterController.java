@@ -37,7 +37,6 @@ public class FilterController {
     private final BiaisInstitutionalFilter biasInstitutionalFilter;
     private final ContradictorySignalsFilter contradictorySignalsFilter;
     private final CyclesFilter cyclesFilter;
-    private final EntropyMarketFilter entropyMarketFilter;
     private final FractalAnalysisFilter fractalAnalysisFilter;
     private final MarketManipulationFilter marketManipulationFilter;
     private final HighTimeframeZoneFilter highTimeframeZoneFilter;
@@ -46,6 +45,9 @@ public class FilterController {
     private final LowerTimeframeConfluenceFilter lowerTimeframeConfluenceFilter;
     private final ICTPointOfInterestFilter ictPointOfInterestFilter;
     private final MeanReversionProbabilityFilter meanReversionProbabilityFilter;
+    private final StatisticalArbitrageFilter statisticalArbitrageFilter;
+    private final PsychologicAndNewsFilter psychologicAndNewsFilter;
+    private final StationarityFilter stationarityFilter;
 
     private final CandleService candleService;
     private final MarketDataService marketDataService;
@@ -510,53 +512,99 @@ public class FilterController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
             @RequestParam int period) {
-        List<CandleDTO> candles = candleService.getCandles(symbol, timeframe, startDate, endDate);
+
+        List<CandleDTO> candles;
+        if ("1min".equals(timeframe)) {
+            candles = volumeBasedRolloverService.getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, 2);
+        } else {
+            SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
+            System.out.println(symbolDTO);
+            candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
+        }
+
         List<Double> closePrices = candles.stream()
                 .map(candle -> candle.getClose().doubleValue())
                 .collect(Collectors.toList());
-        StationarityFilter stationarityFilter = new StationarityFilter(0.05);
-        return stationarityFilter.isStationary(closePrices);
+
+        double[] closePricesArray = closePrices.stream().mapToDouble(Double::doubleValue).toArray();
+
+        double adfStatistic = stationarityFilter.test(closePricesArray,1);
+
+        double criticalValue = -3.45; // Valeur critique à 5% pour un grand échantillon
+        return adfStatistic < criticalValue;
     }
 
-    @GetMapping("/psychological-and-news-signal")
-    public boolean getPsychologicalAndNewsSignal(
+    @GetMapping("/statistic-arbitrage")
+    public ResponseEntity<Map<String, Double>> calculateArbitrageMetrics(
+            @RequestParam String symbol,
+            @RequestParam String timeframe,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam double omegaThreshold,
+            @RequestParam double benchmarkReturn) {
+
+        List<CandleDTO> candles;
+        if(timeframe.equals("1min")){
+
+            candles = volumeBasedRolloverService.getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, 2);
+
+        }
+        else {
+            SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
+            System.out.println(symbolDTO);
+
+            candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
+        }
+        List<Double> closePrices = candles.stream()
+                .map(candle -> candle.getClose().doubleValue())
+                .collect(Collectors.toList());
+
+        // Calculer les rendements quotidiens
+        List<Double> dailyReturns = statisticalArbitrageFilter.calculateDailyReturns(closePrices);
+
+        // Calculer les ratios
+        double omegaRatio = statisticalArbitrageFilter.calculateOmegaRatio(dailyReturns, omegaThreshold);
+        double informationRatio = statisticalArbitrageFilter.calculateInformationRatio(dailyReturns, benchmarkReturn);
+
+        Map<String, Double> result = new HashMap<>();
+        result.put("omegaRatio", omegaRatio);
+        result.put("informationRatio", informationRatio);
+        // Retourner les métriques calculées
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/drawdown")
+    public double getDrawdown(
+            @RequestParam double currentClose,
+            @RequestParam double highestClose) {
+        return psychologicAndNewsFilter.calculatePercentageDrawdown(currentClose, highestClose);
+    }
+
+    // 🔹 Endpoint pour calculer l'Ulcer Index sur une période donnée
+    @GetMapping("/ulcer-index")
+    public double getUlcerIndex(
             @RequestParam String symbol,
             @RequestParam String timeframe,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
             @RequestParam int period) {
-        // Récupérer les chandeliers correspondant aux paramètres
-        List<CandleDTO> candles = candleService.getCandles(symbol, timeframe, startDate, endDate);
-        // Extraire les prix de clôture
+
+        List<CandleDTO> candles;
+        if(timeframe.equals("1min")){
+
+            candles = volumeBasedRolloverService.getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, 2);
+
+        }
+        else {
+            SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
+            System.out.println(symbolDTO);
+
+            candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
+        }
         List<Double> closePrices = candles.stream()
                 .map(candle -> candle.getClose().doubleValue())
                 .collect(Collectors.toList());
-        // Appliquer le filtre PsychologicalAndNewsFilter
-        PsychoSlogicalAndNewsFilter filter = new PsychologicalAndNewsFilter();
-        return filter.evaluate(closePrices, period);
-    }
 
-    @GetMapping("/statistical-arbitrage-signal")
-    public boolean getStatisticalArbitrageSignal(
-            @RequestParam String symbol1,
-            @RequestParam String symbol2,
-            @RequestParam String timeframe,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
-            @RequestParam int period) {
-        // Récupérer les chandeliers pour les deux symboles
-        List<CandleDTO> candles1 = candleService.getCandles(symbol1, timeframe, startDate, endDate);
-        List<CandleDTO> candles2 = candleService.getCandles(symbol2, timeframe, startDate, endDate);
-        // Extraire les prix de clôture
-        List<Double> closePrices1 = candles1.stream()
-                .map(candle -> candle.getClose().doubleValue())
-                .collect(Collectors.toList());
-        List<Double> closePrices2 = candles2.stream()
-                .map(candle -> candle.getClose().doubleValue())
-                .collect(Collectors.toList());
-        // Appliquer le filtre StatisticalArbitrageFilter
-        StatisticalArbitrageFilter filter = new StatisticalArbitrageFilter();
-        return filter.identifyArbitrageOpportunities(closePrices1, closePrices2, period);
+        return psychologicAndNewsFilter.calculateUlcerIndex(closePrices, period);
     }
-
 }
