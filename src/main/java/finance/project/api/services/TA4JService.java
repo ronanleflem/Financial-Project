@@ -9,29 +9,50 @@ import org.ta4j.core.indicators.statistics.StandardDeviationIndicator;
 
 import java.time.Duration;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 
 @Service
 public class TA4JService {
 
-    public BarSeries convertToTimeSeries(List<CandleDTO> candles,String timeframe) {
-        BarSeries series = new BaseBarSeriesBuilder().withName("Candle Series").build();
+    public BarSeries convertToTimeSeries(List<CandleDTO> candles, String timeframe) {
+        BarSeries series = new BaseBarSeriesBuilder().withName("Candle Series (" + timeframe + ")").build();
+        Duration barDuration = parseTimeframe(timeframe);
 
         for (CandleDTO candle : candles) {
-            series.addBar(
-                    new BaseBar(
-                            Duration.ofMinutes(1), // Modifier selon le timeframe
-                            candle.getDate().atZone(ZoneId.systemDefault()),
-                            candle.getOpen(),
-                            candle.getHigh(),
-                            candle.getLow(),
-                            candle.getClose(),
-                            candle.getVolume()
-                    )
-            );
+            ZonedDateTime zdt = candle.getDate().atZone(ZoneId.systemDefault());
+
+            series.addBar(new BaseBar(
+                    barDuration,
+                    zdt,
+                    candle.getOpen(),
+                    candle.getHigh(),
+                    candle.getLow(),
+                    candle.getClose(),
+                    candle.getVolume()
+            ));
         }
+
         return series;
     }
+
+    private Duration parseTimeframe(String timeframe) {
+        if (timeframe == null || timeframe.isBlank()) return Duration.ofMinutes(1); // par défaut M1
+
+        String tf = timeframe.toLowerCase();
+        if (tf.endsWith("m")) {
+            return Duration.ofMinutes(Long.parseLong(tf.replace("m", "")));
+        } else if (tf.endsWith("h")) {
+            return Duration.ofHours(Long.parseLong(tf.replace("h", "")));
+        } else if (tf.endsWith("d")) {
+            return Duration.ofDays(Long.parseLong(tf.replace("d", "")));
+        } else if (tf.endsWith("s")) {
+            return Duration.ofSeconds(Long.parseLong(tf.replace("s", "")));
+        }
+
+        throw new IllegalArgumentException("Timeframe non reconnu : " + timeframe);
+    }
+
 
 
 

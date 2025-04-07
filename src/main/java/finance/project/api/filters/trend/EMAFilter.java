@@ -1,0 +1,45 @@
+package finance.project.api.filters.trend;
+
+import finance.project.api.entities.Symbol;
+import finance.project.api.filters.Filter;
+import finance.project.api.model.CandleDTO;
+import finance.project.api.model.TradeRequestDTO;
+import finance.project.api.services.CandleCacheManager;
+import finance.project.api.services.TA4JService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.ta4j.core.BarSeries;
+import org.ta4j.core.indicators.EMAIndicator;
+import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
+
+import java.util.List;
+
+@Service
+public class EMAFilter implements Filter {
+
+    @Autowired
+    private TA4JService ta4jService;
+
+    @Autowired
+    private CandleCacheManager candleCacheManager;
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period) {
+        List<CandleDTO> candles = candleCacheManager.getCandles(
+                tradeRequest.,
+                tradeRequest.getTimeframe(),
+                200 // ou tradeRequest.getPeriod() si tu veux le rendre dynamique
+        );
+        BarSeries series = ta4jService.convertToTimeSeries(candles, tradeRequest.getTimeframe());
+
+        ClosePriceIndicator close = new ClosePriceIndicator(series);
+        EMAIndicator ema = new EMAIndicator(close, 200);
+
+        int lastIndex = series.getEndIndex();
+        double lastClose = close.getValue(lastIndex).doubleValue();
+        double lastEma = ema.getValue(lastIndex).doubleValue();
+
+        // Exemple de règle : accepter seulement si prix > EMA200
+        return lastClose > lastEma ? 1 : -1;
+    }
+}
