@@ -18,21 +18,17 @@ public class CandleCacheManager {
 
     public List<CandleDTO> getCandles(String symbol, String timeframe, int period) {
         String key = symbol + "_" + timeframe + "_" + period;
+        return cache.computeIfAbsent(key, k -> candleService.getLastCandles(symbol, timeframe, period));
+    }
 
+    public void preload(String symbol, String timeframe, int period) {
+        String key = symbol + "_" + timeframe + "_" + period;
         if (!cache.containsKey(key)) {
-            List<CandleDTO> candles = candleService.getLastCandles(symbol, timeframe, period);
-            cache.put(key, candles);
+            cache.put(key, candleService.getLastCandles(symbol, timeframe, period));
         }
-
-        return cache.get(key);
     }
 
     public void clearCache() {
         cache.clear();
-    }
-
-    public void clearKey(String symbol, String timeframe, int period) {
-        String key = symbol + "_" + timeframe + "_" + period;
-        cache.remove(key);
     }
 }

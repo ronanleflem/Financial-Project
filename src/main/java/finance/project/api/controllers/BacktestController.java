@@ -1,15 +1,15 @@
 package finance.project.api.controllers;
 
+import finance.project.api.entities.MarketData;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.model.SymbolDTO;
-import finance.project.api.services.CandleService;
-import finance.project.api.services.SymbolService;
-import finance.project.api.services.TA4JService;
-import finance.project.api.services.VolumeBasedRolloverService;
+import finance.project.api.services.*;
+import finance.project.api.strategies.StrategyManager;
 import finance.project.api.strategies.volume.EmaVolumeStrategy;
 import jdk.jfr.Category;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -29,16 +29,31 @@ public class BacktestController {
     private final EmaVolumeStrategy emaVolumeStrategy;
     private final SymbolService symbolService;
     private final CandleService candleService;
+    private final StrategyManager strategyManager;
 
     @Autowired
-    public BacktestController(TA4JService ta4JService, VolumeBasedRolloverService volumeBasedRolloverService, EmaVolumeStrategy emaVolumeStrategy, SymbolService symbolService, CandleService candleService) {
+    private CandleCacheManager candleCacheManager;
+
+    @Autowired
+    public BacktestController(TA4JService ta4JService, VolumeBasedRolloverService volumeBasedRolloverService, EmaVolumeStrategy emaVolumeStrategy, SymbolService symbolService, CandleService candleService, StrategyManager strategyManager, MarketDataService marketDataService) {
         this.ta4JService = ta4JService;
         this.volumeBasedRolloverService = volumeBasedRolloverService;
         this.emaVolumeStrategy = emaVolumeStrategy;
         this.symbolService = symbolService;
         this.candleService = candleService;
+        this.strategyManager = strategyManager;
     }
+    @GetMapping("/run-strategy")
+    public ResponseEntity<String> runStrategy(@RequestParam String symbol,
+                                              @RequestParam String timeframe,
+                                              @RequestParam int period) {
+        //MarketData marketData = marketDataService.loadMarketData(symbol, timeframe, period); // Récupère les candles
+        candleCacheManager.preload(symbol, timeframe, period);
+        strategyManager.runStrategies(symbol, timeframe, period);
 
+        return ResponseEntity.ok("Stratégies exécutées sur " + symbol + " " + timeframe);
+    }
+    /*
     @GetMapping
     public String backtest(@RequestParam String symbol, @RequestParam String timeframe,
                            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
@@ -68,5 +83,5 @@ public class BacktestController {
         // 🔥 Analyse des résultats
         PerformanceReport report = new PerformanceReport().a.analyze(tradingRecord);
         System.out.println(report);
-    }
+    }*/
 }

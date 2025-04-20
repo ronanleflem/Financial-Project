@@ -1,5 +1,6 @@
 package finance.project.api.filters.rules;
 
+import finance.project.api.entities.Symbol;
 import finance.project.api.filters.Filter;
 import finance.project.api.model.TradeRequestDTO;
 import finance.project.api.repositories.CandleRepository;
@@ -52,6 +53,11 @@ public class BenfordLawFilter implements Filter {
         double score = calculateBenfordScore(priceChanges);
 
         return (score > THRESHOLD) ? 1 : 0; // 1 = anomalie détectée, 0 = conforme
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period) {
+        return 0;
     }
 
     /**

@@ -18,7 +18,17 @@ public class StrategyManager {
         this.strategyConfig = strategyConfig;
     }
 
-    public void runStrategies(MarketData marketData) {
+    public void runStrategies(String symbol, String timeframe, int period) {
+        List<BaseStrategy> enabledStrategies = allStrategies.stream()
+                .filter(strategy -> strategyConfig.getEnabledStrategies().contains(strategy.getClass().getSimpleName()))
+                .toList();
+
+        for (BaseStrategy strategy : enabledStrategies) {
+            strategy.execute(symbol, timeframe, period);
+        }
+    }
+    /*
+    public void runStrategies() {
         List<BaseStrategy> enabledStrategies = allStrategies.stream()
                 .filter(strategy -> strategyConfig.getEnabledStrategies().contains(strategy.getClass().getSimpleName()))
                 .toList();
@@ -27,4 +37,6 @@ public class StrategyManager {
             strategy.execute(marketData);
         }
     }
+
+     */
 }

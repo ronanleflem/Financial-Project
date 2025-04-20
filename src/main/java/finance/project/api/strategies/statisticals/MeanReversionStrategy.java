@@ -19,6 +19,11 @@ public class MeanReversionStrategy extends BaseStrategy {
     }
 
     @Override
+    protected TradeSignalDTO generateRawSignal(String symbol, String timeframe, int period) {
+        return null;
+    }
+
+    @Override
     public TradeSignalDTO generateTradeSignal(MarketData marketData) {
         return null;
     }

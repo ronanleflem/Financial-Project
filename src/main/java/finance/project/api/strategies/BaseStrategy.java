@@ -30,7 +30,23 @@ public abstract class BaseStrategy implements Strategy {
         System.out.println("🚫 Signal rejeté par les filtres.");
     }
 
-    private void executeTrade(TradeSignalDTO signal) {
+    public void execute(String symbol, String timeframe, int period) {
+        TradeSignalDTO rawSignal = generateRawSignal(symbol, timeframe, period);
+        if (rawSignal != null && isTradeValid(new TradeRequestDTO(rawSignal), symbol, timeframe, period)) {
+            executeTrade(rawSignal);
+        } else {
+            System.out.println("🚫 Signal rejeté par les filtres.");
+        }
+    }
+
+    protected boolean isTradeValid(TradeRequestDTO tradeRequestDTO, String symbol, String timeframe, int period) {
+        return tradeFilterService.isTradeValid(tradeRequestDTO, symbol,timeframe, period);
+    }
+
+    protected abstract TradeSignalDTO generateRawSignal(String symbol, String timeframe, int period);
+
+
+    protected void executeTrade(TradeSignalDTO signal) {
         System.out.println("✅ Trade exécuté : " + signal);
     }
 }

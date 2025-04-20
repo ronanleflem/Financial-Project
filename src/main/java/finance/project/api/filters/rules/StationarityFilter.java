@@ -1,12 +1,14 @@
 package finance.project.api.filters.rules;
 
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression;
+import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 /**
  * Vérification de la stabilité du marché pour valider les modèles quantitatifs.
  */
+@Service
 public class StationarityFilter {
 
     public double test(double[] timeSeries, int maxLag) {

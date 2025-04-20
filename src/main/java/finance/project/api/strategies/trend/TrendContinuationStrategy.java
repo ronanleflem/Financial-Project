@@ -1,4 +1,75 @@
 package finance.project.api.strategies.trend;
 
-public class TrendContinuationStrategy {
+import finance.project.api.entities.MarketData;
+import finance.project.api.model.CandleDTO;
+import finance.project.api.model.TradeRequestDTO;
+import finance.project.api.model.TradeSignalDTO;
+import finance.project.api.services.CandleCacheManager;
+import finance.project.api.services.TA4JService;
+import finance.project.api.services.TradeFilterService;
+import finance.project.api.strategies.BaseStrategy;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+import org.ta4j.core.BarSeries;
+import org.ta4j.core.indicators.EMAIndicator;
+import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
+
+import java.util.List;
+
+@Component
+public class TrendContinuationStrategy extends BaseStrategy {
+
+    @Autowired
+    private CandleCacheManager candleCacheManager;
+
+    @Autowired
+    private TA4JService ta4jService;
+
+    public TrendContinuationStrategy(TradeFilterService tradeFilterService) {
+        super(tradeFilterService);
+    }
+
+    @Override
+    protected TradeSignalDTO generateRawSignal(MarketData marketData) {
+        return null;
+    }
+
+    public void execute(String symbol, String timeframe, int period) {
+        List<CandleDTO> candles = candleCacheManager.getCandles(symbol, timeframe, period);
+
+        if (candles.size() < period) {
+            System.out.println("⚠️ Pas assez de bougies pour exécuter la stratégie.");
+            return;
+        }
+
+        BarSeries series = ta4jService.convertToTimeSeries(candles, timeframe);
+        ClosePriceIndicator close = new ClosePriceIndicator(series);
+        EMAIndicator ema = new EMAIndicator(close, 200);
+
+        int lastIndex = series.getEndIndex();
+        double lastClose = close.getValue(lastIndex).doubleValue();
+        double lastEma = ema.getValue(lastIndex).doubleValue();
+
+        // Exemple de logique simple : Trend following
+        String action = lastClose > lastEma ? "BUY" : "SELL";
+
+        TradeSignalDTO signal = new TradeSignalDTO(action.equals("BUY") ? TradeSignalDTO.TradeType.LONG : TradeSignalDTO.TradeType.SHORT, 0,0,0,0);
+        TradeRequestDTO request = new TradeRequestDTO(signal);
+
+        if (isTradeValid(request,symbol,timeframe,period)) {
+            executeTrade(signal);
+        } else {
+            System.out.println("🚫 Signal rejeté par les filtres : " + signal);
+        }
+    }
+
+    @Override
+    protected TradeSignalDTO generateRawSignal(String symbol, String timeframe, int period) {
+        return null;
+    }
+
+    @Override
+    public TradeSignalDTO generateTradeSignal(MarketData marketData) {
+        return null;
+    }
 }

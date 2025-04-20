@@ -26,11 +26,11 @@ public class EMAFilter implements Filter {
     @Override
     public int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period) {
         List<CandleDTO> candles = candleCacheManager.getCandles(
-                tradeRequest.,
-                tradeRequest.getTimeframe(),
-                200 // ou tradeRequest.getPeriod() si tu veux le rendre dynamique
+                symbol.getSymbol(),
+                timeframe,
+                period // ou tradeRequest.getPeriod() si tu veux le rendre dynamique
         );
-        BarSeries series = ta4jService.convertToTimeSeries(candles, tradeRequest.getTimeframe());
+        BarSeries series = ta4jService.convertToTimeSeries(candles, timeframe);
 
         ClosePriceIndicator close = new ClosePriceIndicator(series);
         EMAIndicator ema = new EMAIndicator(close, 200);
@@ -41,5 +41,10 @@ public class EMAFilter implements Filter {
 
         // Exemple de règle : accepter seulement si prix > EMA200
         return lastClose > lastEma ? 1 : -1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO priceChanges) {
+        return 0;
     }
 }

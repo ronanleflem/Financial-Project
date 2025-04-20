@@ -1,6 +1,7 @@
 package finance.project.api.filters;
 
 import finance.project.api.entities.MarketData;
+import finance.project.api.entities.Symbol;
 import finance.project.api.model.TradeRequestDTO;
 
 import java.util.List;
@@ -15,4 +16,6 @@ public interface Filter {
      * @return Score du filtre (0 = conforme, > 0 = anomalie détectée).
      */
     int evaluate(TradeRequestDTO priceChanges);
+
+    int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period);
 }

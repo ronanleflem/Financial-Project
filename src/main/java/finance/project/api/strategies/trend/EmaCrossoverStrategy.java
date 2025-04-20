@@ -10,12 +10,12 @@ import org.ta4j.core.indicators.EMAIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 
 @Component
-public class EmaCrossoverStrategy extends BaseStrategy {
+public class EmaCrossoverStrategy  {
 
     public EmaCrossoverStrategy(TradeFilterService tradeFilterService) {
-        super(tradeFilterService);
-    }
 
+    }
+    /*
     @Override
     protected TradeSignalDTO generateRawSignal(MarketData marketData) {
 
@@ -33,5 +33,5 @@ public class EmaCrossoverStrategy extends BaseStrategy {
     @Override
     public TradeSignalDTO generateTradeSignal(MarketData marketData) {
         return null;
-    }
+    }*/
 }
