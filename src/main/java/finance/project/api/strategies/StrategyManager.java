@@ -2,6 +2,7 @@ package finance.project.api.strategies;
 
 import finance.project.api.config.StrategyConfig;
 import finance.project.api.entities.MarketData;
+import finance.project.api.model.CandleDTO;
 import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -27,6 +28,7 @@ public class StrategyManager {
             strategy.execute(symbol, timeframe, period);
         }
     }
+
     /*
     public void runStrategies() {
         List<BaseStrategy> enabledStrategies = allStrategies.stream()

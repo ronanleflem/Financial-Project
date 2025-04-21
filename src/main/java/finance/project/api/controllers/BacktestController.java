@@ -3,6 +3,7 @@ package finance.project.api.controllers;
 import finance.project.api.entities.MarketData;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.model.SymbolDTO;
+import finance.project.api.model.TradeSignalDTO;
 import finance.project.api.services.*;
 import finance.project.api.strategies.StrategyManager;
 import finance.project.api.strategies.volume.EmaVolumeStrategy;
@@ -50,7 +51,6 @@ public class BacktestController {
         //MarketData marketData = marketDataService.loadMarketData(symbol, timeframe, period); // Récupère les candles
         candleCacheManager.preload(symbol, timeframe, period);
         strategyManager.runStrategies(symbol, timeframe, period);
-
         return ResponseEntity.ok("Stratégies exécutées sur " + symbol + " " + timeframe);
     }
     /*

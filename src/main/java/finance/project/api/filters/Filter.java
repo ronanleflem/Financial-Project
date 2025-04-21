@@ -18,4 +18,6 @@ public interface Filter {
     int evaluate(TradeRequestDTO priceChanges);
 
     int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period);
+
+    int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period);
 }

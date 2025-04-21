@@ -59,7 +59,7 @@ public class TradeFilterService {
 
         int totalScore = 0;
         for (Filter filter : enabledFilters) {
-            int filterScore = filter.evaluate(tradeRequestDTO);
+            int filterScore = filter.evaluate(tradeRequestDTO,symbol,timeframe,period);
             int weight = strategyConfig.getFilterWeight(filter.getClass().getSimpleName());
 
             int weightedScore = filterScore * weight; // Appliquer la pondération

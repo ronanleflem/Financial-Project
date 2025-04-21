@@ -10,6 +10,8 @@ import org.ta4j.core.indicators.statistics.StandardDeviationIndicator;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -19,7 +21,11 @@ public class TA4JService {
         BarSeries series = new BaseBarSeriesBuilder().withName("Candle Series (" + timeframe + ")").build();
         Duration barDuration = parseTimeframe(timeframe);
 
-        for (CandleDTO candle : candles) {
+        // 🔁 On trie les candles par date croissante pour TA4J
+        List<CandleDTO> sortedCandles = new ArrayList<>(candles); // clone modifiable
+        sortedCandles.sort(Comparator.comparing(CandleDTO::getDate));
+
+        for (CandleDTO candle : sortedCandles) {
             ZonedDateTime zdt = candle.getDate().atZone(ZoneId.systemDefault());
 
             series.addBar(new BaseBar(
@@ -42,7 +48,9 @@ public class TA4JService {
         String tf = timeframe.toLowerCase();
         if (tf.endsWith("m")) {
             return Duration.ofMinutes(Long.parseLong(tf.replace("m", "")));
-        } else if (tf.endsWith("h")) {
+        }else if(tf.endsWith("min")) {
+            return Duration.ofMinutes(Long.parseLong(tf.replace("min", "")));
+        }else if (tf.endsWith("h")) {
             return Duration.ofHours(Long.parseLong(tf.replace("h", "")));
         } else if (tf.endsWith("d")) {
             return Duration.ofDays(Long.parseLong(tf.replace("d", "")));

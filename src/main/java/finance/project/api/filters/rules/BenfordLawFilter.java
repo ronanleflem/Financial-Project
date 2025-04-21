@@ -60,6 +60,11 @@ public class BenfordLawFilter implements Filter {
         return 0;
     }
 
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
+        return 0;
+    }
+
     /**
      * Calcule le score de conformité à la loi de Benford sur une liste de variations de prix.
      *

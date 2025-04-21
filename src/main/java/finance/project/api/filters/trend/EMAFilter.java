@@ -25,8 +25,13 @@ public class EMAFilter implements Filter {
 
     @Override
     public int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period) {
+        return 0;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
         List<CandleDTO> candles = candleCacheManager.getCandles(
-                symbol.getSymbol(),
+                symbol,
                 timeframe,
                 period // ou tradeRequest.getPeriod() si tu veux le rendre dynamique
         );
