@@ -8,6 +8,7 @@ import finance.project.api.model.TradeSignalTa4jDTO;
 import finance.project.api.services.CandleCacheManager;
 import finance.project.api.services.TA4JService;
 import finance.project.api.strategies.ta4j.TrendFollowingStrategy;
+import finance.project.api.utils.StrategyResult;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.BaseTradingRecord;
@@ -48,7 +49,7 @@ public class StrategyManager {
         return trades;
     }
 
-    public List<TradeSignalDTO> runTrendFollowing(String symbol, String timeframe, int period) {
+    public StrategyResult runTrendFollowing(String symbol, String timeframe, int period) {
         return trendFollowingStrategy.execute(symbol, timeframe, period);
     }
 

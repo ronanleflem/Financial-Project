@@ -7,9 +7,15 @@ import finance.project.api.model.TradeSignalTa4jDTO;
 import finance.project.api.services.CandleCacheManager;
 import finance.project.api.services.TA4JService;
 import finance.project.api.services.TradeFilterService;
+import finance.project.api.utils.StrategyResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.*;
+import org.ta4j.core.criteria.MaximumDrawdownCriterion;
+import org.ta4j.core.criteria.NumberOfLosingPositionsCriterion;
+import org.ta4j.core.criteria.NumberOfWinningPositionsCriterion;
+import org.ta4j.core.criteria.pnl.AverageProfitCriterion;
+import org.ta4j.core.criteria.pnl.ProfitCriterion;
 import org.ta4j.core.indicators.EMAIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 import org.ta4j.core.num.Num;
@@ -19,7 +25,9 @@ import org.ta4j.core.rules.StopGainRule;
 import org.ta4j.core.rules.StopLossRule;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class TrendFollowingStrategy {
@@ -38,7 +46,7 @@ public class TrendFollowingStrategy {
         this.tradeFilterService = tradeFilterService;
     }
 
-    public List<TradeSignalDTO> execute(String symbol, String timeframe, int period) {
+    public StrategyResult execute(String symbol, String timeframe, int period) {
         List<CandleDTO> candles = candleCacheManager.getCandles(symbol, timeframe, period);
         BarSeries series = ta4jService.convertToTimeSeries(candles, timeframe);
         Strategy strategy = buildTa4jStrategy(series);
@@ -62,7 +70,7 @@ public class TrendFollowingStrategy {
                     .build();
 
             // 🎯 Vérifie la stratégie + les filtres
-            if (strategy.shouldEnter(i) && tradeFilterService.isTradeValid(request, symbol,timeframe,period)) {
+            if (strategy.shouldEnter(i) /*&& tradeFilterService.isTradeValid(request, symbol,timeframe,period)*/) {
                 record.enter(i, price, series.getBar(i).getVolume());
                 signals.add(tradeSignal);
             } else if (strategy.shouldExit(i)) {
@@ -72,7 +80,15 @@ public class TrendFollowingStrategy {
             }
         }
 
-        return signals;
+        // 🔍 Ajoute les métriques
+        Map<String, Double> performance = new HashMap<>();
+        performance.put("totalReturn", new ProfitCriterion().calculate(series, record).doubleValue());
+        performance.put("winRate", new NumberOfWinningPositionsCriterion().calculate(series, record).doubleValue());
+        performance.put("lossRate", new NumberOfLosingPositionsCriterion().calculate(series, record).doubleValue());
+        performance.put("maxDrawdown", new MaximumDrawdownCriterion().calculate(series, record).doubleValue());
+        performance.put("averageTrade", new AverageProfitCriterion().calculate(series, record).doubleValue());
+
+        return new StrategyResult(signals, performance);
     }
 
 

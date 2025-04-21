@@ -8,6 +8,7 @@ import finance.project.api.model.TradeSignalTa4jDTO;
 import finance.project.api.services.*;
 import finance.project.api.strategies.StrategyManager;
 import finance.project.api.strategies.volume.EmaVolumeStrategy;
+import finance.project.api.utils.StrategyResult;
 import jdk.jfr.Category;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -66,7 +67,7 @@ public class BacktestController {
     }
 
     @GetMapping("/trend-following")
-    public ResponseEntity<List<TradeSignalDTO>> runTrendFollowingBacktest(
+    public ResponseEntity<StrategyResult> runTrendFollowingBacktest(
             @RequestParam String symbol,
             @RequestParam String timeframe,
             @RequestParam(defaultValue = "1000") int period) {
@@ -75,9 +76,9 @@ public class BacktestController {
         candleCacheManager.preload(symbol, timeframe, period);
 
         // 🧠 Exécute la stratégie TrendFollowing avec TA4J
-        List<TradeSignalDTO> signals = strategyManager.runTrendFollowing(symbol, timeframe, period);
+        StrategyResult result = strategyManager.runTrendFollowing(symbol, timeframe, period);
 
-        return ResponseEntity.ok(signals);
+        return ResponseEntity.ok(result);
     }
     /*
     @GetMapping
