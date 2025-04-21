@@ -4,10 +4,10 @@ import finance.project.api.entities.Candle;
 import finance.project.api.model.CandleDTO;
 import org.mapstruct.Mapper;
 
-    @Mapper
-    public interface CandleMapper {
+@Mapper(componentModel = "spring")
+public interface CandleMapper {
 
-        CandleDTO toDto(Candle entity);
+    CandleDTO toDto(Candle entity);
 
-        Candle toEntity(CandleDTO dto);
-    }
+    Candle toEntity(CandleDTO dto);
+}

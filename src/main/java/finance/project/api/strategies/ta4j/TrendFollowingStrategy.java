@@ -38,41 +38,43 @@ public class TrendFollowingStrategy {
         this.tradeFilterService = tradeFilterService;
     }
 
-
-    public List<TradeSignalTa4jDTO> execute(String symbol, String timeframe, int period) {
-        // 1. Récupération des données
+    public List<TradeSignalDTO> execute(String symbol, String timeframe, int period) {
         List<CandleDTO> candles = candleCacheManager.getCandles(symbol, timeframe, period);
         BarSeries series = ta4jService.convertToTimeSeries(candles, timeframe);
-
-        // 2. Construction de la stratégie TA4J
         Strategy strategy = buildTa4jStrategy(series);
 
-        // 3. Exécution du backtest
         TradingRecord record = new BaseTradingRecord();
-        List<TradeSignalTa4jDTO> signals = new ArrayList<>();
+        List<TradeSignalDTO> signals = new ArrayList<>();
 
         for (int i = 0; i < series.getBarCount(); i++) {
             CandleDTO candle = candles.get(i);
-            //FIXME :MODIF POUR AJOUTER LES FILTRES A LA STRAT TA4J
+            Num price = series.getBar(i).getClosePrice();
+
+            TradeSignalDTO tradeSignal = buildTradeFilterSignal("BUY", price, candle);
             TradeRequestDTO request = TradeRequestDTO.builder()
-                    .symbol(candle.getSymbol().getSymbol())
-                    //.timeframe(candle.getTimeframe())
-                    .entryPrice(series.getBar(i).getClosePrice().doubleValue())
-                    .entryTime(candle.getDate())
+                    .tradeSignal(tradeSignal)
+                    .timestamp(candle.getDate())
+                    .bidPrice(price.doubleValue()) // ou adapter si tu stockes bid/ask séparément
+                    .askPrice(price.doubleValue())
+                    .volatility(0) // à calculer si nécessaire
+                    .volume(candle.getVolume().doubleValue())
+                    .symbol(symbol)
                     .build();
 
-            // 🔎 Vérifier les filtres
-            if (strategy.shouldEnter(i) && tradeFilterService.isTradeValid(request, new MarketData(candles))) {
-                record.enter(i, series.getBar(i).getClosePrice(), series.getBar(i).getVolume());
-                signals.add(buildTradeSignal("BUY", series.getBar(i).getClosePrice(), candle));
-            } else if (strategy.shouldExit(i) && tradeFilterService.isTradeValid(request, new MarketData(candles))) {
-                record.exit(i, series.getBar(i).getClosePrice(), series.getBar(i).getVolume());
-                signals.add(buildTradeSignal("SELL", series.getBar(i).getClosePrice(), candle));
+            // 🎯 Vérifie la stratégie + les filtres
+            if (strategy.shouldEnter(i) && tradeFilterService.isTradeValid(request, symbol,timeframe,period)) {
+                record.enter(i, price, series.getBar(i).getVolume());
+                signals.add(tradeSignal);
+            } else if (strategy.shouldExit(i)) {
+                record.exit(i, price, series.getBar(i).getVolume());
+                TradeSignalDTO exitSignal = buildTradeFilterSignal("SELL", price, candle);
+                signals.add(exitSignal);
             }
         }
 
         return signals;
     }
+
 
     private Strategy buildTa4jStrategy(BarSeries series) {
         ClosePriceIndicator close = new ClosePriceIndicator(series);
@@ -93,6 +95,17 @@ public class TrendFollowingStrategy {
                 .timeframe(candle.getTimeframe())
                 .direction(direction)
                 .price(price.doubleValue())
+                .timestamp(candle.getDate())
+                .build();
+    }
+
+    private TradeSignalDTO buildTradeFilterSignal(String direction, Num price, CandleDTO candle) {
+        return TradeSignalDTO.builder()
+                .tradeType(direction.equals("BUY") ? TradeSignalDTO.TradeType.LONG : TradeSignalDTO.TradeType.SHORT)
+                .entryPrice(price.doubleValue())
+                .stopLoss(0)        // À adapter selon ta stratégie
+                .takeProfit(0)      // À adapter aussi
+                .confidenceScore(1.0) // Valeur par défaut ou calculée
                 .timestamp(candle.getDate())
                 .build();
     }

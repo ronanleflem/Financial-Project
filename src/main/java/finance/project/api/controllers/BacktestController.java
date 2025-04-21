@@ -66,7 +66,7 @@ public class BacktestController {
     }
 
     @GetMapping("/trend-following")
-    public ResponseEntity<List<TradeSignalTa4jDTO>> runTrendFollowingBacktest(
+    public ResponseEntity<List<TradeSignalDTO>> runTrendFollowingBacktest(
             @RequestParam String symbol,
             @RequestParam String timeframe,
             @RequestParam(defaultValue = "1000") int period) {
@@ -75,7 +75,7 @@ public class BacktestController {
         candleCacheManager.preload(symbol, timeframe, period);
 
         // 🧠 Exécute la stratégie TrendFollowing avec TA4J
-        List<TradeSignalTa4jDTO> signals = strategyManager.runTrendFollowing(symbol, timeframe, period);
+        List<TradeSignalDTO> signals = strategyManager.runTrendFollowing(symbol, timeframe, period);
 
         return ResponseEntity.ok(signals);
     }

@@ -1,9 +1,11 @@
 package finance.project.api.model;
 
-import lombok.Builder;
+import lombok.*;
 
 import java.time.LocalDateTime;
 @Builder
+@AllArgsConstructor
+@Getter @Setter
 public class TradeRequestDTO {
     private final TradeSignalDTO tradeSignal;
     private final LocalDateTime timestamp;

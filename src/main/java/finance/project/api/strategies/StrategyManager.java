@@ -48,7 +48,7 @@ public class StrategyManager {
         return trades;
     }
 
-    public List<TradeSignalTa4jDTO> runTrendFollowing(String symbol, String timeframe, int period) {
+    public List<TradeSignalDTO> runTrendFollowing(String symbol, String timeframe, int period) {
         return trendFollowingStrategy.execute(symbol, timeframe, period);
     }
 

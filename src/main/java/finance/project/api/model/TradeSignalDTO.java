@@ -1,7 +1,13 @@
 package finance.project.api.model;
 
+import lombok.*;
+
 import java.time.LocalDateTime;
 
+@Builder
+@AllArgsConstructor
+@Getter
+@Setter
 public class TradeSignalDTO {
     public enum TradeType { LONG, SHORT }
 
