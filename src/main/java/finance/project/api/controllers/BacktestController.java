@@ -4,6 +4,7 @@ import finance.project.api.entities.MarketData;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.model.SymbolDTO;
 import finance.project.api.model.TradeSignalDTO;
+import finance.project.api.model.TradeSignalTa4jDTO;
 import finance.project.api.services.*;
 import finance.project.api.strategies.StrategyManager;
 import finance.project.api.strategies.volume.EmaVolumeStrategy;
@@ -62,6 +63,21 @@ public class BacktestController {
         candleCacheManager.preload(symbol, timeframe, period);
         List<TradeSignalDTO> trades = strategyManager.runStrategies(symbol, timeframe, period);
         return ResponseEntity.ok("Stratégies exécutées sur " + symbol + " " + timeframe);
+    }
+
+    @GetMapping("/trend-following")
+    public ResponseEntity<List<TradeSignalTa4jDTO>> runTrendFollowingBacktest(
+            @RequestParam String symbol,
+            @RequestParam String timeframe,
+            @RequestParam(defaultValue = "1000") int period) {
+
+        // ⚠️ Important : on remplit le cache d'abord
+        candleCacheManager.preload(symbol, timeframe, period);
+
+        // 🧠 Exécute la stratégie TrendFollowing avec TA4J
+        List<TradeSignalTa4jDTO> signals = strategyManager.runTrendFollowing(symbol, timeframe, period);
+
+        return ResponseEntity.ok(signals);
     }
     /*
     @GetMapping
