@@ -3,7 +3,10 @@ package finance.project.api.strategies;
 import finance.project.api.config.StrategyConfig;
 import finance.project.api.entities.MarketData;
 import finance.project.api.model.CandleDTO;
+import finance.project.api.model.TradeSignalDTO;
 import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -19,14 +22,19 @@ public class StrategyManager {
         this.strategyConfig = strategyConfig;
     }
 
-    public void runStrategies(String symbol, String timeframe, int period) {
+    public List<TradeSignalDTO> runStrategies(String symbol, String timeframe, int period) {
+        List<TradeSignalDTO> trades = new ArrayList<>();
         List<BaseStrategy> enabledStrategies = allStrategies.stream()
                 .filter(strategy -> strategyConfig.getEnabledStrategies().contains(strategy.getClass().getSimpleName()))
                 .toList();
 
         for (BaseStrategy strategy : enabledStrategies) {
-            strategy.execute(symbol, timeframe, period);
+            List<TradeSignalDTO> tmp =  strategy.execute(symbol, timeframe, period);
+            if(tmp != null) {
+                trades.addAll(tmp);
+            }
         }
+        return trades;
     }
 
     /*

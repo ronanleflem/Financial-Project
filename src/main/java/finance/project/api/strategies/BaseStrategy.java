@@ -6,6 +6,7 @@ import finance.project.api.model.TradeRequestDTO;
 import finance.project.api.model.TradeSignalDTO;
 import finance.project.api.services.CandleCacheManager;
 import finance.project.api.services.TradeFilterService;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,12 +14,13 @@ import java.util.List;
 public abstract class BaseStrategy implements Strategy {
 
     protected final TradeFilterService tradeFilterService;
-    private final CandleCacheManager candleCacheManager;
+    @Autowired
+    private CandleCacheManager candleCacheManager;
 
-    public BaseStrategy(TradeFilterService tradeFilterService, CandleCacheManager candleCacheManager) {
+    public BaseStrategy(TradeFilterService tradeFilterService) {
         this.tradeFilterService = tradeFilterService;
-        this.candleCacheManager = candleCacheManager;
     }
+
 
     public boolean isTradeValid(TradeRequestDTO tradeRequest, MarketData marketData) {
         return tradeFilterService.isTradeValid(tradeRequest, marketData);

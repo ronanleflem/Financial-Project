@@ -50,7 +50,17 @@ public class BacktestController {
                                               @RequestParam int period) {
         //MarketData marketData = marketDataService.loadMarketData(symbol, timeframe, period); // Récupère les candles
         candleCacheManager.preload(symbol, timeframe, period);
-        strategyManager.runStrategies(symbol, timeframe, period);
+        List<TradeSignalDTO> trades = strategyManager.runStrategies(symbol, timeframe, period);
+        return ResponseEntity.ok("Stratégies exécutées sur " + symbol + " " + timeframe);
+    }
+
+    @GetMapping("/run-strategy-ta4j")
+    public ResponseEntity<String> runStrategyTa4j(@RequestParam String symbol,
+                                              @RequestParam String timeframe,
+                                              @RequestParam int period) {
+        //MarketData marketData = marketDataService.loadMarketData(symbol, timeframe, period); // Récupère les candles
+        candleCacheManager.preload(symbol, timeframe, period);
+        List<TradeSignalDTO> trades = strategyManager.runStrategies(symbol, timeframe, period);
         return ResponseEntity.ok("Stratégies exécutées sur " + symbol + " " + timeframe);
     }
     /*

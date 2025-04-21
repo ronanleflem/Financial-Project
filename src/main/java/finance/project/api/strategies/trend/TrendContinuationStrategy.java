@@ -34,12 +34,12 @@ public class TrendContinuationStrategy extends BaseStrategy {
         return null;
     }
 
-    public void execute(String symbol, String timeframe, int period) {
+    public List<TradeSignalDTO> execute(String symbol, String timeframe, int period) {
         List<CandleDTO> candles = candleCacheManager.getCandles(symbol, timeframe, period);
 
         if (candles.size() < period) {
             System.out.println("⚠️ Pas assez de bougies pour exécuter la stratégie.");
-            return;
+            return null;
         }
 
         BarSeries series = ta4jService.convertToTimeSeries(candles, timeframe);
@@ -61,7 +61,9 @@ public class TrendContinuationStrategy extends BaseStrategy {
         } else {
             System.out.println("🚫 Signal rejeté par les filtres : " + signal);
         }
+        return null;
     }
+
 
     @Override
     protected TradeSignalDTO generateRawSignal(String symbol, String timeframe, int period) {
