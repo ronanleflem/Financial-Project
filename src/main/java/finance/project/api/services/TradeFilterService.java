@@ -49,7 +49,7 @@ public class TradeFilterService {
     }
 
     public boolean isTradeValid(TradeRequestDTO tradeRequestDTO, String symbol, String timeframe, int period) {
-        return getTradeScore(tradeRequestDTO, symbol,timeframe,period) >= 50;
+        return getTradeScore(tradeRequestDTO, symbol,timeframe,period) >= 1;
     }
 
     private int getTradeScore(TradeRequestDTO tradeRequestDTO, String symbol, String timeframe, int period) {

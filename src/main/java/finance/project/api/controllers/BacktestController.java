@@ -1,6 +1,8 @@
 package finance.project.api.controllers;
 
 import finance.project.api.entities.MarketData;
+import finance.project.api.entities.Performance;
+import finance.project.api.entities.Trade;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.model.SymbolDTO;
 import finance.project.api.model.TradeSignalDTO;
@@ -77,6 +79,32 @@ public class BacktestController {
 
         // 🧠 Exécute la stratégie TrendFollowing avec TA4J
         StrategyResult result = strategyManager.runTrendFollowing(symbol, timeframe, period);
+
+        String strategyName = "TrendFollowing"; // ou dynamiquement via paramètre
+
+        // ✅ Sauvegarder les trades
+        List<Trade> trades = result.getSignals().stream()
+                .map(signal -> Trade.builder()
+                        .strategyName(strategyName)
+                        .tradeType(signal.getTradeType())
+                        .entryPrice(signal.getEntryPrice())
+                        .stopLoss(signal.getStopLoss())
+                        .takeProfit(signal.getTakeProfit())
+                        .confidenceScore(signal.getConfidenceScore())
+                        .timestamp(signal.getTimestamp())
+                        .build())
+                .toList();
+        tradeRepository.saveAll(trades);
+
+        // ✅ Sauvegarder les performances
+        List<Performance> performances = result.getPerformance().entrySet().stream()
+                .map(entry -> Performance.builder()
+                        .strategyName(strategyName)
+                        .metric(entry.getKey())
+                        .value(entry.getValue())
+                        .build())
+                .toList();
+        performanceRepository.saveAll(performances);
 
         return ResponseEntity.ok(result);
     }
