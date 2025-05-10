@@ -1,19 +1,19 @@
 package finance.project.api.strategies.ta4j;
 
-import finance.project.api.model.CandleDTO;
-import finance.project.api.model.TradeRequestDTO;
-import finance.project.api.model.TradeSignalDTO;
-import finance.project.api.model.TradeSignalTa4jDTO;
+import finance.project.api.model.*;
 import finance.project.api.services.CandleCacheManager;
 import finance.project.api.services.TA4JService;
 import finance.project.api.services.TradeFilterService;
+import finance.project.api.utils.DynamicStopLossRule;
 import finance.project.api.utils.StrategyResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.*;
+import org.ta4j.core.backtest.BarSeriesManager;
 import org.ta4j.core.criteria.MaximumDrawdownCriterion;
 import org.ta4j.core.criteria.NumberOfLosingPositionsCriterion;
 import org.ta4j.core.criteria.NumberOfWinningPositionsCriterion;
+import org.ta4j.core.criteria.ReturnOverMaxDrawdownCriterion;
 import org.ta4j.core.criteria.pnl.AverageProfitCriterion;
 import org.ta4j.core.criteria.pnl.ProfitCriterion;
 import org.ta4j.core.indicators.EMAIndicator;
@@ -46,37 +46,42 @@ public class TrendFollowingStrategy {
         this.tradeFilterService = tradeFilterService;
     }
 
-    public StrategyResult execute(String symbol, String timeframe, int period) {
+    public StrategyResult execute(String symbol, String timeframe, int period, double slPercent, double rrRatio) {
         List<CandleDTO> candles = candleCacheManager.getCandles(symbol, timeframe, period);
         BarSeries series = ta4jService.convertToTimeSeries(candles, timeframe);
-        Strategy strategy = buildTa4jStrategy(series);
+        Strategy strategy = buildTa4jStrategy(series, 20, rrRatio);
 
-        TradingRecord record = new BaseTradingRecord();
+        // 3. Backtest via TA4J
+        BarSeriesManager manager = new BarSeriesManager(series);
+        TradingRecord record = manager.run(strategy);
+
+        // 4. Analyse des résultats
+        ProfitCriterion profitCriterion = new ProfitCriterion();
+        ReturnOverMaxDrawdownCriterion drawdownCriterion = new ReturnOverMaxDrawdownCriterion();
+        /*
+        record = new BaseTradingRecord();
         List<TradeSignalDTO> signals = new ArrayList<>();
+
+        List<CompletedTradeDTO> completedTrades = new ArrayList<>();
+        TradeSignalDTO entrySignal = null;
 
         for (int i = 0; i < series.getBarCount(); i++) {
             CandleDTO candle = candles.get(i);
             Num price = series.getBar(i).getClosePrice();
 
-            TradeSignalDTO tradeSignal = buildTradeFilterSignal("BUY", price, candle);
-            TradeRequestDTO request = TradeRequestDTO.builder()
-                    .tradeSignal(tradeSignal)
-                    .timestamp(candle.getDate())
-                    .bidPrice(price.doubleValue()) // ou adapter si tu stockes bid/ask séparément
-                    .askPrice(price.doubleValue())
-                    .volatility(0) // à calculer si nécessaire
-                    .volume(candle.getVolume().doubleValue())
-                    .symbol(symbol)
-                    .build();
-
             // 🎯 Vérifie la stratégie + les filtres
-            if (strategy.shouldEnter(i) /*&& tradeFilterService.isTradeValid(request, symbol,timeframe,period)*/) {
+            if (strategy.shouldEnter(i) && record.isClosed()) { //&& tradeFilterService.isTradeValid(request, symbol,timeframe,period)
                 record.enter(i, price, series.getBar(i).getVolume());
-                signals.add(tradeSignal);
-            } else if (strategy.shouldExit(i)) {
+                List<CandleDTO> recentCandles = candles.subList(Math.max(0, i - 20), i); // Les 20 dernières bougies
+                entrySignal = buildTradeFilterSignal("BUY", price, candle, recentCandles, rrRatio);
+                signals.add(entrySignal);
+
+            } else if (strategy.shouldExit(i) && !record.isClosed() && entrySignal != null) {
                 record.exit(i, price, series.getBar(i).getVolume());
-                TradeSignalDTO exitSignal = buildTradeFilterSignal("SELL", price, candle);
-                signals.add(exitSignal);
+                List<CandleDTO> recentExitCandles = candles.subList(Math.max(0, i - 20), i); // Les 20 dernières bougies
+                TradeExitDTO exitSignal = new TradeExitDTO(price.doubleValue(),candle.getDate());
+                completedTrades.add(new CompletedTradeDTO(entrySignal, exitSignal));
+                entrySignal = null; // Reset pour la prochaine position
             }
         }
 
@@ -88,11 +93,12 @@ public class TrendFollowingStrategy {
         performance.put("maxDrawdown", new MaximumDrawdownCriterion().calculate(series, record).doubleValue());
         performance.put("averageTrade", new AverageProfitCriterion().calculate(series, record).doubleValue());
 
-        return new StrategyResult(signals, performance);
+        return new StrategyResult(signals, completedTrades, performance);*/
+        return new StrategyResult();
     }
 
 
-    private Strategy buildTa4jStrategy(BarSeries series) {
+    private Strategy buildTa4jStrategy(BarSeries series, int lookbackPeriod, double rrRatio) {
         ClosePriceIndicator close = new ClosePriceIndicator(series);
         EMAIndicator ema20 = new EMAIndicator(close, 20);
         EMAIndicator ema50 = new EMAIndicator(close, 50);
@@ -100,7 +106,8 @@ public class TrendFollowingStrategy {
         Rule entryRule = new CrossedUpIndicatorRule(ema20, ema50);
         Rule exitRule = new CrossedDownIndicatorRule(ema20, ema50)
                 .or(new StopLossRule(close, 2.0))   // Exemple : Stop Loss 2%
-                .or(new StopGainRule(close, 3.0));  // Exemple : Take Profit 3%
+                .or(new StopGainRule(close, 3.0)) // Exemple : Take Profit 3%
+                .or(new DynamicStopLossRule(series, lookbackPeriod, rrRatio));
 
         return new BaseStrategy("TrendFollowing", entryRule, exitRule);
     }
@@ -115,13 +122,34 @@ public class TrendFollowingStrategy {
                 .build();
     }
 
-    private TradeSignalDTO buildTradeFilterSignal(String direction, Num price, CandleDTO candle) {
+    // Aligner le TP et SL au DynamicStopLossRule
+    private TradeSignalDTO buildTradeFilterSignal(String direction, Num price, CandleDTO candle, List<CandleDTO> recentCandles, double rrRatio) {
+        double entry = price.doubleValue();
+        double stopLoss;
+        double takeProfit;
+
+        if (direction.equals("BUY")) {
+            double lowestLow = recentCandles.stream()
+                    .mapToDouble(c -> c.getLow().doubleValue())
+                    .min()
+                    .orElse(entry * 0.99); // fallback
+            stopLoss = lowestLow;
+            takeProfit = entry + (entry - stopLoss) * rrRatio;
+        } else {
+            double highestHigh = recentCandles.stream()
+                    .mapToDouble(c -> c.getHigh().doubleValue())
+                    .max()
+                    .orElse(entry * 1.01); // fallback
+            stopLoss = highestHigh;
+            takeProfit = entry - (stopLoss - entry) * rrRatio;
+        }
+
         return TradeSignalDTO.builder()
                 .tradeType(direction.equals("BUY") ? TradeSignalDTO.TradeType.LONG : TradeSignalDTO.TradeType.SHORT)
-                .entryPrice(price.doubleValue())
-                .stopLoss(0)        // À adapter selon ta stratégie
-                .takeProfit(0)      // À adapter aussi
-                .confidenceScore(1.0) // Valeur par défaut ou calculée
+                .entryPrice(entry)
+                .stopLoss(stopLoss)
+                .takeProfit(takeProfit)
+                .confidenceScore(1.0)
                 .timestamp(candle.getDate())
                 .build();
     }

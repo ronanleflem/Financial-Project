@@ -268,7 +268,8 @@ public class CandleController {
             candleService.saveCandlesToDatabase(aggregatedCandles, symbol, e);
         }
 
-        return new ResponseEntity<>(candles, HttpStatus.OK);
+        //return new ResponseEntity<>(candles, HttpStatus.OK);
+        return new ResponseEntity<>(HttpStatus.OK);
     }
 
 }

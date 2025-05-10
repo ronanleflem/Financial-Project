@@ -49,8 +49,8 @@ public class StrategyManager {
         return trades;
     }
 
-    public StrategyResult runTrendFollowing(String symbol, String timeframe, int period) {
-        return trendFollowingStrategy.execute(symbol, timeframe, period);
+    public StrategyResult runTrendFollowing(String symbol, String timeframe, int period, double slPercent, double rrRatio) {
+        return trendFollowingStrategy.execute(symbol, timeframe, period, slPercent, rrRatio);
     }
 
 

@@ -35,18 +35,22 @@ public class BacktestController {
     private final SymbolService symbolService;
     private final CandleService candleService;
     private final StrategyManager strategyManager;
+    private final PerformanceService performanceService;
+    private final TradeService tradeService;
 
     @Autowired
     private CandleCacheManager candleCacheManager;
 
     @Autowired
-    public BacktestController(TA4JService ta4JService, VolumeBasedRolloverService volumeBasedRolloverService, EmaVolumeStrategy emaVolumeStrategy, SymbolService symbolService, CandleService candleService, StrategyManager strategyManager, MarketDataService marketDataService) {
+    public BacktestController(TA4JService ta4JService, VolumeBasedRolloverService volumeBasedRolloverService, EmaVolumeStrategy emaVolumeStrategy, SymbolService symbolService, CandleService candleService, StrategyManager strategyManager, MarketDataService marketDataService, PerformanceService performanceService, TradeService tradeService) {
         this.ta4JService = ta4JService;
         this.volumeBasedRolloverService = volumeBasedRolloverService;
         this.emaVolumeStrategy = emaVolumeStrategy;
         this.symbolService = symbolService;
         this.candleService = candleService;
         this.strategyManager = strategyManager;
+        this.performanceService = performanceService;
+        this.tradeService = tradeService;
     }
     @GetMapping("/run-strategy")
     public ResponseEntity<String> runStrategy(@RequestParam String symbol,
@@ -72,39 +76,22 @@ public class BacktestController {
     public ResponseEntity<StrategyResult> runTrendFollowingBacktest(
             @RequestParam String symbol,
             @RequestParam String timeframe,
-            @RequestParam(defaultValue = "1000") int period) {
+            @RequestParam(defaultValue = "1000") int period,
+            @RequestParam(defaultValue = "1.0") double slPercent,   // ex: 1% SL
+            @RequestParam(defaultValue = "2.0") double rrRatio     // ex: RR 2.0
+            ) {
 
         // ⚠️ Important : on remplit le cache d'abord
         candleCacheManager.preload(symbol, timeframe, period);
 
         // 🧠 Exécute la stratégie TrendFollowing avec TA4J
-        StrategyResult result = strategyManager.runTrendFollowing(symbol, timeframe, period);
+        StrategyResult result = strategyManager.runTrendFollowing(symbol, timeframe, period, slPercent, rrRatio);
 
         String strategyName = "TrendFollowing"; // ou dynamiquement via paramètre
 
-        // ✅ Sauvegarder les trades
-        List<Trade> trades = result.getSignals().stream()
-                .map(signal -> Trade.builder()
-                        .strategyName(strategyName)
-                        .tradeType(signal.getTradeType())
-                        .entryPrice(signal.getEntryPrice())
-                        .stopLoss(signal.getStopLoss())
-                        .takeProfit(signal.getTakeProfit())
-                        .confidenceScore(signal.getConfidenceScore())
-                        .timestamp(signal.getTimestamp())
-                        .build())
-                .toList();
-        tradeRepository.saveAll(trades);
-
-        // ✅ Sauvegarder les performances
-        List<Performance> performances = result.getPerformance().entrySet().stream()
-                .map(entry -> Performance.builder()
-                        .strategyName(strategyName)
-                        .metric(entry.getKey())
-                        .value(entry.getValue())
-                        .build())
-                .toList();
-        performanceRepository.saveAll(performances);
+        // ✅ Sauvegarde via services
+        tradeService.saveTrades(strategyName, result.getSignals());
+        performanceService.savePerformance(strategyName, result.getPerformance());
 
         return ResponseEntity.ok(result);
     }
