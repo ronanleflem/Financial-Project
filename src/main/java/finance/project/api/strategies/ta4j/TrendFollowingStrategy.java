@@ -58,8 +58,9 @@ public class TrendFollowingStrategy {
         // 4. Analyse des résultats
         ProfitCriterion profitCriterion = new ProfitCriterion();
         ReturnOverMaxDrawdownCriterion drawdownCriterion = new ReturnOverMaxDrawdownCriterion();
-        /*
-        record = new BaseTradingRecord();
+
+        Strategy strategylive = buildTa4jStrategy(series, 20, rrRatio);
+        TradingRecord recordlive = new BaseTradingRecord();
         List<TradeSignalDTO> signals = new ArrayList<>();
 
         List<CompletedTradeDTO> completedTrades = new ArrayList<>();
@@ -70,14 +71,14 @@ public class TrendFollowingStrategy {
             Num price = series.getBar(i).getClosePrice();
 
             // 🎯 Vérifie la stratégie + les filtres
-            if (strategy.shouldEnter(i) && record.isClosed()) { //&& tradeFilterService.isTradeValid(request, symbol,timeframe,period)
-                record.enter(i, price, series.getBar(i).getVolume());
+            if (strategy.shouldEnter(i) && recordlive.isClosed()) { //&& tradeFilterService.isTradeValid(request, symbol,timeframe,period)
+                recordlive.enter(i, price, series.getBar(i).getVolume());
                 List<CandleDTO> recentCandles = candles.subList(Math.max(0, i - 20), i); // Les 20 dernières bougies
                 entrySignal = buildTradeFilterSignal("BUY", price, candle, recentCandles, rrRatio);
                 signals.add(entrySignal);
 
-            } else if (strategy.shouldExit(i) && !record.isClosed() && entrySignal != null) {
-                record.exit(i, price, series.getBar(i).getVolume());
+            } else if (strategy.shouldExit(i) && !recordlive.isClosed() && entrySignal != null) {
+                recordlive.exit(i, price, series.getBar(i).getVolume());
                 List<CandleDTO> recentExitCandles = candles.subList(Math.max(0, i - 20), i); // Les 20 dernières bougies
                 TradeExitDTO exitSignal = new TradeExitDTO(price.doubleValue(),candle.getDate());
                 completedTrades.add(new CompletedTradeDTO(entrySignal, exitSignal));
@@ -87,14 +88,14 @@ public class TrendFollowingStrategy {
 
         // 🔍 Ajoute les métriques
         Map<String, Double> performance = new HashMap<>();
-        performance.put("totalReturn", new ProfitCriterion().calculate(series, record).doubleValue());
-        performance.put("winRate", new NumberOfWinningPositionsCriterion().calculate(series, record).doubleValue());
-        performance.put("lossRate", new NumberOfLosingPositionsCriterion().calculate(series, record).doubleValue());
-        performance.put("maxDrawdown", new MaximumDrawdownCriterion().calculate(series, record).doubleValue());
-        performance.put("averageTrade", new AverageProfitCriterion().calculate(series, record).doubleValue());
+        performance.put("totalReturn", new ProfitCriterion().calculate(series, recordlive).doubleValue());
+        performance.put("winRate", new NumberOfWinningPositionsCriterion().calculate(series, recordlive).doubleValue());
+        performance.put("lossRate", new NumberOfLosingPositionsCriterion().calculate(series, recordlive).doubleValue());
+        performance.put("maxDrawdown", new MaximumDrawdownCriterion().calculate(series, recordlive).doubleValue());
+        performance.put("averageTrade", new AverageProfitCriterion().calculate(series, recordlive).doubleValue());
 
-        return new StrategyResult(signals, completedTrades, performance);*/
-        return new StrategyResult();
+        return new StrategyResult(signals, completedTrades, performance,"TrendFollowing");
+        //return new StrategyResult();
     }
 
 

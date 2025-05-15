@@ -21,7 +21,7 @@ public class DynamicStopLossRule extends AbstractRule {
 
     @Override
     public boolean isSatisfied(int index, TradingRecord tradingRecord) {
-        if (tradingRecord.isClosed()) return false;
+        if (tradingRecord == null || tradingRecord.isClosed()) return false;
 
         double entryPrice = tradingRecord.getCurrentPosition().getEntry().getNetPrice().doubleValue();
         boolean isLong = tradingRecord.getCurrentPosition().getStartingType().name().equals("BUY"); // FIXME : Pas sur

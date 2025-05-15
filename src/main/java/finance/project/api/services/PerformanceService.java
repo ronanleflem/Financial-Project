@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -23,5 +24,9 @@ public class PerformanceService {
                         .build())
                 .toList();
         performanceRepository.saveAll(performances);
+    }
+
+    public Set<String> getAllStrategies() {
+        return performanceRepository.getStrategyNames();
     }
 }

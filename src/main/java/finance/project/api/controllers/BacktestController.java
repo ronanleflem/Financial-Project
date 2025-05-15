@@ -26,6 +26,7 @@ import org.ta4j.core.reports.PerformanceReport;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 @Controller
 public class BacktestController {
@@ -94,6 +95,11 @@ public class BacktestController {
         performanceService.savePerformance(strategyName, result.getPerformance());
 
         return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/all-strategies")
+    public ResponseEntity<Set<String>> getAllCalculatedStrategies(){
+        return ResponseEntity.ok(performanceService.getAllStrategies());
     }
     /*
     @GetMapping
