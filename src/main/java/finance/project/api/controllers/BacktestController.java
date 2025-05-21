@@ -3,10 +3,8 @@ package finance.project.api.controllers;
 import finance.project.api.entities.MarketData;
 import finance.project.api.entities.Performance;
 import finance.project.api.entities.Trade;
-import finance.project.api.model.CandleDTO;
-import finance.project.api.model.SymbolDTO;
-import finance.project.api.model.TradeSignalDTO;
-import finance.project.api.model.TradeSignalTa4jDTO;
+import finance.project.api.entities.TradeCompleted;
+import finance.project.api.model.*;
 import finance.project.api.services.*;
 import finance.project.api.strategies.StrategyManager;
 import finance.project.api.strategies.volume.EmaVolumeStrategy;
@@ -17,6 +15,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.Strategy;
@@ -38,12 +37,13 @@ public class BacktestController {
     private final StrategyManager strategyManager;
     private final PerformanceService performanceService;
     private final TradeService tradeService;
+    private final TradeCompletedService tradeCompletedService;
 
     @Autowired
     private CandleCacheManager candleCacheManager;
 
     @Autowired
-    public BacktestController(TA4JService ta4JService, VolumeBasedRolloverService volumeBasedRolloverService, EmaVolumeStrategy emaVolumeStrategy, SymbolService symbolService, CandleService candleService, StrategyManager strategyManager, MarketDataService marketDataService, PerformanceService performanceService, TradeService tradeService) {
+    public BacktestController(TA4JService ta4JService, VolumeBasedRolloverService volumeBasedRolloverService, EmaVolumeStrategy emaVolumeStrategy, SymbolService symbolService, CandleService candleService, StrategyManager strategyManager, MarketDataService marketDataService, PerformanceService performanceService, TradeService tradeService, TradeCompletedService tradeCompletedService) {
         this.ta4JService = ta4JService;
         this.volumeBasedRolloverService = volumeBasedRolloverService;
         this.emaVolumeStrategy = emaVolumeStrategy;
@@ -52,6 +52,7 @@ public class BacktestController {
         this.strategyManager = strategyManager;
         this.performanceService = performanceService;
         this.tradeService = tradeService;
+        this.tradeCompletedService = tradeCompletedService;
     }
     @GetMapping("/run-strategy")
     public ResponseEntity<String> runStrategy(@RequestParam String symbol,
@@ -92,15 +93,31 @@ public class BacktestController {
 
         // ✅ Sauvegarde via services
         tradeService.saveTrades(strategyName, result.getSignals());
+        tradeCompletedService.saveCompletedTrades(strategyName,result.getCompletedTrades());
         performanceService.savePerformance(strategyName, result.getPerformance());
 
         return ResponseEntity.ok(result);
     }
 
     @GetMapping("/all-strategies")
-    public ResponseEntity<Set<String>> getAllCalculatedStrategies(){
-        return ResponseEntity.ok(performanceService.getAllStrategies());
+    public ResponseEntity<List<PerfsStratsDTO>> getAllCalculatedStrategies() {
+        return ResponseEntity.ok(performanceService.getAllStrategyPerformances());
     }
+
+    @GetMapping("/all-trades")
+    public ResponseEntity<List<PerfsStratsDTO>> getAllCalculatedTradeOnStrategy() {
+        return ResponseEntity.ok(performanceService.getAllStrategyPerformances());
+    }
+
+    @GetMapping("/get-trades-strategy/{strategyName}")
+    public ResponseEntity<List<TradeCompleted>> getTradesByStrategy(@PathVariable String strategyName) {
+        List<TradeCompleted> trades = tradeCompletedService.getTradesByStrategy(strategyName);
+        if (trades.isEmpty()) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(trades);
+    }
+
     /*
     @GetMapping
     public String backtest(@RequestParam String symbol, @RequestParam String timeframe,
