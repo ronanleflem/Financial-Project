@@ -24,10 +24,8 @@ import org.ta4j.core.rules.CrossedUpIndicatorRule;
 import org.ta4j.core.rules.StopGainRule;
 import org.ta4j.core.rules.StopLossRule;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class TrendFollowingStrategy {
@@ -47,7 +45,17 @@ public class TrendFollowingStrategy {
     }
 
     public StrategyResult execute(String symbol, String timeframe, int period, double slPercent, double rrRatio) {
-        List<CandleDTO> candles = candleCacheManager.getCandles(symbol, timeframe, period);
+        List<CandleDTO> candles = candleCacheManager.getCandles(symbol, timeframe, period)
+                .stream()
+                .collect(Collectors.collectingAndThen(
+                        Collectors.toCollection(ArrayList::new),
+                        list -> {
+                            if (list.size() >= 2 && list.get(0).getDate().isAfter(list.get(1).getDate())) {
+                                Collections.reverse(list);
+                            }
+                            return list;
+                        }
+                ));
         BarSeries series = ta4jService.convertToTimeSeries(candles, timeframe);
         Strategy strategy = buildTa4jStrategy(series, 20, rrRatio);
 
@@ -74,7 +82,7 @@ public class TrendFollowingStrategy {
             if (strategy.shouldEnter(i) && recordlive.isClosed()) { //&& tradeFilterService.isTradeValid(request, symbol,timeframe,period)
                 recordlive.enter(i, price, series.getBar(i).getVolume());
                 List<CandleDTO> recentCandles = candles.subList(Math.max(0, i - 20), i); // Les 20 dernières bougies
-                entrySignal = buildTradeFilterSignal("BUY", price, candle, recentCandles, rrRatio);
+                entrySignal = buildTradeFilterSignal("BUY", price, candle, recentCandles, rrRatio,symbol);
                 signals.add(entrySignal);
 
             } else if (strategy.shouldExit(i) && !recordlive.isClosed() && entrySignal != null) {
@@ -124,7 +132,7 @@ public class TrendFollowingStrategy {
     }
 
     // Aligner le TP et SL au DynamicStopLossRule
-    private TradeSignalDTO buildTradeFilterSignal(String direction, Num price, CandleDTO candle, List<CandleDTO> recentCandles, double rrRatio) {
+    private TradeSignalDTO buildTradeFilterSignal(String direction, Num price, CandleDTO candle, List<CandleDTO> recentCandles, double rrRatio, String symbol) {
         double entry = price.doubleValue();
         double stopLoss;
         double takeProfit;
@@ -152,6 +160,7 @@ public class TrendFollowingStrategy {
                 .takeProfit(takeProfit)
                 .confidenceScore(1.0)
                 .timestamp(candle.getDate())
+                .symbol(symbol)
                 .build();
     }
 }

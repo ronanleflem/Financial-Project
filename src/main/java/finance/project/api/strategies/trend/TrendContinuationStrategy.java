@@ -53,7 +53,7 @@ public class TrendContinuationStrategy extends BaseStrategy {
         // Exemple de logique simple : Trend following
         String action = lastClose > lastEma ? "BUY" : "SELL";
 
-        TradeSignalDTO signal = new TradeSignalDTO(action.equals("BUY") ? TradeSignalDTO.TradeType.LONG : TradeSignalDTO.TradeType.SHORT, 0,0,0,0);
+        TradeSignalDTO signal = new TradeSignalDTO(action.equals("BUY") ? TradeSignalDTO.TradeType.LONG : TradeSignalDTO.TradeType.SHORT, 0,0,0,0,symbol);
         TradeRequestDTO request = new TradeRequestDTO(signal);
 
         if (isTradeValid(request,symbol,timeframe,period)) {

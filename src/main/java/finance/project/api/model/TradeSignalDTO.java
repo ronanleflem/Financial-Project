@@ -18,12 +18,19 @@ public class TradeSignalDTO {
     private final double confidenceScore;
     private final LocalDateTime timestamp;
 
-    public TradeSignalDTO(TradeType tradeType, double entryPrice, double stopLoss, double takeProfit, double confidenceScore) {
+    public String getSymbol() {
+        return symbol;
+    }
+
+    private final String symbol;
+
+    public TradeSignalDTO(TradeType tradeType, double entryPrice, double stopLoss, double takeProfit, double confidenceScore, String symbol) {
         this.tradeType = tradeType;
         this.entryPrice = entryPrice;
         this.stopLoss = stopLoss;
         this.takeProfit = takeProfit;
         this.confidenceScore = confidenceScore;
+        this.symbol = symbol;
         this.timestamp = LocalDateTime.now(); // Génère un horodatage automatique
     }
 

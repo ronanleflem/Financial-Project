@@ -3,6 +3,7 @@ package finance.project.api.services;
 import finance.project.api.entities.Candle;
 import finance.project.api.entities.PointOfInterest;
 import finance.project.api.entities.Symbol;
+import finance.project.api.entities.TradeCompleted;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.model.CandleFilterDTO;
 import finance.project.api.model.SymbolDTO;
@@ -41,7 +42,18 @@ public class CandleServiceJPA implements CandleService {
     private final AlphaVantageService alphaVantageService;
     private final PointOfInterestRepository pointOfInterestRepository;
 
-
+    @Override
+    public List<CandleDTO> getCandlesForTrade(TradeCompleted trade, String symbol, String timeframe) {
+        List<Candle> candles = candleRepository.findBySymbolAndTimeframeAndDateBetween(
+                symbolRepository.findBySymbol(symbol).get(),
+                timeframe,
+                trade.getEntryTimestamp(),
+                trade.getExitTimestamp()
+        );
+        return candles.stream()
+                .map(this::mapToDTO)
+                .toList();
+    }
 
     @Override
     public List<CandleDTO> getCandles(SymbolDTO symbol, String interval) {

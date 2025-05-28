@@ -35,4 +35,5 @@ public class TradeCompleted {
 
     private LocalDateTime entryTimestamp;
     private LocalDateTime exitTimestamp;
+    private String symbol;
 }

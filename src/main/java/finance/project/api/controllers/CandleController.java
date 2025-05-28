@@ -4,6 +4,7 @@ package finance.project.api.controllers;
 
 import finance.project.api.entities.Candle;
 import finance.project.api.entities.Symbol;
+import finance.project.api.entities.TradeCompleted;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.model.CandleFilterDTO;
 import finance.project.api.model.SymbolDTO;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -54,6 +56,8 @@ public class CandleController {
     private final CandleAggregationService candleAggregationService;
 
     private final VolumeBasedRolloverService volumeBasedRolloverService;
+
+    private final TradeCompletedService tradeCompletedService;
     /**
      * Service pour la gestion des symboles.
      */
@@ -270,6 +274,24 @@ public class CandleController {
 
         //return new ResponseEntity<>(candles, HttpStatus.OK);
         return new ResponseEntity<>(HttpStatus.OK);
+    }
+
+    @GetMapping("/from-trade")
+    public Map<String, Object> getCandlesForTrade(
+            @RequestParam Long tradeId,
+            @RequestParam(defaultValue = "5min") String timeframe) {
+
+        TradeCompleted trade = tradeCompletedService.getTradeById(tradeId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Trade not found"));
+
+        // A ajouter trade.getSymbol() au lieu de EURUSD en dur
+        List<CandleDTO> candles = candleService.getCandlesForTrade(trade, "EURUSD", timeframe);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("candles", candles);
+        response.put("trade", trade);
+
+        return response;
     }
 
 }

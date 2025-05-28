@@ -6,7 +6,9 @@ import finance.project.api.repositories.TradeCompletedRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +29,7 @@ public class TradeCompletedService {
                         .confidenceScore(dto.getEntrySignal().getConfidenceScore())
                         .entryTimestamp(dto.getEntrySignal().getTimestamp())
                         .exitTimestamp(dto.getExitSignal().getTimestamp())
+                        .symbol(dto.getEntrySignal().getSymbol())
                         .build())
                 .toList();
 
@@ -35,5 +38,9 @@ public class TradeCompletedService {
 
     public List<TradeCompleted> getTradesByStrategy(String strategyName) {
         return tradeCompletedRepository.findByStrategyName(strategyName);
+    }
+
+    public Optional<TradeCompleted> getTradeById(Long id) {
+        return tradeCompletedRepository.findById(id);
     }
 }

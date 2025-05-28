@@ -3,6 +3,7 @@ package finance.project.api.services;
 import finance.project.api.entities.Candle;
 import finance.project.api.entities.PointOfInterest;
 import finance.project.api.entities.Symbol;
+import finance.project.api.entities.TradeCompleted;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.model.CandleFilterDTO;
 import finance.project.api.model.SymbolDTO;
@@ -11,6 +12,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface CandleService {
+
+    List<CandleDTO> getCandlesForTrade(TradeCompleted trade, String symbol, String timeframe);
     List<CandleDTO> getCandles(SymbolDTO symbol, String interval);
 
     List<CandleDTO> getCandlesByTimeframeAndIntervalDate(String symbol, String timeframe, LocalDateTime startDate, LocalDateTime endDate);

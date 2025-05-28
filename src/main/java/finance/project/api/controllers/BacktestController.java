@@ -109,14 +109,15 @@ public class BacktestController {
         return ResponseEntity.ok(performanceService.getAllStrategyPerformances());
     }
 
-    @GetMapping("/get-trades-strategy/{strategyName}")
-    public ResponseEntity<List<TradeCompleted>> getTradesByStrategy(@PathVariable String strategyName) {
+    @GetMapping("/get-trades-strategy")
+    public ResponseEntity<List<TradeCompleted>> getTradesByStrategy(@RequestParam String strategyName) {
         List<TradeCompleted> trades = tradeCompletedService.getTradesByStrategy(strategyName);
         if (trades.isEmpty()) {
             return ResponseEntity.noContent().build();
         }
         return ResponseEntity.ok(trades);
     }
+
 
     /*
     @GetMapping
