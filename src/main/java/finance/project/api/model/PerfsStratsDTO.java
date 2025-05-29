@@ -13,7 +13,9 @@ public class PerfsStratsDTO {
     private String name;
     private BigDecimal winRate;
     private BigDecimal lossRate;
-    private BigDecimal totalReturn;
+    private BigDecimal totalReturn; // en pips
     private BigDecimal maxDrawdown;
     private BigDecimal averageTrade;
+    private BigDecimal averageSL; // en pips
+    private BigDecimal averageTP; // en pips
 }

@@ -53,6 +53,8 @@ public class PerformanceService {
                     .totalReturn(toBigDecimal(metricMap.get("totalReturn")))
                     .maxDrawdown(toBigDecimal(metricMap.get("maxDrawdown")))
                     .averageTrade(toBigDecimal(metricMap.get("averageTrade")))
+                    .averageSL(toBigDecimal(metricMap.get("averageSL")))
+                    .averageTP(toBigDecimal(metricMap.get("averageTP")))
                     .build();
 
             result.add(dto);

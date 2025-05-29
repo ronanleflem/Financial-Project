@@ -95,12 +95,14 @@ public class TrendFollowingStrategy {
         }
 
         // 🔍 Ajoute les métriques
-        Map<String, Double> performance = new HashMap<>();
-        performance.put("totalReturn", new ProfitCriterion().calculate(series, recordlive).doubleValue());
-        performance.put("winRate", new NumberOfWinningPositionsCriterion().calculate(series, recordlive).doubleValue());
-        performance.put("lossRate", new NumberOfLosingPositionsCriterion().calculate(series, recordlive).doubleValue());
-        performance.put("maxDrawdown", new MaximumDrawdownCriterion().calculate(series, recordlive).doubleValue());
-        performance.put("averageTrade", new AverageProfitCriterion().calculate(series, recordlive).doubleValue());
+        //Map<String, Double> performance = new HashMap<>();
+        //performance.put("totalReturn", new ProfitCriterion().calculate(series, recordlive).doubleValue());
+        //performance.put("winRate", new NumberOfWinningPositionsCriterion().calculate(series, recordlive).doubleValue());
+        //performance.put("lossRate", new NumberOfLosingPositionsCriterion().calculate(series, recordlive).doubleValue());
+        //performance.put("maxDrawdown", new MaximumDrawdownCriterion().calculate(series, recordlive).doubleValue());
+        //performance.put("averageTrade", new AverageProfitCriterion().calculate(series, recordlive).doubleValue());
+
+        Map<String, Double> performance = computeManualPerformance(completedTrades);
 
         return new StrategyResult(signals, completedTrades, performance,"TrendFollowing");
         //return new StrategyResult();
@@ -163,4 +165,66 @@ public class TrendFollowingStrategy {
                 .symbol(symbol)
                 .build();
     }
+    public Map<String, Double> computeManualPerformance(List<CompletedTradeDTO> trades) {
+        double totalReturn = 0.0;
+        int winCount = 0;
+        int lossCount = 0;
+        double totalSL = 0.0;
+        double totalTP = 0.0;
+        int slCount = 0;
+        int tpCount = 0;
+
+        for (CompletedTradeDTO trade : trades) {
+            TradeSignalDTO entry = trade.getEntrySignal();
+            TradeExitDTO exit = trade.getExitSignal();
+            if (entry == null || exit == null) continue;
+
+            double entryPrice = entry.getEntryPrice();
+            double exitPrice = exit.getExitPrice();
+            double pips = (entry.getTradeType() == TradeSignalDTO.TradeType.LONG)
+                    ? exitPrice - entryPrice
+                    : entryPrice - exitPrice;
+
+            pips *= 10000; // en pips, adapté pour les paires comme EUR/USD
+
+            totalReturn += pips;
+
+            if (pips > 0) {
+                winCount++;
+            } else if (pips < 0) {
+                lossCount++;
+            }
+
+            // SL et TP aussi en pips
+            double slPips = Math.abs(entryPrice - entry.getStopLoss()) * 10000;
+            double tpPips = Math.abs(entry.getTakeProfit() - entryPrice) * 10000;
+
+            if (entry.getStopLoss() > 0) {
+                totalSL += slPips;
+                slCount++;
+            }
+
+            if (entry.getTakeProfit() > 0) {
+                totalTP += tpPips;
+                tpCount++;
+            }
+        }
+
+        int totalTrades = winCount + lossCount;
+        double averageTrade = totalTrades > 0 ? totalReturn / totalTrades : 0.0;
+        double averageSL = slCount > 0 ? totalSL / slCount : 0.0;
+        double averageTP = tpCount > 0 ? totalTP / tpCount : 0.0;
+
+        Map<String, Double> performance = new HashMap<>();
+        performance.put("totalReturn", totalReturn);
+        performance.put("winRate", (double) winCount);
+        performance.put("lossRate", (double) lossCount);
+        performance.put("averageTrade", averageTrade);
+        performance.put("averageSL", averageSL);
+        performance.put("averageTP", averageTP);
+        performance.put("maxDrawdown", 0d);
+
+        return performance;
+    }
+
 }
