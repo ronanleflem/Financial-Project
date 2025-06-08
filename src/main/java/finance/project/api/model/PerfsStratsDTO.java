@@ -18,4 +18,7 @@ public class PerfsStratsDTO {
     private BigDecimal averageTrade;
     private BigDecimal averageSL; // en pips
     private BigDecimal averageTP; // en pips
+    private String symbol;
+    private String comparedSymbol;
+
 }

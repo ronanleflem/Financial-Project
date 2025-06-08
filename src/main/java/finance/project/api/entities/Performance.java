@@ -19,4 +19,8 @@ public class Performance {
 
     private String metric; // Ex: "winRate", "profitFactor"
     private double value;
+
+    private String symbol;
+
+    private String comparedSymbol;
 }

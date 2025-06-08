@@ -78,6 +78,7 @@ public class BacktestController {
     public ResponseEntity<StrategyResult> runTrendFollowingBacktest(
             @RequestParam String symbol,
             @RequestParam String timeframe,
+            @RequestParam String comparedSymbol,
             @RequestParam(defaultValue = "1000") int period,
             @RequestParam(defaultValue = "1.0") double slPercent,   // ex: 1% SL
             @RequestParam(defaultValue = "2.0") double rrRatio     // ex: RR 2.0
@@ -94,7 +95,7 @@ public class BacktestController {
         // ✅ Sauvegarde via services
         tradeService.saveTrades(strategyName, result.getSignals());
         tradeCompletedService.saveCompletedTrades(strategyName,result.getCompletedTrades());
-        performanceService.savePerformance(strategyName, result.getPerformance());
+        performanceService.savePerformance(strategyName, result.getPerformance(), symbol, comparedSymbol);
 
         return ResponseEntity.ok(result);
     }
@@ -117,37 +118,4 @@ public class BacktestController {
         }
         return ResponseEntity.ok(trades);
     }
-
-
-    /*
-    @GetMapping
-    public String backtest(@RequestParam String symbol, @RequestParam String timeframe,
-                           @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-                           @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
-        List<CandleDTO> candles;
-        if(timeframe.equals("1min")){
-
-            candles = volumeBasedRolloverService.getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, 2);
-
-        }
-        else {
-            SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
-            System.out.println(symbolDTO);
-
-            candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
-        }
-        BarSeries series = ta4JService.convertToTimeSeries(candles,timeframe);
-        Strategy strategy = emaVolumeStrategy.buildStrategy(series);
-
-        TradingRecord tradingRecord = new BacktestExecutor(series)
-                .withInitialBalance(10000)  // 💰 Capital initial 10 000$
-                .withRiskPerTrade(2)        // 📉 2% de risque par trade
-                .withSlippage(0.0001)       // 🔄 Slippage de 1 pip
-                .withSpread(0.0002)         // 📊 Spread de 2 pips
-                .backtest(series, strategy);
-
-        // 🔥 Analyse des résultats
-        PerformanceReport report = new PerformanceReport().a.analyze(tradingRecord);
-        System.out.println(report);
-    }*/
 }

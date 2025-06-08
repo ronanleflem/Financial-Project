@@ -16,10 +16,11 @@ public class PerformanceService {
 
     private final PerformanceRepository performanceRepository;
 
-    public void savePerformance(String strategyName, Map<String, Double> performance) {
-        List<Performance> performances = performance.entrySet().stream()
+    public void savePerformance(String strategyName, Map<String, Double> performance, String symbol, String comparedSymbol) {        List<Performance> performances = performance.entrySet().stream()
                 .map(entry -> Performance.builder()
                         .strategyName(strategyName)
+                        .symbol(symbol)
+                        .comparedSymbol(comparedSymbol)
                         .metric(entry.getKey())
                         .value(entry.getValue())
                         .build())
@@ -31,33 +32,39 @@ public class PerformanceService {
         List<Performance> performances = performanceRepository.findAll();
 
         // Grouper les performances par stratégie
-        Map<String, List<Performance>> grouped = performances.stream()
-                .collect(Collectors.groupingBy(Performance::getStrategyName));
+        Map<String, Map<String, Map<String, List<Performance>>>> grouped = performances.stream()
+                .collect(Collectors.groupingBy(Performance::getStrategyName,
+                        Collectors.groupingBy(Performance::getSymbol,
+                                Collectors.groupingBy(Performance::getComparedSymbol))));
 
         List<PerfsStratsDTO> result = new ArrayList<>();
 
-        for (Map.Entry<String, List<Performance>> entry : grouped.entrySet()) {
-            String strategyName = entry.getKey();
-            List<Performance> metrics = entry.getValue();
-
-            // Si des metrics sont dupliquées, garder la dernière occurrence
-            Map<String, Double> metricMap = new LinkedHashMap<>();
-            for (Performance perf : metrics) {
-                metricMap.put(perf.getMetric(), perf.getValue()); // overwrite = dernière valeur
+        for (var stratEntry : grouped.entrySet()) {
+            String strategyName = stratEntry.getKey();
+            for (var symbolEntry : stratEntry.getValue().entrySet()) {
+                String symbol = symbolEntry.getKey();
+                for (var compEntry : symbolEntry.getValue().entrySet()) {
+                    String comparedSymbol = compEntry.getKey();
+                    List<Performance> metrics = compEntry.getValue();
+                    Map<String, Double> metricMap = new LinkedHashMap<>();
+                    for (Performance perf : metrics) {
+                        metricMap.put(perf.getMetric(), perf.getValue());
+                    }
+                    PerfsStratsDTO dto = PerfsStratsDTO.builder()
+                            .name(strategyName)
+                            .symbol(symbol)
+                            .comparedSymbol(comparedSymbol)
+                            .winRate(toBigDecimal(metricMap.get("winRate")))
+                            .lossRate(toBigDecimal(metricMap.get("lossRate")))
+                            .totalReturn(toBigDecimal(metricMap.get("totalReturn")))
+                            .maxDrawdown(toBigDecimal(metricMap.get("maxDrawdown")))
+                            .averageTrade(toBigDecimal(metricMap.get("averageTrade")))
+                            .averageSL(toBigDecimal(metricMap.get("averageSL")))
+                            .averageTP(toBigDecimal(metricMap.get("averageTP")))
+                            .build();
+                    result.add(dto);
+                }
             }
-
-            PerfsStratsDTO dto = PerfsStratsDTO.builder()
-                    .name(strategyName)
-                    .winRate(toBigDecimal(metricMap.get("winRate")))
-                    .lossRate(toBigDecimal(metricMap.get("lossRate")))
-                    .totalReturn(toBigDecimal(metricMap.get("totalReturn")))
-                    .maxDrawdown(toBigDecimal(metricMap.get("maxDrawdown")))
-                    .averageTrade(toBigDecimal(metricMap.get("averageTrade")))
-                    .averageSL(toBigDecimal(metricMap.get("averageSL")))
-                    .averageTP(toBigDecimal(metricMap.get("averageTP")))
-                    .build();
-
-            result.add(dto);
         }
 
         return result;

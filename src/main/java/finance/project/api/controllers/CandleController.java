@@ -279,16 +279,20 @@ public class CandleController {
     @GetMapping("/from-trade")
     public Map<String, Object> getCandlesForTrade(
             @RequestParam Long tradeId,
-            @RequestParam(defaultValue = "5min") String timeframe) {
+            @RequestParam(defaultValue = "5min") String timeframe,
+            @RequestParam String symbol,
+            @RequestParam String comparedSymbol) {
 
         TradeCompleted trade = tradeCompletedService.getTradeById(tradeId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Trade not found"));
 
         // A ajouter trade.getSymbol() au lieu de EURUSD en dur
-        List<CandleDTO> candles = candleService.getCandlesForTrade(trade, "EURUSD", timeframe);
+        List<CandleDTO> candles = candleService.getCandlesForTrade(trade, symbol, timeframe);
+        List<CandleDTO> candlesComparedSymbol = candleService.getCandlesForTrade(trade, comparedSymbol, timeframe);
 
         Map<String, Object> response = new HashMap<>();
         response.put("candles", candles);
+        response.put("comparedCandles", candlesComparedSymbol);
         response.put("trade", trade);
 
         return response;
