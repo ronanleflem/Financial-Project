@@ -95,8 +95,9 @@ public class BacktestController {
 
         // ✅ Sauvegarde via services
         tradeService.saveTrades(strategyName, result.getSignals());
-        tradeCompletedService.saveCompletedTrades(strategyName, result.getCompletedTrades());
         String runId = UUID.randomUUID().toString();
+        tradeCompletedService.saveCompletedTrades(strategyName, result.getCompletedTrades(), runId);
+
         performanceService.savePerformance(strategyName, runId, result.getPerformance(), symbol, comparedSymbol);
 
         return ResponseEntity.ok(result);
@@ -113,8 +114,8 @@ public class BacktestController {
     }
 
     @GetMapping("/get-trades-strategy")
-    public ResponseEntity<List<TradeCompleted>> getTradesByStrategy(@RequestParam String strategyName) {
-        List<TradeCompleted> trades = tradeCompletedService.getTradesByStrategy(strategyName);
+    public ResponseEntity<List<TradeCompleted>> getTradesByStrategy(@RequestParam String strategyName, @RequestParam String runId) {
+        List<TradeCompleted> trades = tradeCompletedService.getTradesByStrategyAndRunId(strategyName, runId);
         if (trades.isEmpty()) {
             return ResponseEntity.noContent().build();
         }

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -16,10 +17,11 @@ public class TradeCompletedService {
 
     private final TradeCompletedRepository tradeCompletedRepository;
 
-    public void saveCompletedTrades(String strategyName, List<CompletedTradeDTO> completedTrades) {
+    public void saveCompletedTrades(String strategyName, List<CompletedTradeDTO> completedTrades, String runId) {
         List<TradeCompleted> trades = completedTrades.stream()
                 .map(dto -> TradeCompleted.builder()
                         .strategyName(strategyName)
+                        .runId(runId)
                         .tradeType(dto.getEntrySignal().getTradeType())
                         .entryPrice(dto.getEntrySignal().getEntryPrice())
                         .stopLoss(dto.getEntrySignal().getStopLoss())
@@ -36,8 +38,8 @@ public class TradeCompletedService {
         tradeCompletedRepository.saveAll(trades);
     }
 
-    public List<TradeCompleted> getTradesByStrategy(String strategyName) {
-        return tradeCompletedRepository.findByStrategyName(strategyName);
+    public List<TradeCompleted> getTradesByStrategyAndRunId(String strategyName, String runId) {
+        return tradeCompletedRepository.findByStrategyNameAndRunId(strategyName, runId);
     }
 
     public Optional<TradeCompleted> getTradeById(Long id) {

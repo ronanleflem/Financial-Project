@@ -10,4 +10,6 @@ import java.util.List;
 @Repository
 public interface TradeCompletedRepository extends JpaRepository<TradeCompleted, Long> {
     List<TradeCompleted> findByStrategyName(String strategyName);
+
+    List<TradeCompleted> findByStrategyNameAndRunId(String strategyName, String runId);
 }

@@ -21,6 +21,8 @@ public class TradeCompleted {
 
     private String strategyName;
 
+    private String runId;
+
     @Enumerated(EnumType.STRING)
     private TradeSignalDTO.TradeType tradeType;
 
