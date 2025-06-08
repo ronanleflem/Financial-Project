@@ -24,6 +24,8 @@ import org.ta4j.core.rules.CrossedUpIndicatorRule;
 import org.ta4j.core.rules.StopGainRule;
 import org.ta4j.core.rules.StopLossRule;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -174,10 +176,24 @@ public class TrendFollowingStrategy {
         int slCount = 0;
         int tpCount = 0;
 
+        LocalDateTime startStrategy = null;
+        LocalDateTime endStrategy = null;
+        double totalRR = 0.0;
+        int rrCount = 0;
+
         for (CompletedTradeDTO trade : trades) {
             TradeSignalDTO entry = trade.getEntrySignal();
             TradeExitDTO exit = trade.getExitSignal();
             if (entry == null || exit == null) continue;
+
+            LocalDateTime entryTime = entry.getTimestamp();
+            LocalDateTime exitTime = exit.getTimestamp();
+            if (startStrategy == null || entryTime.isBefore(startStrategy)) {
+                startStrategy = entryTime;
+            }
+            if (endStrategy == null || exitTime.isAfter(endStrategy)) {
+                endStrategy = exitTime;
+            }
 
             double entryPrice = entry.getEntryPrice();
             double exitPrice = exit.getExitPrice();
@@ -208,12 +224,18 @@ public class TrendFollowingStrategy {
                 totalTP += tpPips;
                 tpCount++;
             }
+
+            if (slPips > 0) {
+                totalRR += tpPips / slPips;
+                rrCount++;
+            }
         }
 
         int totalTrades = winCount + lossCount;
         double averageTrade = totalTrades > 0 ? totalReturn / totalTrades : 0.0;
         double averageSL = slCount > 0 ? totalSL / slCount : 0.0;
         double averageTP = tpCount > 0 ? totalTP / tpCount : 0.0;
+        double rrMoyen = rrCount > 0 ? totalRR / rrCount : 0.0;
 
         Map<String, Double> performance = new HashMap<>();
         performance.put("totalReturn", totalReturn);
@@ -223,6 +245,9 @@ public class TrendFollowingStrategy {
         performance.put("averageSL", averageSL);
         performance.put("averageTP", averageTP);
         performance.put("maxDrawdown", 0d);
+        performance.put("startStrategy", startStrategy != null ? (double) startStrategy.toEpochSecond(ZoneOffset.UTC) : 0d);
+        performance.put("endStrategy", endStrategy != null ? (double) endStrategy.toEpochSecond(ZoneOffset.UTC) : 0d);
+        performance.put("RRmoyen", rrMoyen);
 
         return performance;
     }

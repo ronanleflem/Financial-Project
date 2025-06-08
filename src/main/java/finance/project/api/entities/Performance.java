@@ -20,6 +20,12 @@ public class Performance {
     private String metric; // Ex: "winRate", "profitFactor"
     private double value;
 
+    /**
+     * Identifier to group all metrics of the same strategy run. This allows
+     * distinguishing multiple executions of the same strategy.
+     */
+    private String runId;
+
     private String symbol;
 
     private String comparedSymbol;

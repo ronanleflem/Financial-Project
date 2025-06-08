@@ -26,6 +26,7 @@ import org.ta4j.core.reports.PerformanceReport;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 @Controller
 public class BacktestController {
@@ -94,8 +95,9 @@ public class BacktestController {
 
         // ✅ Sauvegarde via services
         tradeService.saveTrades(strategyName, result.getSignals());
-        tradeCompletedService.saveCompletedTrades(strategyName,result.getCompletedTrades());
-        performanceService.savePerformance(strategyName, result.getPerformance(), symbol, comparedSymbol);
+        tradeCompletedService.saveCompletedTrades(strategyName, result.getCompletedTrades());
+        String runId = UUID.randomUUID().toString();
+        performanceService.savePerformance(strategyName, runId, result.getPerformance(), symbol, comparedSymbol);
 
         return ResponseEntity.ok(result);
     }

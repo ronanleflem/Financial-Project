@@ -5,12 +5,14 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Builder
 @Data
 @AllArgsConstructor
 public class PerfsStratsDTO {
     private String name;
+    private String runId;
     private BigDecimal winRate;
     private BigDecimal lossRate;
     private BigDecimal totalReturn; // en pips
@@ -20,5 +22,8 @@ public class PerfsStratsDTO {
     private BigDecimal averageTP; // en pips
     private String symbol;
     private String comparedSymbol;
+    private LocalDateTime startStrategy;
+    private LocalDateTime endStrategy;
+    private BigDecimal rrMoyen;
 
 }
