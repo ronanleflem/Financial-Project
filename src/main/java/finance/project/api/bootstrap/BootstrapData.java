@@ -100,8 +100,10 @@ public class BootstrapData implements CommandLineRunner {
             Symbol symbol1 = createSymbol("AAPL", "Apple Inc.", "NASDAQ");
             Symbol symbol2 = createSymbol("EURUSD", "Euro to US Dollar", "Forex");
             Symbol symbol3 = createSymbol("GOLD", "Gold Futures", "Commodities");
-
-            symbolRepository.saveAll(Arrays.asList(symbol1, symbol2, symbol3));
+            Symbol symbol4 = createSymbol("BTCUSDT", "Bitcoin", "Cryptomonnaie");
+            Symbol symbol5 = createSymbol("ETHUSDT", "Ethereum", "Cryptomonnaie");
+            Symbol symbol6 = createSymbol("SOLUSDT", "Solana", "Cryptomonnaie");
+            symbolRepository.saveAll(Arrays.asList(symbol1, symbol2, symbol3, symbol4, symbol5, symbol6));
         }
     }
 

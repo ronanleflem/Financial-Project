@@ -11,6 +11,7 @@ import finance.project.api.repositories.CandleRepository;
 import finance.project.api.repositories.PointOfInterestRepository;
 import finance.project.api.repositories.SymbolRepository;
 import finance.project.api.utils.CandleSpecification;
+import finance.project.api.utils.TimeframeUtils;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
@@ -320,7 +321,7 @@ public class CandleServiceJPA implements CandleService {
         for (CandleDTO dto : candles) {
             batch.add(Candle.builder()
                     .symbol(symbol1)
-                    .timeframe(timeframe)
+                    .timeframe(TimeframeUtils.mapToCustomTimeframe(timeframe))
                     .date(dto.getDate())
                     .open(dto.getOpen())
                     .close(dto.getClose())
