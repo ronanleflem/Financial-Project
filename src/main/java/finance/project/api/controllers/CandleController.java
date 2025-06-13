@@ -58,6 +58,9 @@ public class CandleController {
     private final VolumeBasedRolloverService volumeBasedRolloverService;
 
     private final TradeCompletedService tradeCompletedService;
+
+    private final BinanceService binanceService;
+
     /**
      * Service pour la gestion des symboles.
      */
@@ -296,6 +299,17 @@ public class CandleController {
         response.put("trade", trade);
 
         return response;
+    }
+
+    @GetMapping("/binance/historical")
+    public ResponseEntity<List<CandleDTO>> loadBinanceHistorical(
+            @RequestParam String symbol,
+            @RequestParam String interval,
+            @RequestParam(defaultValue = "500") int limit) {
+
+        List<CandleDTO> candles = binanceService.getHistoricalCandles(symbol, interval, limit);
+        candleService.saveCandlesToDatabase(candles, symbol, interval);
+        return new ResponseEntity<>(candles, HttpStatus.OK);
     }
 
 }
