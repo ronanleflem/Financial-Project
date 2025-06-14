@@ -13,7 +13,7 @@ import java.util.List;
 
 public interface CandleService {
 
-    List<CandleDTO> getCandlesForTrade(TradeCompleted trade, String symbol, String timeframe);
+    List<CandleDTO> getCandlesForTrade(TradeCompleted trade, String symbol, String timeframe, int beforeCandles, int afterCandles);
     List<CandleDTO> getCandles(SymbolDTO symbol, String interval);
 
     List<CandleDTO> getCandlesByTimeframeAndIntervalDate(String symbol, String timeframe, LocalDateTime startDate, LocalDateTime endDate);

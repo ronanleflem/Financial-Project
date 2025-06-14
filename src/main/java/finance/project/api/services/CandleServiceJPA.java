@@ -11,6 +11,7 @@ import finance.project.api.repositories.CandleRepository;
 import finance.project.api.repositories.PointOfInterestRepository;
 import finance.project.api.repositories.SymbolRepository;
 import finance.project.api.utils.CandleSpecification;
+import finance.project.api.utils.DurationUtils;
 import finance.project.api.utils.TimeframeUtils;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -44,12 +46,22 @@ public class CandleServiceJPA implements CandleService {
     private final PointOfInterestRepository pointOfInterestRepository;
 
     @Override
-    public List<CandleDTO> getCandlesForTrade(TradeCompleted trade, String symbol, String timeframe) {
+    public List<CandleDTO> getCandlesForTrade(TradeCompleted trade, String symbol, String timeframe, int beforeCandles, int afterCandles) {
+        Duration tfDuration = DurationUtils.parseTimeframe(timeframe);
+
+        LocalDateTime start = trade.getEntryTimestamp().minus(tfDuration.multipliedBy(beforeCandles));
+        LocalDateTime end = trade.getExitTimestamp().plus(tfDuration.multipliedBy(afterCandles));
+
+        Optional<Symbol> symOpt = symbolRepository.findBySymbol(symbol);
+        if (symOpt.isEmpty()) {
+            log.warn("❌ Symbole '{}' introuvable en base", symbol);
+            return List.of();
+        }
         List<Candle> candles = candleRepository.findBySymbolAndTimeframeAndDateBetween(
-                symbolRepository.findBySymbol(symbol).get(),
+                symOpt.get(),
                 timeframe,
-                trade.getEntryTimestamp(),
-                trade.getExitTimestamp()
+                start,
+                end
         );
         return candles.stream()
                 .map(this::mapToDTO)
