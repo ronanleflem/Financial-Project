@@ -56,8 +56,8 @@ public class PerformanceService {
                     .runId(runId)
                     .symbol(sample.getSymbol())
                     .comparedSymbol(sample.getComparedSymbol())
-                    .winRate(toBigDecimal(metricMap.get("winRate")))
-                    .lossRate(toBigDecimal(metricMap.get("lossRate")))
+                    .winCount(toBigDecimal(metricMap.get("winCount")))
+                    .lossCount(toBigDecimal(metricMap.get("lossCount")))
                     .totalReturn(toBigDecimal(metricMap.get("totalReturn")))
                     .maxDrawdown(toBigDecimal(metricMap.get("maxDrawdown")))
                     .averageTrade(toBigDecimal(metricMap.get("averageTrade")))
@@ -66,6 +66,10 @@ public class PerformanceService {
                     .rrMoyen(toBigDecimal(metricMap.get("RRmoyen")))
                     .startStrategy(toLocalDateTime(metricMap.get("startStrategy")))
                     .endStrategy(toLocalDateTime(metricMap.get("endStrategy")))
+                    .totalNetReturn(toBigDecimal(metricMap.get("totalNetReturn")))
+                    .netWinCount(toBigDecimal(metricMap.get("netWinCount")))
+                    .netLossCount(toBigDecimal(metricMap.get("netLossCount")))
+                    .averageNetTrade(toBigDecimal(metricMap.get("averageNetTrade")))
                     .build();
             result.add(dto);
         }

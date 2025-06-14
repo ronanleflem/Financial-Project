@@ -13,8 +13,8 @@ import java.time.LocalDateTime;
 public class PerfsStratsDTO {
     private String name;
     private String runId;
-    private BigDecimal winRate;
-    private BigDecimal lossRate;
+    private BigDecimal winCount;
+    private BigDecimal lossCount;
     private BigDecimal totalReturn; // en pips
     private BigDecimal maxDrawdown;
     private BigDecimal averageTrade;
@@ -25,5 +25,9 @@ public class PerfsStratsDTO {
     private LocalDateTime startStrategy;
     private LocalDateTime endStrategy;
     private BigDecimal rrMoyen;
+    private BigDecimal totalNetReturn;
+    private BigDecimal netWinCount;
+    private BigDecimal netLossCount;
+    private BigDecimal averageNetTrade;
 
 }

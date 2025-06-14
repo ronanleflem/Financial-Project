@@ -9,15 +9,29 @@ public class PipUtils {
      * @param symbol the trading symbol (e.g. "EURUSD", "BTCUSDT")
      * @return the pip factor to apply when converting price differences to pips
      */
-    public static int getPipFactor(String symbol) {
-        if (symbol == null) {
-            return 10000; // default to forex style
-        }
+    public static double getPipFactor(String symbol) {
         return switch (symbol.toUpperCase()) {
-            case "EURUSD", "GBPUSD" -> 10000;  // 1 pip = 0.0001
-            case "BTCUSDT", "ETHUSDT" -> 100;    // 1 pip = 0.01
-            case "NASDAQ" -> 1;                  // 1 pip = 1 point
-            default -> 10000;                     // default for major forex pairs
+            // Forex : variation très petite → 1 pip = 0.0001
+            case "EURUSD", "GBPUSD", "USDJPY" -> 10000.0;
+
+            // Or : 1 pip = 0.1
+            case "XAUUSD" -> 10.0;
+
+            // Indices/futures/cryptos → on traite le pip comme 1 point
+            case "BTCUSDT", "ETHUSDT", "SOLUSDT", "NASDAQ", "US100", "SPX500", "DAX40" -> 1.0;
+
+            // Défaut plus conservateur
+            default -> 1.0;
+        };
+    }
+
+    public static int getPricePrecision(String symbol) {
+        return switch (symbol.toUpperCase()) {
+            case "EURUSD", "GBPUSD" -> 5;
+            case "USDJPY" -> 3;
+            case "BTCUSDT", "ETHUSDT" -> 2;
+            case "NASDAQ", "SPX500" -> 1;
+            default -> 4;
         };
     }
 }

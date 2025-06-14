@@ -5,6 +5,7 @@ import finance.project.api.services.CandleCacheManager;
 import finance.project.api.services.TA4JService;
 import finance.project.api.services.TradeFilterService;
 import finance.project.api.utils.DynamicStopLossRule;
+import finance.project.api.utils.MarketConventionUtils;
 import finance.project.api.utils.PipUtils;
 import finance.project.api.utils.StrategyResult;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -169,9 +170,12 @@ public class TrendFollowingStrategy {
                 .build();
     }
     public Map<String, Double> computeManualPerformance(List<CompletedTradeDTO> trades) {
-        double totalReturn = 0.0;
-        int winCount = 0;
-        int lossCount = 0;
+        double totalNetReturn = 0.0;
+        double totalRawReturn = 0.0;
+        int netWinCount = 0;
+        int netLossCount = 0;
+        int rawWinCount = 0;
+        int rawLossCount = 0;
         double totalSL = 0.0;
         double totalTP = 0.0;
         int slCount = 0;
@@ -182,10 +186,15 @@ public class TrendFollowingStrategy {
         double totalRR = 0.0;
         int rrCount = 0;
 
+        double commissionPerTrade = 0.5; // en pips
+
         for (CompletedTradeDTO trade : trades) {
             TradeSignalDTO entry = trade.getEntrySignal();
             TradeExitDTO exit = trade.getExitSignal();
             if (entry == null || exit == null) continue;
+
+            String symbol = entry.getSymbol();
+            double pipFactor = MarketConventionUtils.getPipFactor(symbol);
 
             LocalDateTime entryTime = entry.getTimestamp();
             LocalDateTime exitTime = exit.getTimestamp();
@@ -198,22 +207,26 @@ public class TrendFollowingStrategy {
 
             double entryPrice = entry.getEntryPrice();
             double exitPrice = exit.getExitPrice();
-            double pips = (entry.getTradeType() == TradeSignalDTO.TradeType.LONG)
+
+            double rawPips = (entry.getTradeType() == TradeSignalDTO.TradeType.LONG)
                     ? exitPrice - entryPrice
                     : entryPrice - exitPrice;
 
-            int pipFactor = PipUtils.getPipFactor(entry.getSymbol());
-            pips *= pipFactor; // Convert to pips depending on market
+            rawPips *= pipFactor;
+            totalRawReturn += rawPips;
 
-            totalReturn += pips;
+            // Comptage brut
+            if (rawPips > 0) rawWinCount++;
+            else if (rawPips < 0) rawLossCount++;
 
-            if (pips > 0) {
-                winCount++;
-            } else if (pips < 0) {
-                lossCount++;
-            }
+            // Net = brut - spread - commission
+            double netPips = MarketConventionUtils.computeNetPips(rawPips, symbol, commissionPerTrade);
+            totalNetReturn += netPips;
 
-            // SL et TP aussi en pips
+            // Comptage net
+            if (netPips > 0) netWinCount++;
+            else if (netPips < 0) netLossCount++;
+
             double slPips = Math.abs(entryPrice - entry.getStopLoss()) * pipFactor;
             double tpPips = Math.abs(entry.getTakeProfit() - entryPrice) * pipFactor;
 
@@ -233,23 +246,33 @@ public class TrendFollowingStrategy {
             }
         }
 
-        int totalTrades = winCount + lossCount;
-        double averageTrade = totalTrades > 0 ? totalReturn / totalTrades : 0.0;
+        int totalTrades = rawWinCount + rawLossCount;
+
+        double averageRawTrade = totalTrades > 0 ? totalRawReturn / totalTrades : 0.0;
+        double averageNetTrade = totalTrades > 0 ? totalNetReturn / totalTrades : 0.0;
         double averageSL = slCount > 0 ? totalSL / slCount : 0.0;
         double averageTP = tpCount > 0 ? totalTP / tpCount : 0.0;
         double rrMoyen = rrCount > 0 ? totalRR / rrCount : 0.0;
 
         Map<String, Double> performance = new HashMap<>();
-        performance.put("totalReturn", totalReturn);
-        performance.put("winRate", (double) winCount);
-        performance.put("lossRate", (double) lossCount);
-        performance.put("averageTrade", averageTrade);
+        performance.put("totalReturn", totalRawReturn);
+        performance.put("totalNetReturn", totalNetReturn);
+
+        performance.put("winCount", (double) rawWinCount);
+        performance.put("lossCount", (double) rawLossCount);
+        performance.put("netWinCount", (double) netWinCount);
+        performance.put("netLossCount", (double) netLossCount);
+
+        performance.put("averageTrade", averageRawTrade);
+        performance.put("averageNetTrade", averageNetTrade);
+
         performance.put("averageSL", averageSL);
         performance.put("averageTP", averageTP);
-        performance.put("maxDrawdown", 0d);
+        performance.put("RRmoyen", rrMoyen);
+
         performance.put("startStrategy", startStrategy != null ? (double) startStrategy.toEpochSecond(ZoneOffset.UTC) : 0d);
         performance.put("endStrategy", endStrategy != null ? (double) endStrategy.toEpochSecond(ZoneOffset.UTC) : 0d);
-        performance.put("RRmoyen", rrMoyen);
+        performance.put("maxDrawdown", 0d); // à implémenter si besoin
 
         return performance;
     }
