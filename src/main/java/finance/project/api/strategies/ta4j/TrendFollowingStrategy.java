@@ -5,6 +5,7 @@ import finance.project.api.services.CandleCacheManager;
 import finance.project.api.services.TA4JService;
 import finance.project.api.services.TradeFilterService;
 import finance.project.api.utils.DynamicStopLossRule;
+import finance.project.api.utils.PipUtils;
 import finance.project.api.utils.StrategyResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -201,7 +202,8 @@ public class TrendFollowingStrategy {
                     ? exitPrice - entryPrice
                     : entryPrice - exitPrice;
 
-            pips *= 10000; // en pips, adapté pour les paires comme EUR/USD
+            int pipFactor = PipUtils.getPipFactor(entry.getSymbol());
+            pips *= pipFactor; // Convert to pips depending on market
 
             totalReturn += pips;
 
@@ -212,8 +214,8 @@ public class TrendFollowingStrategy {
             }
 
             // SL et TP aussi en pips
-            double slPips = Math.abs(entryPrice - entry.getStopLoss()) * 10000;
-            double tpPips = Math.abs(entry.getTakeProfit() - entryPrice) * 10000;
+            double slPips = Math.abs(entryPrice - entry.getStopLoss()) * pipFactor;
+            double tpPips = Math.abs(entry.getTakeProfit() - entryPrice) * pipFactor;
 
             if (entry.getStopLoss() > 0) {
                 totalSL += slPips;
