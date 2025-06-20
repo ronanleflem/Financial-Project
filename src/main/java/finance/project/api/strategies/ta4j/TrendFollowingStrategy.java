@@ -1,5 +1,7 @@
 package finance.project.api.strategies.ta4j;
 
+import finance.project.api.filters.ta4j.MacdEntryRule;
+import finance.project.api.filters.ta4j.RsiEntryRule;
 import finance.project.api.model.*;
 import finance.project.api.services.CandleCacheManager;
 import finance.project.api.services.TA4JService;
@@ -19,6 +21,8 @@ import org.ta4j.core.criteria.ReturnOverMaxDrawdownCriterion;
 import org.ta4j.core.criteria.pnl.AverageProfitCriterion;
 import org.ta4j.core.criteria.pnl.ProfitCriterion;
 import org.ta4j.core.indicators.EMAIndicator;
+import org.ta4j.core.indicators.MACDIndicator;
+import org.ta4j.core.indicators.RSIIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 import org.ta4j.core.num.Num;
 import org.ta4j.core.rules.CrossedDownIndicatorRule;
@@ -83,7 +87,7 @@ public class TrendFollowingStrategy {
             Num price = series.getBar(i).getClosePrice();
 
             // 🎯 Vérifie la stratégie + les filtres
-            if (strategy.shouldEnter(i) && recordlive.isClosed()) { //&& tradeFilterService.isTradeValid(request, symbol,timeframe,period)
+            if (strategy.shouldEnter(i) && recordlive.isClosed() ) { //&& tradeFilterService.isTradeValid(request, symbol,timeframe,period)
                 recordlive.enter(i, price, series.getBar(i).getVolume());
                 List<CandleDTO> recentCandles = candles.subList(Math.max(0, i - 20), i); // Les 20 dernières bougies
                 entrySignal = buildTradeFilterSignal("BUY", price, candle, recentCandles, rrRatio,symbol);
@@ -118,7 +122,14 @@ public class TrendFollowingStrategy {
         EMAIndicator ema20 = new EMAIndicator(close, 20);
         EMAIndicator ema50 = new EMAIndicator(close, 50);
 
-        Rule entryRule = new CrossedUpIndicatorRule(ema20, ema50);
+        RSIIndicator rsi = new RSIIndicator(close, 14);
+        MACDIndicator macd = new MACDIndicator(close, 12, 26);
+        EMAIndicator macdSignal = new EMAIndicator(macd, 9);
+
+        Rule entryRule = new CrossedUpIndicatorRule(ema20, ema50)
+                //.and(new RsiEntryRule(rsi, 50))
+                .and(new MacdEntryRule(macd, macdSignal));
+
         Rule exitRule = new CrossedDownIndicatorRule(ema20, ema50)
                 .or(new StopLossRule(close, 2.0))   // Exemple : Stop Loss 2%
                 .or(new StopGainRule(close, 3.0)) // Exemple : Take Profit 3%
