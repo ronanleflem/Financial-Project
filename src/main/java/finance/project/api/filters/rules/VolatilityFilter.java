@@ -1,5 +1,8 @@
 package finance.project.api.filters.rules;
 
+import finance.project.api.entities.Symbol;
+import finance.project.api.filters.Filter;
+import finance.project.api.model.TradeRequestDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.BarSeries;
@@ -24,7 +27,7 @@ import java.util.Map;
  * - Volatility : ATR, Bollinger Bands pour évaluer la volatilité actuelle
  */
 @Service
-public class VolatilityFilter {
+public class VolatilityFilter implements Filter {
 
     private Indicator<Num> closePrice = null;
     private final int atrPeriod = 14;
@@ -108,5 +111,20 @@ public class VolatilityFilter {
         volatilityData.put("Historical volatility : ", calculateHistoricalVolatility(series, 50));
 
         return volatilityData;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
+        return 1;
     }
 }

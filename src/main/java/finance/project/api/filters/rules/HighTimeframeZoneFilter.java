@@ -1,7 +1,10 @@
 package finance.project.api.filters.rules;
 
 import finance.project.api.entities.PointOfInterest;
+import finance.project.api.entities.Symbol;
+import finance.project.api.filters.Filter;
 import finance.project.api.filters.OrderFlowAnalyzer;
+import finance.project.api.model.TradeRequestDTO;
 import finance.project.api.services.OrderFlowService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -11,7 +14,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class HighTimeframeZoneFilter {
+public class HighTimeframeZoneFilter implements Filter {
 
     private static final double PROXIMITY_THRESHOLD = 0.0015; // ≈ 15 pips pour EUR/USD
 
@@ -59,5 +62,20 @@ public class HighTimeframeZoneFilter {
         int orderFlowScore = orderFlowAnalyzer.validateZonesWithOrderFlow(price, keyLevels, buyVolumes, sellVolumes);
 
         return confluenceScore + orderFlowScore; // Score total de validation
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
+        return 1;
     }
 }

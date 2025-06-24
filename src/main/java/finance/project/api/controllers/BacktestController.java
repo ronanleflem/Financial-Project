@@ -103,6 +103,25 @@ public class BacktestController {
         return ResponseEntity.ok(result);
     }
 
+    @GetMapping("/explosion-grid")
+    public ResponseEntity<StrategyResult> runExplosionGrid(
+            @RequestParam String symbol,
+            @RequestParam String timeframe,
+            @RequestParam(defaultValue = "1000") int period,
+            @RequestParam(defaultValue = "2.0") double explosionPct,
+            @RequestParam(defaultValue = "5.0") double stepPct) {
+
+        candleCacheManager.preload(symbol, timeframe, period);
+        StrategyResult result = strategyManager.runExplosionGrid(symbol, timeframe, period, explosionPct, stepPct);
+
+        String strategyName = "ExplosionGrid";
+        tradeService.saveTrades(strategyName, result.getSignals());
+        String runId = UUID.randomUUID().toString();
+        tradeCompletedService.saveCompletedTrades(strategyName, result.getCompletedTrades(), runId);
+        performanceService.savePerformance(strategyName, runId, result.getPerformance(), symbol, symbol);
+        return ResponseEntity.ok(result);
+    }
+
     @GetMapping("/all-strategies")
     public ResponseEntity<List<PerfsStratsDTO>> getAllCalculatedStrategies() {
         return ResponseEntity.ok(performanceService.getAllStrategyPerformances());

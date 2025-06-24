@@ -52,17 +52,17 @@ public class BenfordLawFilter implements Filter {
         List<Double> priceChanges = candleService.getPriceVariations("EURUSD", "1min", tradeRequest.getTimestamp(),tradeRequest.getTimestamp().minusMinutes(1000)); // Supposons que la DTO contient ces données
         double score = calculateBenfordScore(priceChanges);
 
-        return (score > THRESHOLD) ? 1 : 0; // 1 = anomalie détectée, 0 = conforme
+        return (score > THRESHOLD) ? 0 : 1; // 1 = conforme
     }
 
     @Override
     public int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period) {
-        return 0;
+        return 1;
     }
 
     @Override
     public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
-        return 0;
+        return 1;
     }
 
     /**

@@ -1,6 +1,9 @@
 package finance.project.api.filters.rules;
 
+import finance.project.api.filters.Filter;
+import finance.project.api.entities.Symbol;
 import finance.project.api.model.CandleDTO;
+import finance.project.api.model.TradeRequestDTO;
 import finance.project.api.services.MarketDataService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -14,7 +17,7 @@ import java.util.List;
  */
 @Service
 @RequiredArgsConstructor
-public class BiaisInstitutionalFilter {
+public class BiaisInstitutionalFilter implements Filter {
 
     private final MarketDataService marketDataService;
     /**
@@ -50,6 +53,21 @@ public class BiaisInstitutionalFilter {
         }
 
         return Integer.compare(bias, 0);
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
+        return 1;
     }
 
 }

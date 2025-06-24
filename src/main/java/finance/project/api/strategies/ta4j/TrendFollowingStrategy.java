@@ -2,6 +2,7 @@ package finance.project.api.strategies.ta4j;
 
 import finance.project.api.filters.ta4j.MacdEntryRule;
 import finance.project.api.filters.ta4j.RsiEntryRule;
+import finance.project.api.filters.ta4j.FilterRuleAdapter;
 import finance.project.api.model.*;
 import finance.project.api.services.CandleCacheManager;
 import finance.project.api.services.TA4JService;
@@ -65,6 +66,15 @@ public class TrendFollowingStrategy {
                         }
                 ));
         BarSeries series = ta4jService.convertToTimeSeries(candles, timeframe);
+        TradeRequestDTO dummy = new TradeRequestDTO(TradeSignalDTO.builder()
+                .tradeType(TradeSignalDTO.TradeType.LONG)
+                .entryPrice(0)
+                .stopLoss(0)
+                .takeProfit(0)
+                .confidenceScore(0)
+                .symbol(symbol)
+                .build());
+        tradeFilterService.buildFilterRules(dummy, symbol, timeframe, period);
         Strategy strategy = buildTa4jStrategy(series, 20, rrRatio);
 
         // 3. Backtest via TA4J
@@ -130,10 +140,23 @@ public class TrendFollowingStrategy {
                 //.and(new RsiEntryRule(rsi, 50))
                 .and(new MacdEntryRule(macd, macdSignal));
 
+        List<FilterRuleAdapter> adapters = tradeFilterService.getRuleAdapters();
+        if (adapters.size() >= 2) {
+            // Exemple : utilisation explicite de deux filtres adaptés
+            entryRule = entryRule.and(adapters.get(0)).and(adapters.get(1));
+        } else {
+            for (FilterRuleAdapter adapter : adapters) {
+                entryRule = entryRule.and(adapter);
+            }
+        }
+
         Rule exitRule = new CrossedDownIndicatorRule(ema20, ema50)
                 .or(new StopLossRule(close, 2.0))   // Exemple : Stop Loss 2%
                 .or(new StopGainRule(close, 3.0)) // Exemple : Take Profit 3%
                 .or(new DynamicStopLossRule(series, lookbackPeriod, rrRatio));
+        for (FilterRuleAdapter adapter : tradeFilterService.getRuleAdapters()) {
+            exitRule = exitRule.and(adapter);
+        }
 
         return new BaseStrategy("TrendFollowing", entryRule, exitRule);
     }

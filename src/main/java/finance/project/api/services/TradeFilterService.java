@@ -3,6 +3,7 @@ package finance.project.api.services;
 import finance.project.api.config.StrategyConfig;
 import finance.project.api.entities.MarketData;
 import finance.project.api.filters.Filter;
+import finance.project.api.filters.ta4j.FilterRuleAdapter;
 import finance.project.api.model.TradeRequestDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,10 +17,22 @@ public class TradeFilterService {
 
     private final List<Filter> filters;
     private final StrategyConfig strategyConfig;
+    private List<FilterRuleAdapter> ruleAdapters;
 
     public TradeFilterService(List<Filter> filters, StrategyConfig strategyConfig) {
         this.filters = filters;
         this.strategyConfig = strategyConfig;
+    }
+
+    public List<FilterRuleAdapter> buildFilterRules(TradeRequestDTO request, String symbol, String timeframe, int period) {
+        this.ruleAdapters = filters.stream()
+                .map(f -> new FilterRuleAdapter(f, request, symbol, timeframe, period))
+                .toList();
+        return ruleAdapters;
+    }
+
+    public List<FilterRuleAdapter> getRuleAdapters() {
+        return ruleAdapters;
     }
 
     public int getTradeScore(TradeRequestDTO tradeRequest, MarketData marketData) {

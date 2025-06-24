@@ -25,7 +25,7 @@ public class EMAFilter implements Filter {
 
     @Override
     public int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period) {
-        return 0;
+        return 1;
     }
 
     @Override
@@ -45,11 +45,11 @@ public class EMAFilter implements Filter {
         double lastEma = ema.getValue(lastIndex).doubleValue();
 
         // Exemple de règle : accepter seulement si prix > EMA200
-        return lastClose > lastEma ? 1 : -1;
+        return lastClose > lastEma ? 1 : 0;
     }
 
     @Override
     public int evaluate(TradeRequestDTO priceChanges) {
-        return 0;
+        return 1;
     }
 }

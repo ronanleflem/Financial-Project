@@ -1,9 +1,12 @@
 package finance.project.api.filters.rules;
+import finance.project.api.entities.Symbol;
+import finance.project.api.filters.Filter;
+import finance.project.api.model.TradeRequestDTO;
 import org.springframework.stereotype.Service;
 import java.util.List;
 
 @Service
-public class MarketManipulationFilter {
+public class MarketManipulationFilter implements Filter {
 
     private final FractalAnalysisFilter fractalAnalysisFilter;
     private final VolatilityFilter volatilityFilter;
@@ -43,5 +46,20 @@ public class MarketManipulationFilter {
         }
 
         return manipulationScore;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
+        return 1;
     }
 }

@@ -1,5 +1,8 @@
 package finance.project.api.filters.rules;
 
+import finance.project.api.entities.Symbol;
+import finance.project.api.filters.Filter;
+import finance.project.api.model.TradeRequestDTO;
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression;
 import org.springframework.stereotype.Service;
 
@@ -9,7 +12,7 @@ import java.util.List;
  * Vérification de la stabilité du marché pour valider les modèles quantitatifs.
  */
 @Service
-public class StationarityFilter {
+public class StationarityFilter implements Filter {
 
     public double test(double[] timeSeries, int maxLag) {
         int n = timeSeries.length;
@@ -41,4 +44,18 @@ public class StationarityFilter {
         return testStatistic;
     }
 
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
+        return 1;
+    }
 }
