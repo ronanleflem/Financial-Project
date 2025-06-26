@@ -1,11 +1,14 @@
 package finance.project.api.filters.rules;
 
 
+import finance.project.api.entities.Symbol;
+import finance.project.api.filters.Filter;
+import finance.project.api.model.TradeRequestDTO;
 import org.springframework.stereotype.Service;
 import java.util.List;
 
 @Service
-public class CyclesFilter {
+public class CyclesFilter implements Filter {
 
     /**
      * Détecte la période dominante d'un cycle en analysant la répétition des tendances.
@@ -70,5 +73,20 @@ public class CyclesFilter {
         double denominator = (n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY);
 
         return denominator == 0 ? 0 : numerator / denominator;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
+        return 1;
     }
 }

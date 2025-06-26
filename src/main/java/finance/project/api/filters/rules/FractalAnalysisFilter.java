@@ -1,13 +1,16 @@
 package finance.project.api.filters.rules;
 
 
+import finance.project.api.entities.Symbol;
+import finance.project.api.filters.Filter;
+import finance.project.api.model.TradeRequestDTO;
 import finance.project.api.utils.Kurtosis;
 import finance.project.api.utils.Skewness;
 import org.springframework.stereotype.Service;
 import java.util.List;
 
 @Service
-public class FractalAnalysisFilter {
+public class FractalAnalysisFilter implements Filter {
     private final Kurtosis kurtosis = new Kurtosis();
     private final Skewness skewness = new Skewness();
     /**
@@ -95,5 +98,20 @@ public class FractalAnalysisFilter {
         if (returns.size() < 20) return 0.0;
         double[] data = returns.stream().mapToDouble(Double::doubleValue).toArray();
         return skewness.evaluate(data);
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
+        return 1;
     }
 }

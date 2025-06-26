@@ -1,5 +1,8 @@
 package finance.project.api.filters.rules;
 
+import finance.project.api.entities.Symbol;
+import finance.project.api.filters.Filter;
+import finance.project.api.model.TradeRequestDTO;
 import org.springframework.stereotype.Service;
 import java.util.List;
 
@@ -26,7 +29,7 @@ import java.util.List;
  * ✅ Créer un filtre qui détecte les accélérations soudaines (ex: news impact) ?
  */
 @Service
-public class LowerTimeframeConfluenceFilter {
+public class LowerTimeframeConfluenceFilter implements Filter {
 
     /**
      * Calcule le Momentum (Rate of Change - ROC).
@@ -88,5 +91,20 @@ public class LowerTimeframeConfluenceFilter {
         if (Math.abs(deltaVolume) > 500) score++;
 
         return score;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
+        return 1;
     }
 }

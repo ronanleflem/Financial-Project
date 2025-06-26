@@ -1,6 +1,9 @@
 package finance.project.api.filters.rules;
 
 
+import finance.project.api.entities.Symbol;
+import finance.project.api.filters.Filter;
+import finance.project.api.model.TradeRequestDTO;
 import org.springframework.stereotype.Service;
 import java.util.List;
 
@@ -37,7 +40,7 @@ import java.util.List;
  *  Détection d’absorption, spoofing, empilement d’ordres.
  */
 @Service
-public class LiquidityFilter {
+public class LiquidityFilter implements Filter {
 
     /**
      * Calcule le Chaikin Money Flow (CMF) sur une période donnée
@@ -65,6 +68,21 @@ public class LiquidityFilter {
         }
 
         return sumVolume == 0 ? 0 : sumMFVolume / sumVolume;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
+        return 1;
     }
 }
 

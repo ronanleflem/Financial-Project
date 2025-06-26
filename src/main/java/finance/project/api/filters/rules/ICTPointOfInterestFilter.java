@@ -2,7 +2,10 @@ package finance.project.api.filters.rules;
 
 import finance.project.api.entities.HighLowSwing;
 import finance.project.api.entities.PointOfInterest;
+import finance.project.api.entities.Symbol;
+import finance.project.api.filters.Filter;
 import finance.project.api.model.CandleDTO;
+import finance.project.api.model.TradeRequestDTO;
 import finance.project.api.services.MarketDataService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,8 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Service
-
-public class ICTPointOfInterestFilter {
+public class ICTPointOfInterestFilter implements Filter {
 
 
     private final MarketDataService marketDataService;
@@ -535,6 +537,21 @@ public class ICTPointOfInterestFilter {
                 .build());
 
         return levels;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
+        return 1;
     }
 }
 

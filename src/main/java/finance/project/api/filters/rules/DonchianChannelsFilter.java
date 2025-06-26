@@ -1,5 +1,8 @@
 package finance.project.api.filters.rules;
 
+import finance.project.api.entities.Symbol;
+import finance.project.api.filters.Filter;
+import finance.project.api.model.TradeRequestDTO;
 import org.springframework.stereotype.Service;
 import java.util.List;
 
@@ -18,7 +21,7 @@ import java.util.List;
  *     Ils combinent Order Flow + Donchian Channels pour voir si un breakout est légitime ou piégeux.
  */
 @Service
-public class DonchianChannelsFilter {
+public class DonchianChannelsFilter implements Filter {
 
     /**
      * Calcule les bandes de Donchian pour une période donnée.
@@ -65,5 +68,20 @@ public class DonchianChannelsFilter {
                 sellVolumes.stream().mapToDouble(Double::doubleValue).sum();
 
         return price > upperBand && deltaVolume > 1000; // Seuil de validation
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
+        return 1;
     }
 }

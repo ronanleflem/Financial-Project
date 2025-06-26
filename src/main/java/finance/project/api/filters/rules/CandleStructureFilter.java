@@ -2,6 +2,8 @@ package finance.project.api.filters.rules;
 
 import finance.project.api.entities.Candle;
 import finance.project.api.entities.Symbol;
+import finance.project.api.filters.Filter;
+import finance.project.api.model.TradeRequestDTO;
 import finance.project.api.repositories.CandleRepository;
 import finance.project.api.repositories.SymbolRepository;
 import lombok.Data;
@@ -13,7 +15,7 @@ import java.util.*;
 
 @Service
 @RequiredArgsConstructor
-public class CandleStructureFilter {
+public class CandleStructureFilter implements Filter {
 
     private final CandleRepository candleRepository;
     private final SymbolRepository symbolRepository;
@@ -298,6 +300,21 @@ public class CandleStructureFilter {
             return total == 0 ? 0.0 : (retraceCount * 100.0 / total);
         }
 
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, Symbol symbol, String timeframe, int period) {
+        return 1;
+    }
+
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
+        return 1;
     }
 }
 

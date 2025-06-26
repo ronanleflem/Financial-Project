@@ -8,6 +8,7 @@ import finance.project.api.model.TradeSignalTa4jDTO;
 import finance.project.api.services.CandleCacheManager;
 import finance.project.api.services.TA4JService;
 import finance.project.api.strategies.ta4j.TrendFollowingStrategy;
+import finance.project.api.strategies.ta4j.ExplosionGridStrategy;
 import finance.project.api.utils.StrategyResult;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.BarSeries;
@@ -26,12 +27,16 @@ public class StrategyManager {
     private final StrategyConfig strategyConfig;
 
     private final TrendFollowingStrategy trendFollowingStrategy;
+    private final ExplosionGridStrategy explosionGridStrategy;
 
 
-    public StrategyManager(List<BaseStrategy> allStrategies, StrategyConfig strategyConfig, TrendFollowingStrategy trendFollowingStrategy) {
+    public StrategyManager(List<BaseStrategy> allStrategies, StrategyConfig strategyConfig,
+                           TrendFollowingStrategy trendFollowingStrategy,
+                           ExplosionGridStrategy explosionGridStrategy) {
         this.allStrategies = allStrategies;
         this.strategyConfig = strategyConfig;
         this.trendFollowingStrategy = trendFollowingStrategy;
+        this.explosionGridStrategy = explosionGridStrategy;
     }
 
     public List<TradeSignalDTO> runStrategies(String symbol, String timeframe, int period) {
@@ -51,6 +56,11 @@ public class StrategyManager {
 
     public StrategyResult runTrendFollowing(String symbol, String timeframe, int period, double slPercent, double rrRatio) {
         return trendFollowingStrategy.execute(symbol, timeframe, period, slPercent, rrRatio);
+    }
+
+    public StrategyResult runExplosionGrid(String symbol, String timeframe, int period,
+                                           double explosionPct, double stepPct) {
+        return explosionGridStrategy.execute(symbol, timeframe, period, explosionPct, stepPct);
     }
 
 
