@@ -74,4 +74,11 @@ public class MeanReversionProbabilityFilter implements Filter {
     public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
         return 1;
     }
+    
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, List<CandleDTO> candles) {
+        if (candles.size() < 20) return 0;
+        boolean signal = isMeanReversionSignal(candles, 20, "M1");
+        return signal ? 1 : 0;
+    }
 }

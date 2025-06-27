@@ -3,6 +3,7 @@ package finance.project.api.filters.rules;
 import finance.project.api.entities.Symbol;
 import finance.project.api.filters.Filter;
 import finance.project.api.model.TradeRequestDTO;
+import finance.project.api.model.CandleDTO;
 import finance.project.api.repositories.CandleRepository;
 import finance.project.api.services.CandleService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -105,5 +106,17 @@ public class BenfordLawFilter implements Filter {
         while (number >= 10) number /= 10;
         while (number < 1 && number > 0) number *= 10;
         return (int) number;
+    }
+    
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, List<CandleDTO> candles) {
+        if (candles.size() < 2) return 0;
+        List<Double> changes = new java.util.ArrayList<>();
+        for (int i = 1; i < candles.size(); i++) {
+            double diff = candles.get(i).getClose().doubleValue() - candles.get(i-1).getClose().doubleValue();
+            changes.add(Math.abs(diff));
+        }
+        double score = calculateBenfordScore(changes);
+        return (score > THRESHOLD) ? 0 : 1;
     }
 }

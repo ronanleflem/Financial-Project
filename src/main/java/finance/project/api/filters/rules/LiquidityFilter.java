@@ -4,6 +4,7 @@ package finance.project.api.filters.rules;
 import finance.project.api.entities.Symbol;
 import finance.project.api.filters.Filter;
 import finance.project.api.model.TradeRequestDTO;
+import finance.project.api.model.CandleDTO;
 import org.springframework.stereotype.Service;
 import java.util.List;
 
@@ -84,5 +85,21 @@ public class LiquidityFilter implements Filter {
     public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
         return 1;
     }
+    
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, List<CandleDTO> candles) {
+        if (candles.size() < 20) return 0;
+        List<Double> closes = new java.util.ArrayList<>();
+        List<Double> highs = new java.util.ArrayList<>();
+        List<Double> lows = new java.util.ArrayList<>();
+        List<Double> volumes = new java.util.ArrayList<>();
+        for (CandleDTO c : candles) {
+            closes.add(c.getClose().doubleValue());
+            highs.add(c.getHigh().doubleValue());
+            lows.add(c.getLow().doubleValue());
+            volumes.add(c.getVolume().doubleValue());
+        }
+        double cmf = calculateCMF(closes, highs, lows, volumes);
+        return Math.abs(cmf) > 0.2 ? 1 : 0;
+    }
 }
-

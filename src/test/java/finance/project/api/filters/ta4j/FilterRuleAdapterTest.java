@@ -3,6 +3,7 @@ package finance.project.api.filters.ta4j;
 import finance.project.api.filters.Filter;
 import finance.project.api.model.TradeRequestDTO;
 import finance.project.api.model.TradeSignalDTO;
+import finance.project.api.services.CandleCacheManager;
 import org.junit.jupiter.api.Test;
 import org.ta4j.core.BaseTradingRecord;
 
@@ -28,7 +29,13 @@ public class FilterRuleAdapterTest {
                 .confidenceScore(0)
                 .symbol("EURUSD")
                 .build());
-        FilterRuleAdapter rule = new FilterRuleAdapter(f, req, "EURUSD", "M1", 10);
+        CandleCacheManager cache = new CandleCacheManager() {
+            @Override
+            public java.util.List<finance.project.api.model.CandleDTO> getCandles(String s, String tf, int p) {
+                return java.util.Collections.emptyList();
+            }
+        };
+        FilterRuleAdapter rule = new FilterRuleAdapter(f, req, "EURUSD", "M1", 10, cache);
         assertTrue(rule.isSatisfied(0, new BaseTradingRecord()));
     }
 
@@ -50,7 +57,13 @@ public class FilterRuleAdapterTest {
                 .confidenceScore(0)
                 .symbol("EURUSD")
                 .build());
-        FilterRuleAdapter rule = new FilterRuleAdapter(f, req, "EURUSD", "M1", 10);
+        CandleCacheManager cache = new CandleCacheManager() {
+            @Override
+            public java.util.List<finance.project.api.model.CandleDTO> getCandles(String s, String tf, int p) {
+                return java.util.Collections.emptyList();
+            }
+        };
+        FilterRuleAdapter rule = new FilterRuleAdapter(f, req, "EURUSD", "M1", 10, cache);
         assertFalse(rule.isSatisfied(0, new BaseTradingRecord()));
     }
 }

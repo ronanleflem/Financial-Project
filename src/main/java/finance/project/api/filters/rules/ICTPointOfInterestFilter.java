@@ -553,5 +553,12 @@ public class ICTPointOfInterestFilter implements Filter {
     public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
         return 1;
     }
+    
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, List<CandleDTO> candles) {
+        if (candles.size() < 20) return 0;
+        double ema20 = marketDataService.calculateEMA(candles, 20);
+        double price = candles.get(candles.size() - 1).getClose().doubleValue();
+        return price > ema20 ? 1 : 0;
+    }
 }
-

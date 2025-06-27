@@ -4,6 +4,7 @@ package finance.project.api.filters.rules;
 import finance.project.api.entities.Symbol;
 import finance.project.api.filters.Filter;
 import finance.project.api.model.TradeRequestDTO;
+import finance.project.api.model.CandleDTO;
 import finance.project.api.utils.Kurtosis;
 import finance.project.api.utils.Skewness;
 import org.springframework.stereotype.Service;
@@ -113,5 +114,16 @@ public class FractalAnalysisFilter implements Filter {
     @Override
     public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
         return 1;
+    }
+    
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, List<CandleDTO> candles) {
+        if (candles.size() < 20) return 0;
+        List<Double> changes = new java.util.ArrayList<>();
+        for (int i = 1; i < candles.size(); i++) {
+            changes.add(candles.get(i).getClose().doubleValue() - candles.get(i - 1).getClose().doubleValue());
+        }
+        double hurst = calculateHurstExponent(changes);
+        return (hurst > 0.4 && hurst < 0.6) ? 1 : 0;
     }
 }

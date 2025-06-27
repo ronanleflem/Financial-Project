@@ -4,6 +4,8 @@ import finance.project.api.config.StrategyConfig;
 import finance.project.api.entities.MarketData;
 import finance.project.api.filters.Filter;
 import finance.project.api.filters.ta4j.FilterRuleAdapter;
+import finance.project.api.model.CandleDTO;
+import finance.project.api.services.CandleCacheManager;
 import finance.project.api.model.TradeRequestDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -17,16 +19,20 @@ public class TradeFilterService {
 
     private final List<Filter> filters;
     private final StrategyConfig strategyConfig;
+    private final CandleCacheManager candleCacheManager;
     private List<FilterRuleAdapter> ruleAdapters;
 
-    public TradeFilterService(List<Filter> filters, StrategyConfig strategyConfig) {
+    public TradeFilterService(List<Filter> filters,
+                              StrategyConfig strategyConfig,
+                              CandleCacheManager candleCacheManager) {
         this.filters = filters;
         this.strategyConfig = strategyConfig;
+        this.candleCacheManager = candleCacheManager;
     }
 
     public List<FilterRuleAdapter> buildFilterRules(TradeRequestDTO request, String symbol, String timeframe, int period) {
         this.ruleAdapters = filters.stream()
-                .map(f -> new FilterRuleAdapter(f, request, symbol, timeframe, period))
+                .map(f -> new FilterRuleAdapter(f, request, symbol, timeframe, period, candleCacheManager))
                 .toList();
         return ruleAdapters;
     }
@@ -70,9 +76,11 @@ public class TradeFilterService {
                 .filter(filter -> strategyConfig.getEnabledFilters().contains(filter.getClass().getSimpleName()))
                 .toList();
 
+        List<CandleDTO> candles = candleCacheManager.getCandles(symbol, timeframe, Math.max(period, 500));
+
         int totalScore = 0;
         for (Filter filter : enabledFilters) {
-            int filterScore = filter.evaluate(tradeRequestDTO,symbol,timeframe,period);
+            int filterScore = filter.evaluate(tradeRequestDTO, candles);
             int weight = strategyConfig.getFilterWeight(filter.getClass().getSimpleName());
 
             int weightedScore = filterScore * weight; // Appliquer la pondération

@@ -3,10 +3,15 @@ package finance.project.api.filters.rules;
 import finance.project.api.entities.Symbol;
 import finance.project.api.filters.Filter;
 import finance.project.api.model.TradeRequestDTO;
+import finance.project.api.services.MarketDataService;
+import finance.project.api.model.CandleDTO;
 import org.springframework.stereotype.Service;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class ContradictorySignalsFilter implements Filter {
+    private final MarketDataService marketDataService;
 
     /**
      * Analyse les contradictions entre plusieurs indicateurs techniques.
@@ -75,5 +80,22 @@ public class ContradictorySignalsFilter implements Filter {
     @Override
     public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
         return 1;
+    }
+    
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, List<CandleDTO> candles) {
+        if (candles.size() < 200) return 0;
+        double price = candles.get(candles.size() - 1).getClose().doubleValue();
+        double ema50 = marketDataService.calculateEMA(candles, 50);
+        double ema200 = marketDataService.calculateEMA(candles, 200);
+        double rsi = marketDataService.calculateRSI(candles, 14);
+        double macd = marketDataService.calculateMACD(candles, 12, 26);
+        double macdSignal = marketDataService.calculateMACDSignal(candles, 12, 26, 9);
+        double stochK = marketDataService.calculateStochasticK(candles, 14);
+        double stochD = marketDataService.calculateStochasticD(candles, 14, 3);
+        double williamsR = marketDataService.calculateWilliamsR(candles, 14);
+        double zScore = marketDataService.calculateZScore(candles, 50);
+        int score = calculateContradictionScore(price, ema50, ema200, rsi, macd, macdSignal, stochK, stochD, williamsR, zScore);
+        return score < 2 ? 1 : 0;
     }
 }

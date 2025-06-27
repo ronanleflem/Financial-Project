@@ -3,6 +3,7 @@ package finance.project.api.filters.rules;
 import finance.project.api.filters.Filter;
 import finance.project.api.entities.Symbol;
 import finance.project.api.model.CandleDTO;
+import finance.project.api.model.TradeSignalDTO;
 import finance.project.api.model.TradeRequestDTO;
 import finance.project.api.services.MarketDataService;
 import lombok.RequiredArgsConstructor;
@@ -70,4 +71,14 @@ public class BiaisInstitutionalFilter implements Filter {
         return 1;
     }
 
+    
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, List<CandleDTO> candles) {
+        int bias = calculateInstitutionalBias(candles);
+        if (tradeRequest.getTradeSignal() == null) return 0;
+        TradeSignalDTO.TradeType type = tradeRequest.getTradeSignal().getTradeType();
+        if (bias > 0 && type == TradeSignalDTO.TradeType.LONG) return 1;
+        if (bias < 0 && type == TradeSignalDTO.TradeType.SHORT) return 1;
+        return 0;
+    }
 }

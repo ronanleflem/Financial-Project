@@ -3,6 +3,7 @@ package finance.project.api.filters.rules;
 import finance.project.api.entities.Symbol;
 import finance.project.api.filters.Filter;
 import finance.project.api.model.TradeRequestDTO;
+import finance.project.api.model.CandleDTO;
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression;
 import org.springframework.stereotype.Service;
 
@@ -57,5 +58,13 @@ public class StationarityFilter implements Filter {
     @Override
     public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
         return 1;
+    }
+    
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, List<CandleDTO> candles) {
+        if (candles.size() < 20) return 0;
+        double[] values = candles.stream().mapToDouble(c -> c.getClose().doubleValue()).toArray();
+        double stat = test(values, 5);
+        return Math.abs(stat) > 2 ? 1 : 0;
     }
 }

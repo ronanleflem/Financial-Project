@@ -4,6 +4,8 @@ import finance.project.api.entities.Candle;
 import finance.project.api.entities.Symbol;
 import finance.project.api.filters.Filter;
 import finance.project.api.model.TradeRequestDTO;
+import finance.project.api.model.TradeSignalDTO;
+import finance.project.api.model.CandleDTO;
 import finance.project.api.repositories.CandleRepository;
 import finance.project.api.repositories.SymbolRepository;
 import lombok.Data;
@@ -316,6 +318,16 @@ public class CandleStructureFilter implements Filter {
     public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
         return 1;
     }
+    
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, List<CandleDTO> candles) {
+        long bullish = candles.stream().filter(c -> c.getClose().doubleValue() > c.getOpen().doubleValue()).count();
+        long bearish = candles.size() - bullish;
+        if (tradeRequest.getTradeSignal() == null) return 0;
+        TradeSignalDTO.TradeType type = tradeRequest.getTradeSignal().getTradeType();
+        boolean bullishBias = bullish >= bearish;
+        if (bullishBias && type == TradeSignalDTO.TradeType.LONG) return 1;
+        if (!bullishBias && type == TradeSignalDTO.TradeType.SHORT) return 1;
+        return 0;
+    }
 }
-
-
