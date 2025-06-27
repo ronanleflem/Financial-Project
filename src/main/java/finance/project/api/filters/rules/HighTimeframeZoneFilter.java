@@ -5,6 +5,7 @@ import finance.project.api.entities.Symbol;
 import finance.project.api.filters.Filter;
 import finance.project.api.filters.OrderFlowAnalyzer;
 import finance.project.api.model.TradeRequestDTO;
+import finance.project.api.model.CandleDTO;
 import finance.project.api.services.OrderFlowService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -77,5 +78,16 @@ public class HighTimeframeZoneFilter implements Filter {
     @Override
     public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
         return 1;
+    }
+    
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, List<CandleDTO> candles) {
+        if (candles.isEmpty()) return 0;
+        double price = candles.get(candles.size() - 1).getClose().doubleValue();
+        double high = candles.stream().mapToDouble(c -> c.getHigh().doubleValue()).max().orElse(price);
+        double low = candles.stream().mapToDouble(c -> c.getLow().doubleValue()).min().orElse(price);
+        PointOfInterest poiHigh = PointOfInterest.builder().high(high).low(low).build();
+        int score = checkInstitutionalConfluence(price, java.util.List.of(poiHigh));
+        return score > 0 ? 1 : 0;
     }
 }

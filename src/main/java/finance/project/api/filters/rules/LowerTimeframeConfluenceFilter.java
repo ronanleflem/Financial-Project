@@ -3,6 +3,7 @@ package finance.project.api.filters.rules;
 import finance.project.api.entities.Symbol;
 import finance.project.api.filters.Filter;
 import finance.project.api.model.TradeRequestDTO;
+import finance.project.api.model.CandleDTO;
 import org.springframework.stereotype.Service;
 import java.util.List;
 
@@ -93,6 +94,15 @@ public class LowerTimeframeConfluenceFilter implements Filter {
         return score;
     }
 
+    private double ema(List<Double> values, int period) {
+        double multiplier = 2.0 / (period + 1);
+        double ema = values.get(0);
+        for (int i = 1; i < values.size(); i++) {
+            ema = ((values.get(i) - ema) * multiplier) + ema;
+        }
+        return ema;
+    }
+
     @Override
     public int evaluate(TradeRequestDTO tradeRequest) {
         return 1;
@@ -106,5 +116,28 @@ public class LowerTimeframeConfluenceFilter implements Filter {
     @Override
     public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
         return 1;
+    }
+    
+    @Override
+    public int evaluate(TradeRequestDTO tradeRequest, List<CandleDTO> candles) {
+        if (candles.size() < 50) return 0;
+        List<Double> closes = new java.util.ArrayList<>();
+        List<Double> highs = new java.util.ArrayList<>();
+        List<Double> lows = new java.util.ArrayList<>();
+        List<Double> volumes = new java.util.ArrayList<>();
+        for (CandleDTO c : candles) {
+            closes.add(c.getClose().doubleValue());
+            highs.add(c.getHigh().doubleValue());
+            lows.add(c.getLow().doubleValue());
+            volumes.add(c.getVolume().doubleValue());
+        }
+        double momentum = calculateMomentum(closes, 14);
+        double adx = calculateADX(highs, lows, closes, 14);
+        double ema20 = ema(closes, 20);
+        double ema50 = ema(closes, 50);
+        double ema200 = ema(closes, 200);
+        boolean aligned = isTrendAligned(ema20, ema50, ema200);
+        int score = calculateConfluenceScore(momentum, adx, aligned, 0, 0);
+        return score >= 3 ? 1 : 0;
     }
 }
