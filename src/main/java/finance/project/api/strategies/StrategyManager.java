@@ -7,6 +7,7 @@ import finance.project.api.model.TradeSignalDTO;
 import finance.project.api.model.TradeSignalTa4jDTO;
 import finance.project.api.services.CandleCacheManager;
 import finance.project.api.services.TA4JService;
+import finance.project.api.strategies.ta4j.MacdPredictionStrategy;
 import finance.project.api.strategies.ta4j.TrendFollowingStrategy;
 import finance.project.api.strategies.ta4j.ExplosionGridStrategy;
 import finance.project.api.utils.StrategyResult;
@@ -28,15 +29,17 @@ public class StrategyManager {
 
     private final TrendFollowingStrategy trendFollowingStrategy;
     private final ExplosionGridStrategy explosionGridStrategy;
-
+    private final MacdPredictionStrategy macdPredictionStrategy;
 
     public StrategyManager(List<BaseStrategy> allStrategies, StrategyConfig strategyConfig,
                            TrendFollowingStrategy trendFollowingStrategy,
-                           ExplosionGridStrategy explosionGridStrategy) {
+                           ExplosionGridStrategy explosionGridStrategy,
+                           MacdPredictionStrategy macdPredictionStrategy) {
         this.allStrategies = allStrategies;
         this.strategyConfig = strategyConfig;
         this.trendFollowingStrategy = trendFollowingStrategy;
         this.explosionGridStrategy = explosionGridStrategy;
+        this.macdPredictionStrategy = macdPredictionStrategy;
     }
 
     public List<TradeSignalDTO> runStrategies(String symbol, String timeframe, int period) {
@@ -63,6 +66,9 @@ public class StrategyManager {
         return explosionGridStrategy.execute(symbol, timeframe, period, explosionPct, stepPct);
     }
 
+    public StrategyResult runMacdPrediction(String symbol, String timeframe, int period, double rrRatio) {
+        return macdPredictionStrategy.execute(symbol, timeframe, period, rrRatio);
+    }
 
     /*
     public void runStrategies() {
