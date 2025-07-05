@@ -122,6 +122,32 @@ public class BacktestController {
         return ResponseEntity.ok(result);
     }
 
+    @GetMapping("/run-strategy-by-name")
+    public ResponseEntity<StrategyResult> runStrategyByName(
+            @RequestParam String strategyName,
+            @RequestParam String symbol,
+            @RequestParam String timeframe,
+            @RequestParam(defaultValue = "1000") int period,
+            @RequestParam(required = false) String comparedSymbol,
+            @RequestParam(required = false) Double slPercent,
+            @RequestParam(required = false) Double rrRatio,
+            @RequestParam(required = false) Double explosionPct,
+            @RequestParam(required = false) Double stepPct) {
+
+        candleCacheManager.preload(symbol, timeframe, period);
+        StrategyResult result = strategyManager.runStrategyByName(strategyName, symbol, timeframe, period,
+                slPercent, rrRatio, explosionPct, stepPct);
+
+        tradeService.saveTrades(strategyName, result.getSignals());
+        String runId = UUID.randomUUID().toString();
+        tradeCompletedService.saveCompletedTrades(strategyName, result.getCompletedTrades(), runId);
+
+        String compared = comparedSymbol != null ? comparedSymbol : symbol;
+        performanceService.savePerformance(strategyName, runId, result.getPerformance(), symbol, compared);
+
+        return ResponseEntity.ok(result);
+    }
+
     @GetMapping("/all-strategies")
     public ResponseEntity<List<PerfsStratsDTO>> getAllCalculatedStrategies() {
         return ResponseEntity.ok(performanceService.getAllStrategyPerformances());

@@ -70,6 +70,28 @@ public class StrategyManager {
         return macdPredictionStrategy.execute(symbol, timeframe, period, rrRatio);
     }
 
+    public StrategyResult runStrategyByName(String strategyName, String symbol, String timeframe, int period,
+                                            Double slPercent, Double rrRatio,
+                                            Double explosionPct, Double stepPct) {
+        switch (strategyName.toLowerCase()) {
+            case "trendfollowing" -> {
+                double sl = slPercent != null ? slPercent : 1.0;
+                double rr = rrRatio != null ? rrRatio : 2.0;
+                return runTrendFollowing(symbol, timeframe, period, sl, rr);
+            }
+            case "explosiongrid" -> {
+                double exp = explosionPct != null ? explosionPct : 2.0;
+                double step = stepPct != null ? stepPct : 5.0;
+                return runExplosionGrid(symbol, timeframe, period, exp, step);
+            }
+            case "macdprediction" -> {
+                double rr = rrRatio != null ? rrRatio : 2.0;
+                return runMacdPrediction(symbol, timeframe, period, rr);
+            }
+            default -> throw new IllegalArgumentException("Unknown strategy: " + strategyName);
+        }
+    }
+
     /*
     public void runStrategies() {
         List<BaseStrategy> enabledStrategies = allStrategies.stream()
