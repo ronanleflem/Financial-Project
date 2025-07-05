@@ -74,17 +74,17 @@ public class StrategyManager {
                                             Double slPercent, Double rrRatio,
                                             Double explosionPct, Double stepPct) {
         switch (strategyName.toLowerCase()) {
-            case "trendfollowing" -> {
+            case "trendfollowingstrategy" -> {
                 double sl = slPercent != null ? slPercent : 1.0;
                 double rr = rrRatio != null ? rrRatio : 2.0;
                 return runTrendFollowing(symbol, timeframe, period, sl, rr);
             }
-            case "explosiongrid" -> {
+            case "explosiongridstrategy" -> {
                 double exp = explosionPct != null ? explosionPct : 2.0;
                 double step = stepPct != null ? stepPct : 5.0;
                 return runExplosionGrid(symbol, timeframe, period, exp, step);
             }
-            case "macdprediction" -> {
+            case "macdpredictionstrategy" -> {
                 double rr = rrRatio != null ? rrRatio : 2.0;
                 return runMacdPrediction(symbol, timeframe, period, rr);
             }

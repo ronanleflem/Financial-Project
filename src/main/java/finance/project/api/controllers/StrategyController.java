@@ -25,7 +25,7 @@ public class StrategyController {
      *
      * @return list of strategy names
      */
-    @GetMapping("/strategies")
+    @GetMapping("/all-name-strategies")
     public ResponseEntity<List<String>> listStrategies() {
         return ResponseEntity.ok(strategyDiscoveryService.getAvailableStrategies());
     }

@@ -8,6 +8,8 @@ import finance.project.api.model.CandleDTO;
 import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class ContradictorySignalsFilter implements Filter {

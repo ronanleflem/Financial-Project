@@ -136,10 +136,10 @@ public class TrendFollowingStrategy {
         MACDIndicator macd = new MACDIndicator(close, 12, 26);
         EMAIndicator macdSignal = new EMAIndicator(macd, 9);
 
-        Rule entryRule = new CrossedUpIndicatorRule(ema20, ema50)
+        Rule entryRule = new CrossedUpIndicatorRule(ema20, ema50);
                 //.and(new RsiEntryRule(rsi, 50))
-                .and(new MacdEntryRule(macd, macdSignal));
-
+                //.and(new MacdEntryRule(macd, macdSignal));
+        /*
         List<FilterRuleAdapter> adapters = tradeFilterService.getRuleAdapters();
         if (adapters.size() >= 2) {
             // Exemple : utilisation explicite de deux filtres adaptés
@@ -148,15 +148,16 @@ public class TrendFollowingStrategy {
             for (FilterRuleAdapter adapter : adapters) {
                 entryRule = entryRule.and(adapter);
             }
-        }
+        }*/
 
         Rule exitRule = new CrossedDownIndicatorRule(ema20, ema50)
                 .or(new StopLossRule(close, 2.0))   // Exemple : Stop Loss 2%
                 .or(new StopGainRule(close, 3.0)) // Exemple : Take Profit 3%
                 .or(new DynamicStopLossRule(series, lookbackPeriod, rrRatio));
+        /*
         for (FilterRuleAdapter adapter : tradeFilterService.getRuleAdapters()) {
             exitRule = exitRule.and(adapter);
-        }
+        }*/
 
         return new BaseStrategy("TrendFollowing", entryRule, exitRule);
     }

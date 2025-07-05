@@ -64,11 +64,12 @@ public class MacdPredictionStrategy {
         VolumeIndicator volume = new VolumeIndicator(series);
         SMAIndicator volumeSma = new SMAIndicator(volume, 20);
 
-        Rule entryRule = new LinearRegressionMacdCrossRule(macd, macdSignal, 5, true)
+        Rule entryRule = new LinearRegressionMacdCrossRule(macd, macdSignal, 5, true);
+        /*
                 .and(new OverIndicatorRule(close, ema200))
                 .and(new AdxAboveRule(adx, 20))
                 .and(new VolumeAboveAverageRule(volume, 20))
-                .and(new AtrRisingRule(atr,20));
+                .and(new AtrRisingRule(atr,20));*/
 
         Rule exitRule = new LinearRegressionMacdCrossRule(macd, macdSignal, 5, false)
                 .or(new DynamicStopLossRule(series, 20, rrRatio));
