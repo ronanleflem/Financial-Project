@@ -86,6 +86,11 @@ Création d'une API Java Spring capable de traiter des données financières et 
       - L'entrée de données doit exister dans la base de données pour être supprimée.
       - La suppression doit être irréversible et l'utilisateur doit être informé des conséquences.
 
+13. **Liste des Stratégies TA4J (GET /strategies)**
+    - **Description** : Retourne l'ensemble des stratégies disponibles dans le package `ta4j`.
+    - **Règles Business** :
+      - La liste doit être générée dynamiquement en fonction des stratégies présentes dans l'application.
+
 ## Fonctionnalités Avancées (Long Terme)
 
 1. Ajout de Nouvelles Sources de Données
