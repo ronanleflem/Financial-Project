@@ -74,4 +74,57 @@ public class BinanceService {
         }
         return candles;
     }
+
+    /**
+     * Retrieve historical candles from Binance for a specific time range.
+     *
+     * @param symbol    trading pair (e.g. BTCUSDT)
+     * @param interval  candle interval (e.g. 1h,4h,1d)
+     * @param startDate start of the range in UTC
+     * @param endDate   end of the range in UTC
+     * @return list of CandleDTO
+     */
+    public List<CandleDTO> getHistoricalCandlesInRange(String symbol, String interval,
+                                                       LocalDateTime startDate, LocalDateTime endDate) {
+        String url = UriComponentsBuilder.fromHttpUrl(binanceApiUrl + "/klines")
+                .queryParam("symbol", symbol)
+                .queryParam("interval", interval)
+                .queryParam("startTime", startDate.toInstant(ZoneOffset.UTC).toEpochMilli())
+                .queryParam("endTime", endDate.toInstant(ZoneOffset.UTC).toEpochMilli())
+                .toUriString();
+
+        ResponseEntity<List<List<Object>>> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                null,
+                new ParameterizedTypeReference<>() {}
+        );
+
+        List<List<Object>> body = response.getBody();
+        if (body == null) {
+            return List.of();
+        }
+
+        List<CandleDTO> candles = new ArrayList<>();
+        for (List<Object> entry : body) {
+            long openTime = ((Number) entry.get(0)).longValue();
+            String open = entry.get(1).toString();
+            String high = entry.get(2).toString();
+            String low = entry.get(3).toString();
+            String close = entry.get(4).toString();
+            String volume = entry.get(5).toString();
+
+            candles.add(CandleDTO.builder()
+                    .date(LocalDateTime.ofInstant(Instant.ofEpochMilli(openTime), ZoneOffset.UTC))
+                    .open(new BigDecimal(open))
+                    .high(new BigDecimal(high))
+                    .low(new BigDecimal(low))
+                    .close(new BigDecimal(close))
+                    .volume(new BigDecimal(volume))
+                    .symbol(SymbolDTO.builder().symbol(symbol).build())
+                    .timeframe(interval)
+                    .build());
+        }
+        return candles;
+    }
 }
