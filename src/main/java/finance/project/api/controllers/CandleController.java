@@ -314,4 +314,16 @@ public class CandleController {
         return new ResponseEntity<>(candles, HttpStatus.OK);
     }
 
+    @GetMapping("/binance/historical-range")
+    public ResponseEntity<List<CandleDTO>> loadBinanceHistoricalRange(
+            @RequestParam String symbol,
+            @RequestParam String interval,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
+
+        List<CandleDTO> candles = binanceService.getHistoricalCandlesInRange(symbol, interval, startDate, endDate);
+        candleService.saveCandlesToDatabase(candles, symbol, interval);
+        return new ResponseEntity<>(candles, HttpStatus.OK);
+    }
+
 }
