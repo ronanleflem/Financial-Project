@@ -44,6 +44,7 @@ public class CandleServiceJPA implements CandleService {
     private final SymbolRepository symbolRepository;
     private final AlphaVantageService alphaVantageService;
     private final PointOfInterestRepository pointOfInterestRepository;
+    private final EntityManager entityManager;
 
     @Override
     public List<CandleDTO> getCandlesForTrade(TradeCompleted trade, String symbol, String timeframe, int beforeCandles, int afterCandles) {

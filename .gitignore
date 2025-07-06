@@ -34,3 +34,18 @@ build/
 /csvData/eurusd/1min/1minCME.csv
 /csvData/eurusd/1min/month/
 /csvData/eurusd/symbology/symbology.json
+
+# Database Files
+sqlite.db
+database/*.db
+*.db
+/database/
+
+### Local property overrides ###
+# Ignore custom copies of application.properties that may contain secrets
+*application*.properties
+*local.properties
+!src/main/resources/application.properties
+
+# Local configuration overrides
+src/main/resources/application-local.properties
