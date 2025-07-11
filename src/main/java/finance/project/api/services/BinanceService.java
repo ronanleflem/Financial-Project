@@ -86,45 +86,67 @@ public class BinanceService {
      */
     public List<CandleDTO> getHistoricalCandlesInRange(String symbol, String interval,
                                                        LocalDateTime startDate, LocalDateTime endDate) {
-        String url = UriComponentsBuilder.fromHttpUrl(binanceApiUrl + "/klines")
-                .queryParam("symbol", symbol)
-                .queryParam("interval", interval)
-                .queryParam("startTime", startDate.toInstant(ZoneOffset.UTC).toEpochMilli())
-                .queryParam("endTime", endDate.toInstant(ZoneOffset.UTC).toEpochMilli())
-                .toUriString();
+        List<CandleDTO> allCandles = new ArrayList<>();
 
-        ResponseEntity<List<List<Object>>> response = restTemplate.exchange(
-                url,
-                HttpMethod.GET,
-                null,
-                new ParameterizedTypeReference<>() {}
-        );
+        java.time.Duration tfDuration = finance.project.api.utils.DurationUtils.parseTimeframe(interval);
 
-        List<List<Object>> body = response.getBody();
-        if (body == null) {
-            return List.of();
+        LocalDateTime currentStart = startDate;
+
+        while (!currentStart.isAfter(endDate)) {
+            LocalDateTime currentEnd = currentStart.plus(tfDuration.multipliedBy(1000L)).minusNanos(1);
+            if (currentEnd.isAfter(endDate)) {
+                currentEnd = endDate;
+            }
+
+            String url = UriComponentsBuilder.fromHttpUrl(binanceApiUrl + "/klines")
+                    .queryParam("symbol", symbol)
+                    .queryParam("interval", interval)
+                    .queryParam("startTime", currentStart.toInstant(ZoneOffset.UTC).toEpochMilli())
+                    .queryParam("endTime", currentEnd.toInstant(ZoneOffset.UTC).toEpochMilli())
+                    .queryParam("limit", 1000)
+                    .toUriString();
+
+            ResponseEntity<List<List<Object>>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    null,
+                    new ParameterizedTypeReference<>() {}
+            );
+
+            List<List<Object>> body = response.getBody();
+            if (body == null || body.isEmpty()) {
+                break;
+            }
+
+            for (List<Object> entry : body) {
+                long openTime = ((Number) entry.get(0)).longValue();
+                String open = entry.get(1).toString();
+                String high = entry.get(2).toString();
+                String low = entry.get(3).toString();
+                String close = entry.get(4).toString();
+                String volume = entry.get(5).toString();
+
+                allCandles.add(CandleDTO.builder()
+                        .date(LocalDateTime.ofInstant(Instant.ofEpochMilli(openTime), ZoneOffset.UTC))
+                        .open(new BigDecimal(open))
+                        .high(new BigDecimal(high))
+                        .low(new BigDecimal(low))
+                        .close(new BigDecimal(close))
+                        .volume(new BigDecimal(volume))
+                        .symbol(SymbolDTO.builder().symbol(symbol).build())
+                        .timeframe(interval)
+                        .build());
+            }
+
+            long lastOpenTime = ((Number) body.get(body.size() - 1).get(0)).longValue();
+            currentStart = LocalDateTime.ofInstant(Instant.ofEpochMilli(lastOpenTime), ZoneOffset.UTC)
+                    .plus(tfDuration);
+
+            if (currentStart.isAfter(endDate)) {
+                break;
+            }
         }
 
-        List<CandleDTO> candles = new ArrayList<>();
-        for (List<Object> entry : body) {
-            long openTime = ((Number) entry.get(0)).longValue();
-            String open = entry.get(1).toString();
-            String high = entry.get(2).toString();
-            String low = entry.get(3).toString();
-            String close = entry.get(4).toString();
-            String volume = entry.get(5).toString();
-
-            candles.add(CandleDTO.builder()
-                    .date(LocalDateTime.ofInstant(Instant.ofEpochMilli(openTime), ZoneOffset.UTC))
-                    .open(new BigDecimal(open))
-                    .high(new BigDecimal(high))
-                    .low(new BigDecimal(low))
-                    .close(new BigDecimal(close))
-                    .volume(new BigDecimal(volume))
-                    .symbol(SymbolDTO.builder().symbol(symbol).build())
-                    .timeframe(interval)
-                    .build());
-        }
-        return candles;
+        return allCandles;
     }
 }
