@@ -18,7 +18,7 @@ public class PerformanceService {
 
     private final PerformanceRepository performanceRepository;
 
-    public void savePerformance(String strategyName, String runId, Map<String, Double> performance, String symbol, String comparedSymbol) {
+    public void savePerformance(String strategyName, String runId, Map<String, Double> performance, String symbol, String comparedSymbol, String timeframe) {
         List<Performance> performances = performance.entrySet().stream()
             .map(entry -> Performance.builder()
                         .strategyName(strategyName)
@@ -27,6 +27,7 @@ public class PerformanceService {
                         .comparedSymbol(comparedSymbol)
                         .metric(entry.getKey())
                         .value(entry.getValue())
+                        .timeframe(timeframe)
                         .build())
                 .toList();
         performanceRepository.saveAll(performances);
@@ -70,6 +71,7 @@ public class PerformanceService {
                     .netWinCount(toBigDecimal(metricMap.get("netWinCount")))
                     .netLossCount(toBigDecimal(metricMap.get("netLossCount")))
                     .averageNetTrade(toBigDecimal(metricMap.get("averageNetTrade")))
+                    .timeframe(sample.getTimeframe())
                     .build();
             result.add(dto);
         }

@@ -29,4 +29,6 @@ public class Performance {
     private String symbol;
 
     private String comparedSymbol;
+
+    private String timeframe;
 }

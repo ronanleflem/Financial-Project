@@ -98,7 +98,7 @@ public class BacktestController {
         String runId = UUID.randomUUID().toString();
         tradeCompletedService.saveCompletedTrades(strategyName, result.getCompletedTrades(), runId);
 
-        performanceService.savePerformance(strategyName, runId, result.getPerformance(), symbol, comparedSymbol);
+        performanceService.savePerformance(strategyName, runId, result.getPerformance(), symbol, comparedSymbol, timeframe);
 
         return ResponseEntity.ok(result);
     }
@@ -118,7 +118,7 @@ public class BacktestController {
         tradeService.saveTrades(strategyName, result.getSignals());
         String runId = UUID.randomUUID().toString();
         tradeCompletedService.saveCompletedTrades(strategyName, result.getCompletedTrades(), runId);
-        performanceService.savePerformance(strategyName, runId, result.getPerformance(), symbol, symbol);
+        performanceService.savePerformance(strategyName, runId, result.getPerformance(), symbol, symbol, timeframe);
         return ResponseEntity.ok(result);
     }
 
@@ -127,6 +127,8 @@ public class BacktestController {
             @RequestParam String strategyName,
             @RequestParam String symbol,
             @RequestParam String timeframe,
+            @RequestParam String startDate,
+            @RequestParam String endDate,
             @RequestParam(defaultValue = "1000") int period,
             @RequestParam(required = false) String comparedSymbol,
             @RequestParam(required = false) Double slPercent,
@@ -134,16 +136,19 @@ public class BacktestController {
             @RequestParam(required = false) Double explosionPct,
             @RequestParam(required = false) Double stepPct) {
 
-        candleCacheManager.preload(symbol, timeframe, period);
+        LocalDateTime start = LocalDateTime.parse(startDate);
+        LocalDateTime end = LocalDateTime.parse(endDate);
+
+        candleCacheManager.preload(symbol, timeframe, start, end);
         StrategyResult result = strategyManager.runStrategyByName(strategyName, symbol, timeframe, period,
-                slPercent, rrRatio, explosionPct, stepPct);
+                slPercent, rrRatio, explosionPct, stepPct,start,end);
 
         tradeService.saveTrades(strategyName, result.getSignals());
         String runId = UUID.randomUUID().toString();
         tradeCompletedService.saveCompletedTrades(strategyName, result.getCompletedTrades(), runId);
 
         String compared = comparedSymbol != null ? comparedSymbol : symbol;
-        performanceService.savePerformance(strategyName, runId, result.getPerformance(), symbol, compared);
+        performanceService.savePerformance(strategyName, runId, result.getPerformance(), symbol, compared, timeframe);
 
         return ResponseEntity.ok(result);
     }

@@ -88,12 +88,34 @@ public class CandleServiceJPA implements CandleService {
         Symbol existingSymbol = existingSymbolOpt.get();
 
         // 2. Récupère les candles correspondant au timeframe + période
-        List<Candle> candlesFromDB = candleRepository.findBySymbolAndTimeframeAndDateBetween(
-                existingSymbol,
+        List<Candle> candlesFromDB = candleRepository.findBySymbolIdAndTimeframeAndDateBetween(
+                existingSymbol.getId(),
                 timeframe,
                 startDate,
                 endDate
         );
+        /*
+        List<Candle> candlesFromDB1 = candleRepository.findBySymbolId(
+                existingSymbol.getId()
+        );
+        List<Candle> candlesFromDB2 = candleRepository.findByTimeframe(
+                timeframe
+        );
+        List<Candle> candlesFromDB3 = candleRepository.findByStartDateAndEndDate(
+                startDate,
+                endDate
+        );*/
+
+        /*
+        List<Candle> candleTest = candleRepository.findByDateBetween(
+                startDate,
+                endDate
+        );
+
+        List<Candle> candleTest2 = candleRepository.findBySymbolAndTimeframeOrderByDateAsc(
+                existingSymbol,
+                timeframe
+        );*/
 
         // 3. Check si résultat
         if (candlesFromDB.isEmpty()) {

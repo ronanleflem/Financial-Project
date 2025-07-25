@@ -29,5 +29,6 @@ public class PerfsStratsDTO {
     private BigDecimal netWinCount;
     private BigDecimal netLossCount;
     private BigDecimal averageNetTrade;
+    private String timeframe;
 
 }

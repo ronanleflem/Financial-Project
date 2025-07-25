@@ -13,6 +13,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 public interface CandleRepository extends JpaRepository<Candle, Long> {
@@ -29,6 +30,27 @@ public interface CandleRepository extends JpaRepository<Candle, Long> {
             String timeframe,
             LocalDateTime startDate,
             LocalDateTime endDate
+    );
+
+    @Query("SELECT c FROM Candle c WHERE c.symbol.id = :symbolId AND c.timeframe = :timeframe AND c.date BETWEEN :startDate AND :endDate ORDER BY c.date ASC")
+    List<Candle> findBySymbolIdAndTimeframeAndDateBetween(
+            @Param("symbolId") UUID symbolId,
+            @Param("timeframe") String timeframe,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
+    @Query("SELECT c FROM Candle c WHERE c.date BETWEEN :startDate AND :endDate")
+    List<Candle> findByStartDateAndEndDate(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
+    @Query("SELECT c FROM Candle c WHERE c.timeframe = :timeframe")
+    List<Candle> findByTimeframe(
+            @Param("timeframe") String timeframe
+    );
+    @Query("SELECT c FROM Candle c WHERE c.symbol.id = :symbolId")
+    List<Candle> findBySymbolId(
+            @Param("symbolId") UUID symbolId
     );
 
     @Query("SELECT c FROM Candle c WHERE c.symbolFuture = :symbolFuture AND c.date = :date")

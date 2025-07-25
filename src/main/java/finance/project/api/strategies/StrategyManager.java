@@ -16,6 +16,7 @@ import org.ta4j.core.BarSeries;
 import org.ta4j.core.BaseTradingRecord;
 import org.ta4j.core.TradingRecord;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -57,8 +58,12 @@ public class StrategyManager {
         return trades;
     }
 
+    public StrategyResult runTrendFollowing(String symbol, String timeframe, double slPercent, double rrRatio, LocalDateTime startDate, LocalDateTime endDate) {
+        return trendFollowingStrategy.executeInterval(symbol, timeframe, slPercent, rrRatio,startDate, endDate);
+    }
+
     public StrategyResult runTrendFollowing(String symbol, String timeframe, int period, double slPercent, double rrRatio) {
-        return trendFollowingStrategy.execute(symbol, timeframe, period, slPercent, rrRatio);
+        return trendFollowingStrategy.executePeriod(symbol, timeframe, period, slPercent, rrRatio);
     }
 
     public StrategyResult runExplosionGrid(String symbol, String timeframe, int period,
@@ -72,12 +77,12 @@ public class StrategyManager {
 
     public StrategyResult runStrategyByName(String strategyName, String symbol, String timeframe, int period,
                                             Double slPercent, Double rrRatio,
-                                            Double explosionPct, Double stepPct) {
+                                            Double explosionPct, Double stepPct, LocalDateTime startDate,LocalDateTime endDate) {
         switch (strategyName.toLowerCase()) {
             case "trendfollowingstrategy" -> {
                 double sl = slPercent != null ? slPercent : 1.0;
                 double rr = rrRatio != null ? rrRatio : 2.0;
-                return runTrendFollowing(symbol, timeframe, period, sl, rr);
+                return startDate == null ? runTrendFollowing(symbol, timeframe, period, sl, rr) : runTrendFollowing(symbol, timeframe, sl, rr, startDate, endDate);
             }
             case "explosiongridstrategy" -> {
                 double exp = explosionPct != null ? explosionPct : 2.0;

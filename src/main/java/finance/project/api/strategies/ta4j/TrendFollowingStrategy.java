@@ -12,6 +12,7 @@ import finance.project.api.utils.MarketConventionUtils;
 import finance.project.api.utils.PipUtils;
 import finance.project.api.utils.StrategyResult;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cglib.core.Local;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.*;
 import org.ta4j.core.backtest.BarSeriesManager;
@@ -31,6 +32,7 @@ import org.ta4j.core.rules.CrossedUpIndicatorRule;
 import org.ta4j.core.rules.StopGainRule;
 import org.ta4j.core.rules.StopLossRule;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
@@ -53,7 +55,22 @@ public class TrendFollowingStrategy {
         this.tradeFilterService = tradeFilterService;
     }
 
-    public StrategyResult execute(String symbol, String timeframe, int period, double slPercent, double rrRatio) {
+    public StrategyResult executeInterval(String symbol, String timeframe, double slPercent, double rrRatio, LocalDateTime startDate, LocalDateTime endDate) {
+        List<CandleDTO> candles = candleCacheManager.getCandles(symbol, timeframe, startDate, endDate)
+                .stream()
+                .collect(Collectors.collectingAndThen(
+                        Collectors.toCollection(ArrayList::new),
+                        list -> {
+                            if (list.size() >= 2 && list.get(0).getDate().isAfter(list.get(1).getDate())) {
+                                Collections.reverse(list);
+                            }
+                            return list;
+                        }
+                ));
+        return execute(symbol, timeframe, slPercent, rrRatio, candles, 1000); // FIXME : A modif la period : impact sur les filtres
+    }
+
+    public StrategyResult executePeriod(String symbol, String timeframe, int period, double slPercent, double rrRatio) {
         List<CandleDTO> candles = candleCacheManager.getCandles(symbol, timeframe, period)
                 .stream()
                 .collect(Collectors.collectingAndThen(
@@ -65,6 +82,11 @@ public class TrendFollowingStrategy {
                             return list;
                         }
                 ));
+        return execute(symbol, timeframe, slPercent, rrRatio, candles, period);
+    }
+
+    public StrategyResult execute(String symbol, String timeframe, double slPercent, double rrRatio, List<CandleDTO> candles, int period) {
+
         BarSeries series = ta4jService.convertToTimeSeries(candles, timeframe);
         TradeRequestDTO dummy = new TradeRequestDTO(TradeSignalDTO.builder()
                 .tradeType(TradeSignalDTO.TradeType.LONG)
