@@ -7,6 +7,8 @@ import finance.project.api.services.CandleCacheManager;
 import org.ta4j.core.TradingRecord;
 import org.ta4j.core.rules.AbstractRule;
 
+import java.util.List;
+
 /**
  * Adapter to use existing {@link Filter} implementations as TA4J rules.
  */
@@ -17,24 +19,46 @@ public class FilterRuleAdapter extends AbstractRule {
     private final String timeframe;
     private final int period;
     private final TradeRequestDTO tradeRequest;
-    private final CandleCacheManager candleCacheManager;
+    private final List<CandleDTO> candles;
+    private final int tolerance;
+    private int satisfiedIndex = -1;
 
     public FilterRuleAdapter(Filter filter, TradeRequestDTO tradeRequest,
                              String symbol, String timeframe, int period,
-                             CandleCacheManager candleCacheManager) {
+                             List<CandleDTO> candles,
+                             int tolerance) {
         this.filter = filter;
         this.tradeRequest = tradeRequest;
         this.symbol = symbol;
         this.timeframe = timeframe;
         this.period = period;
-        this.candleCacheManager = candleCacheManager;
+        this.candles = candles;
+        this.tolerance = tolerance;
     }
 
     @Override
     public boolean isSatisfied(int index, TradingRecord record) {
-        int lookback = Math.max(period, 500);
-        java.util.List<CandleDTO> candles = candleCacheManager.getCandles(symbol, timeframe, lookback);
-        int score = filter.evaluate(tradeRequest, candles);
-        return score >= 1;
+        if (index < period) {
+            satisfiedIndex = -1;
+            return false;
+        }
+
+        for (int offset = -tolerance; offset <= tolerance; offset++) {
+            int checkIndex = index + offset;
+            if (checkIndex < period || checkIndex > candles.size()) continue;
+            int start = Math.max(0, checkIndex - period);
+            java.util.List<CandleDTO> window = candles.subList(start, checkIndex);
+            int score = filter.evaluate(tradeRequest, window);
+            if (score >= 1) {
+                satisfiedIndex = checkIndex;
+                return true;
+            }
+        }
+        satisfiedIndex = -1;
+        return false;
+    }
+
+    public int getSatisfiedIndex() {
+        return satisfiedIndex;
     }
 }

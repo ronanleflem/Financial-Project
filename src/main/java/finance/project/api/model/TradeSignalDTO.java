@@ -18,6 +18,12 @@ public class TradeSignalDTO {
     private final double confidenceScore;
     private final LocalDateTime timestamp;
 
+    public boolean isSecondEntry() {
+        return secondEntry;
+    }
+
+    private final boolean secondEntry;
+
     public String getSymbol() {
         return symbol;
     }
@@ -32,6 +38,7 @@ public class TradeSignalDTO {
         this.confidenceScore = confidenceScore;
         this.symbol = symbol;
         this.timestamp = LocalDateTime.now(); // Génère un horodatage automatique
+        this.secondEntry = false;
     }
 
     // Getters
@@ -51,6 +58,7 @@ public class TradeSignalDTO {
                 ", takeProfit=" + takeProfit +
                 ", confidenceScore=" + confidenceScore +
                 ", timestamp=" + timestamp +
+                ", secondEntry=" + secondEntry +
                 '}';
     }
 }

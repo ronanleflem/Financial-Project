@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -16,6 +17,8 @@ public class StrategyConfig {
 
     @Value("${trading.filters.enabled:}")
     private String enabledFilters;
+
+    private Map<String, List<String>> enabledFiltersByStrategy = new HashMap<>();
 
     private final Environment environment;
 
@@ -35,6 +38,10 @@ public class StrategyConfig {
     // 🔹 Filtres activés dynamiquement
     public List<String> getEnabledFilters() {
         return enabledFilters.isEmpty() ? List.of() : Arrays.asList(enabledFilters.split(","));
+    }
+
+    public List<String> getEnabledFiltersForStrategy(String strategyName) {
+        return enabledFiltersByStrategy.getOrDefault(strategyName, List.of());
     }
 
     public void setEnabledFilters(List<String> filters) {

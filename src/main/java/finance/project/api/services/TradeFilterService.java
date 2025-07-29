@@ -30,9 +30,16 @@ public class TradeFilterService {
         this.candleCacheManager = candleCacheManager;
     }
 
-    public List<FilterRuleAdapter> buildFilterRules(TradeRequestDTO request, String symbol, String timeframe, int period) {
+    public List<FilterRuleAdapter> buildFilterRules(TradeRequestDTO request,
+                                                    String symbol,
+                                                    String timeframe,
+                                                    int period,
+                                                    List<CandleDTO> candles,
+                                                    int tolerance) {        List<String> enabled = strategyConfig.getEnabledFilters();
+
         this.ruleAdapters = filters.stream()
-                .map(f -> new FilterRuleAdapter(f, request, symbol, timeframe, period, candleCacheManager))
+                .filter(f -> enabled.contains(f.getClass().getSimpleName()))
+                .map(f -> new FilterRuleAdapter(f, request, symbol, timeframe, period, candles, tolerance))
                 .toList();
         return ruleAdapters;
     }
@@ -76,7 +83,7 @@ public class TradeFilterService {
                 .filter(filter -> strategyConfig.getEnabledFilters().contains(filter.getClass().getSimpleName()))
                 .toList();
 
-        List<CandleDTO> candles = candleCacheManager.getCandles(symbol, timeframe, Math.max(period, 500));
+        List<CandleDTO> candles = candleCacheManager.getCandles(symbol, timeframe, period);
 
         int totalScore = 0;
         for (Filter filter : enabledFilters) {

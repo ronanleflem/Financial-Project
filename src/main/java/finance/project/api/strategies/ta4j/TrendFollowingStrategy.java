@@ -96,8 +96,7 @@ public class TrendFollowingStrategy {
                 .confidenceScore(0)
                 .symbol(symbol)
                 .build());
-        tradeFilterService.buildFilterRules(dummy, symbol, timeframe, period);
-        Strategy strategy = buildTa4jStrategy(series, 20, rrRatio);
+        tradeFilterService.buildFilterRules(dummy, symbol, timeframe, period, candles, 2);        Strategy strategy = buildTa4jStrategy(series, 20, rrRatio);
 
         // 3. Backtest via TA4J
         BarSeriesManager manager = new BarSeriesManager(series);
@@ -120,10 +119,27 @@ public class TrendFollowingStrategy {
 
             // 🎯 Vérifie la stratégie + les filtres
             if (strategy.shouldEnter(i) && recordlive.isClosed() ) { //&& tradeFilterService.isTradeValid(request, symbol,timeframe,period)
-                recordlive.enter(i, price, series.getBar(i).getVolume());
-                List<CandleDTO> recentCandles = candles.subList(Math.max(0, i - 20), i); // Les 20 dernières bougies
-                entrySignal = buildTradeFilterSignal("BUY", price, candle, recentCandles, rrRatio,symbol);
-                signals.add(entrySignal);
+                int execIndex = i;
+                boolean secondEntry = false;
+                for (FilterRuleAdapter adapter : tradeFilterService.getRuleAdapters()) {
+                    if (!adapter.isSatisfied(i, recordlive)) {
+                        execIndex = -1;
+                        break;
+                    }
+                    int idx = adapter.getSatisfiedIndex();
+                    if (idx != i) {
+                        secondEntry = true;
+                        execIndex = idx;
+                    }
+                }
+                if (execIndex >= 0) {
+                    Num execPrice = series.getBar(execIndex).getClosePrice();
+                    recordlive.enter(execIndex, execPrice, series.getBar(execIndex).getVolume());
+                    List<CandleDTO> recentCandles = candles.subList(Math.max(0, execIndex - 20), execIndex); // Les 20 dernières bougies
+                    CandleDTO execCandle = candles.get(execIndex);
+                    entrySignal = buildTradeFilterSignal("BUY", execPrice, execCandle, recentCandles, rrRatio,symbol, secondEntry);
+                    signals.add(entrySignal);
+                }
 
             } else if (strategy.shouldExit(i) && !recordlive.isClosed() && entrySignal != null) {
                 recordlive.exit(i, price, series.getBar(i).getVolume());
@@ -159,9 +175,9 @@ public class TrendFollowingStrategy {
         EMAIndicator macdSignal = new EMAIndicator(macd, 9);
 
         Rule entryRule = new CrossedUpIndicatorRule(ema20, ema50);
-                //.and(new RsiEntryRule(rsi, 50))
+                //.and(new RsiEntryRule(rsi, 50));
                 //.and(new MacdEntryRule(macd, macdSignal));
-        /*
+
         List<FilterRuleAdapter> adapters = tradeFilterService.getRuleAdapters();
         if (adapters.size() >= 2) {
             // Exemple : utilisation explicite de deux filtres adaptés
@@ -170,7 +186,7 @@ public class TrendFollowingStrategy {
             for (FilterRuleAdapter adapter : adapters) {
                 entryRule = entryRule.and(adapter);
             }
-        }*/
+        }
 
         Rule exitRule = new CrossedDownIndicatorRule(ema20, ema50)
                 .or(new StopLossRule(close, 2.0))   // Exemple : Stop Loss 2%
@@ -195,8 +211,7 @@ public class TrendFollowingStrategy {
     }
 
     // Aligner le TP et SL au DynamicStopLossRule
-    private TradeSignalDTO buildTradeFilterSignal(String direction, Num price, CandleDTO candle, List<CandleDTO> recentCandles, double rrRatio, String symbol) {
-        double entry = price.doubleValue();
+    private TradeSignalDTO buildTradeFilterSignal(String direction, Num price, CandleDTO candle, List<CandleDTO> recentCandles, double rrRatio, String symbol, boolean secondEntry) {        double entry = price.doubleValue();
         double stopLoss;
         double takeProfit;
 
@@ -224,6 +239,7 @@ public class TrendFollowingStrategy {
                 .confidenceScore(1.0)
                 .timestamp(candle.getDate())
                 .symbol(symbol)
+                .secondEntry(secondEntry)
                 .build();
     }
     public Map<String, Double> computeManualPerformance(List<CompletedTradeDTO> trades) {
