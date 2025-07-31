@@ -40,6 +40,12 @@ public class CandleAggregationService {
             LocalDateTime bucketTime = entry.getKey();
             List<CandleDTO> candlesInBucket = entry.getValue();
 
+            int expectedCount = getExpectedCandleCountForTimeframe(timeframe);
+            if (candlesInBucket.size() < expectedCount) {
+                log.warn("❌ Bougie ignorée pour {} : données incomplètes ({}/{})", bucketTime, candlesInBucket.size(), expectedCount);
+                continue;
+            }
+
             CandleDTO aggregated = aggregateBucket(candlesInBucket, bucketTime, timeframe);
             aggregatedCandles.add(aggregated);
         }
@@ -71,6 +77,26 @@ public class CandleAggregationService {
                 log.warn("⚠️ Timeframe non supporté '{}', fallback à M1", timeframe);
                 yield 1;
             }
+        };
+    }
+
+    private int getExpectedCandleCountForTimeframe(String timeframe) {
+        return switch (timeframe.toLowerCase()) {
+            case "3min" -> 3;
+            case "5min" -> 5;
+            case "10min" -> 10;
+            case "15min" -> 15;
+            case "30min" -> 30;
+            case "45min" -> 45;
+            case "1h" -> 60;
+            case "2h" -> 120;
+            case "4h" -> 240;
+            case "8h" -> 480;
+            case "12h" -> 720;
+            case "daily" -> 1440;
+            case "weekly" -> 10080;
+            case "monthly" -> 43200;
+            default -> 1;
         };
     }
 

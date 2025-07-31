@@ -322,7 +322,11 @@ public class CandleController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
 
         List<CandleDTO> candles = binanceService.getHistoricalCandlesInRange(symbol, interval, startDate, endDate);
-        candleService.saveCandlesToDatabase(candles, symbol, interval);
+        // Agrégation sur toutes les timeframes que tu as défini
+        for (String e : TIMEFRAMESVOLCME) {
+            List<CandleDTO> aggregatedCandles = candleAggregationService.aggregateCandles(candles, e);
+            candleService.saveCandlesToDatabase(aggregatedCandles, symbol, e);
+        }
         return new ResponseEntity<>(candles, HttpStatus.OK);
     }
 
