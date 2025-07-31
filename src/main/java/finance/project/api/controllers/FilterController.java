@@ -387,42 +387,45 @@ public class FilterController {
         return ResponseEntity.ok(result);
     }
 
-    /**
-     * Endpoint pour analyser les points d'intérêt ICT sur un symbole et un timeframe donné.
-     *
-     * @param symbol Le symbole à analyser (ex : EURUSD)
-     * @param timeframe Le timeframe à analyser (ex : "4h", "daily", etc.)
-     * @param candleLimit Nombre de candles à analyser (facultatif)
-     * @return Liste des Points Of Interest détectés
-     */
-    @GetMapping("/analyzeICTpoi")
-    public ResponseEntity<List<PointOfInterest>> analyzeICTPoints(
+    @GetMapping("/analyzeICTpoi-multitf")
+    public ResponseEntity<List<PointOfInterest>> analyzeICTMultiTf(
             @RequestParam String symbol,
-            @RequestParam String timeframe,
-            @RequestParam(required = false, defaultValue = "200") int candleLimit // Par défaut on prend les 200 dernières bougies
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate
     ) {
         try {
-            // 1. Récupération des candles depuis ton candleService (existant)
-            List<CandleDTO> candles = candleService.getLastCandles(symbol, timeframe, candleLimit);
+            List<CandleDTO> m15 = candleService.getCandlesByTimeframeAndIntervalDate(symbol, "15min", startDate, endDate);
+            List<CandleDTO> h1 = candleService.getCandlesByTimeframeAndIntervalDate(symbol, "1h", startDate, endDate);
+            List<CandleDTO> daily = candleService.getCandlesByTimeframeAndIntervalDate(symbol, "daily", startDate.minusDays(7), endDate);
+            List<CandleDTO> weekly = candleService.getCandlesByTimeframeAndIntervalDate(symbol, "weekly", startDate.minusWeeks(4), endDate);
+            List<CandleDTO> monthly = candleService.getCandlesByTimeframeAndIntervalDate(symbol, "monthly", startDate.minusMonths(6), endDate);
 
-            if (candles == null || candles.isEmpty()) {
-                return ResponseEntity.badRequest().body(Collections.emptyList());
-            }
+            List<PointOfInterest> points = new ArrayList<>();
 
-            // 2. Analyse des points d'intérêt
-            List<PointOfInterest> pointsOfInterest = ictPointOfInterestFilter.analyzeICTPoints(candles);
+            // ✅ News Gaps : uniquement D / W
+            points.addAll(ictPointOfInterestFilter.detectNewsOpenGaps(daily));
+            points.addAll(ictPointOfInterestFilter.detectNewsOpenGaps(weekly));
 
-            if (pointsOfInterest.isEmpty()) {
-                return ResponseEntity.ok(Collections.emptyList());
-            }
+            // ✅ Previous High/Low : uniquement D / W / M
+            points.addAll(ictPointOfInterestFilter.detectPreviousHighsLows(daily));
+            points.addAll(ictPointOfInterestFilter.detectPreviousHighsLows(weekly));
+            points.addAll(ictPointOfInterestFilter.detectPreviousHighsLows(monthly));
 
-            // 3. Retourne la réponse avec les points détectés
-            return ResponseEntity.ok(pointsOfInterest);
+            // ✅ Intraday Patterns
+            points.addAll(ictPointOfInterestFilter.detectFairValueGaps(m15));
+            points.addAll(ictPointOfInterestFilter.detectOrderBlocks(m15));
+            points.addAll(ictPointOfInterestFilter.detectFibonacciRetracements(h1));
 
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Collections.emptyList());
+            // ✅ Global Levels (si tu veux les garder génériques)
+            points.addAll(ictPointOfInterestFilter.detectPsychologicalLevels(m15));
+            points.addAll(ictPointOfInterestFilter.detectVolumeProfileLevels(m15));
+
+            points.addAll(ictPointOfInterestFilter.detectBreakawayGaps(m15));
+            points.addAll(ictPointOfInterestFilter.detectContinuationGaps(m15));
+
+            return ResponseEntity.ok(points);
+
         } catch (Exception e) {
-            // Gestion d'erreur si besoin
             return ResponseEntity.internalServerError().body(Collections.emptyList());
         }
     }

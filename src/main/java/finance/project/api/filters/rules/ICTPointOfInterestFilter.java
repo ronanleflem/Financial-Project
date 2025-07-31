@@ -50,6 +50,7 @@ public class ICTPointOfInterestFilter implements Filter {
         points.addAll(detectBreakawayGaps(candles));
         points.addAll(detectContinuationGaps(candles));
 
+
         return points;
     }
 
@@ -57,7 +58,7 @@ public class ICTPointOfInterestFilter implements Filter {
     /**
      * Détecte les gaps institutionnels (Daily/Weekly Open Gaps).
      */
-    private List<PointOfInterest> detectNewsOpenGaps(List<CandleDTO> candles) {
+    public List<PointOfInterest> detectNewsOpenGaps(List<CandleDTO> candles) {
         List<PointOfInterest> gaps = new ArrayList<>();
         String lastTimeframe = "";
 
@@ -131,7 +132,7 @@ public class ICTPointOfInterestFilter implements Filter {
     }
 
 
-    private List<PointOfInterest> detectFibonacciRetracements(List<CandleDTO> candles) {
+    public List<PointOfInterest> detectFibonacciRetracements(List<CandleDTO> candles) {
         List<PointOfInterest> fibLevels = new ArrayList<>();
         List<HighLowSwing> swings = detectSwingPoints(candles, 10);
 
@@ -197,7 +198,7 @@ public class ICTPointOfInterestFilter implements Filter {
         return fibLevels;
     }
 
-    private List<PointOfInterest> detectBreakawayGaps(List<CandleDTO> candles) {
+    public List<PointOfInterest> detectBreakawayGaps(List<CandleDTO> candles) {
         List<PointOfInterest> gaps = new ArrayList<>();
         for (int i = 1; i < candles.size(); i++) {
             CandleDTO prevCandle = candles.get(i - 1);
@@ -225,7 +226,7 @@ public class ICTPointOfInterestFilter implements Filter {
         return gaps;
     }
 
-    private List<PointOfInterest> detectContinuationGaps(List<CandleDTO> candles) {
+    public List<PointOfInterest> detectContinuationGaps(List<CandleDTO> candles) {
         List<PointOfInterest> gaps = new ArrayList<>();
         for (int i = 1; i < candles.size(); i++) {
             CandleDTO prev = candles.get(i - 1);
@@ -252,7 +253,7 @@ public class ICTPointOfInterestFilter implements Filter {
         return gaps;
     }
 
-    private List<PointOfInterest> detectOrderBlocks(List<CandleDTO> candles) {
+    public List<PointOfInterest> detectOrderBlocks(List<CandleDTO> candles) {
         List<PointOfInterest> orderBlocks = new ArrayList<>();
         for (int i = 1; i < candles.size(); i++) {
             CandleDTO prev = candles.get(i - 1);
@@ -295,7 +296,7 @@ public class ICTPointOfInterestFilter implements Filter {
         return orderBlocks;
     }
 
-    private List<PointOfInterest> detectPsychologicalLevels(List<CandleDTO> candles) {
+    public List<PointOfInterest> detectPsychologicalLevels(List<CandleDTO> candles) {
         List<PointOfInterest> levels = new ArrayList<>();
         for (CandleDTO candle : candles) {
             double price = candle.getClose().doubleValue();
@@ -320,7 +321,7 @@ public class ICTPointOfInterestFilter implements Filter {
         return levels;
     }
 
-    private List<PointOfInterest> detectVolumeProfileLevels(List<CandleDTO> candles) {
+    public List<PointOfInterest> detectVolumeProfileLevels(List<CandleDTO> candles) {
         List<PointOfInterest> levels = new ArrayList<>();
         double poc = marketDataService.calculatePOC(candles);
         double vah = marketDataService.calculateVAH(candles);
@@ -373,7 +374,7 @@ public class ICTPointOfInterestFilter implements Filter {
         return levels;
     }
 
-    private PointOfInterest createFibonacciPoint(CandleDTO highCandle, CandleDTO lowCandle, String name, double level) {
+    public PointOfInterest createFibonacciPoint(CandleDTO highCandle, CandleDTO lowCandle, String name, double level) {
         return PointOfInterest.builder()
                 .name(name)
                 .symbol(highCandle.getSymbol().getName())
@@ -393,7 +394,7 @@ public class ICTPointOfInterestFilter implements Filter {
     /**
      * Détecte les gaps normaux entre deux bougies consécutives.
      */
-    private List<PointOfInterest> detectNormalGaps(List<CandleDTO> candles) {
+    public List<PointOfInterest> detectNormalGaps(List<CandleDTO> candles) {
         List<PointOfInterest> gaps = new ArrayList<>();
 
         for (int i = 1; i < candles.size(); i++) {
@@ -427,7 +428,7 @@ public class ICTPointOfInterestFilter implements Filter {
     /**
      * Détecte les Fair Value Gaps (FVG) et Inverted FVG.
      */
-    private List<PointOfInterest> detectFairValueGaps(List<CandleDTO> candles) {
+    public List<PointOfInterest> detectFairValueGaps(List<CandleDTO> candles) {
         List<PointOfInterest> fvgPoints = new ArrayList<>();
 
         for (int i = 2; i < candles.size(); i++) {
@@ -479,7 +480,7 @@ public class ICTPointOfInterestFilter implements Filter {
     /**
      * Détecte les Previous Highs & Lows (Daily, Weekly, Monthly).
      */
-    private List<PointOfInterest> detectPreviousHighsLows(List<CandleDTO> candles) {
+    public List<PointOfInterest> detectPreviousHighsLows(List<CandleDTO> candles) {
         List<PointOfInterest> previousLevels = new ArrayList<>();
 
         for (CandleDTO candle : candles) {
@@ -501,7 +502,7 @@ public class ICTPointOfInterestFilter implements Filter {
     /**
      * Helper : Crée les Previous High et Low pour un timeframe spécifique.
      */
-    private List<PointOfInterest> createPrevLevels(String symbol, String timeframe, CandleDTO candle, String label, int type) {
+    public List<PointOfInterest> createPrevLevels(String symbol, String timeframe, CandleDTO candle, String label, int type) {
         List<PointOfInterest> levels = new ArrayList<>();
 
         levels.add(PointOfInterest.builder()
