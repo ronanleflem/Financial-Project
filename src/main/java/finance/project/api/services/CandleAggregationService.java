@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDateTime;
+import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -30,9 +31,19 @@ public class CandleAggregationService {
             return m1Candles;
         }
 
+        // Tri pour fiabilité du début
+        m1Candles.sort(Comparator.comparing(CandleDTO::getDate));
+
+        // Déterminer le premier point de regroupement valide
+        LocalDateTime startDate = getFirstValidStartDate(m1Candles.get(0).getDate(), timeframe);
+
+        List<CandleDTO> filteredCandles = m1Candles.stream()
+                .filter(c -> !c.getDate().isBefore(startDate))
+                .collect(Collectors.toList());
+
         // Regroupement par période (bucket par timeframe supérieur)
-        Map<LocalDateTime, List<CandleDTO>> groupedCandles = m1Candles.stream()
-                .collect(Collectors.groupingBy(candle -> getBucketStartTime(candle.getDate(), tfMinutes)));
+        Map<LocalDateTime, List<CandleDTO>> groupedCandles = filteredCandles.stream()
+                .collect(Collectors.groupingBy(c -> getBucketStartTime(c.getDate(), tfMinutes)));
 
         List<CandleDTO> aggregatedCandles = new ArrayList<>();
 
@@ -97,6 +108,14 @@ public class CandleAggregationService {
             case "weekly" -> 10080;
             case "monthly" -> 43200;
             default -> 1;
+        };
+    }
+
+    private LocalDateTime getFirstValidStartDate(LocalDateTime firstCandleTime, String timeframe) {
+        return switch (timeframe.toLowerCase()) {
+            case "weekly" -> firstCandleTime.with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY)).toLocalDate().atStartOfDay();
+            case "monthly" -> firstCandleTime.with(TemporalAdjusters.firstDayOfMonth()).toLocalDate().atStartOfDay();
+            default -> firstCandleTime;
         };
     }
 

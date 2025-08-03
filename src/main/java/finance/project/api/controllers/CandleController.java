@@ -69,6 +69,7 @@ public class CandleController {
     private static final List<String> TIMEFRAMES = List.of("1min", "3min", "5min", "15min", "30min", "1h", "4h", "daily", "weekly", "monthly");
     private static final List<String> TIMEFRAMESVOL = List.of("1min", "3min", "5min", "10min", "15min", "30min", "1h", "2h","4h","8h", "12h", "daily", "weekly", "monthly");
     private static final List<String> TIMEFRAMESVOLCME = List.of("3min", "5min", "10min", "15min", "30min", "1h", "2h","4h","8h", "12h", "daily", "weekly", "monthly");
+    private static final List<String> TIMEFRAMESVOLCRYPTO = List.of("1min","3min", "5min", "10min", "15min", "30min", "1h", "2h","4h","8h", "12h", "daily", "weekly", "monthly");
 
 
     /**
@@ -323,7 +324,7 @@ public class CandleController {
 
         List<CandleDTO> candles = binanceService.getHistoricalCandlesInRange(symbol, interval, startDate, endDate);
         // Agrégation sur toutes les timeframes que tu as défini
-        for (String e : TIMEFRAMESVOLCME) {
+        for (String e : TIMEFRAMESVOLCRYPTO) {
             List<CandleDTO> aggregatedCandles = candleAggregationService.aggregateCandles(candles, e);
             candleService.saveCandlesToDatabase(aggregatedCandles, symbol, e);
         }

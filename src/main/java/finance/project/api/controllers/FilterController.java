@@ -54,12 +54,35 @@ public class FilterController {
     private final OrderFlowService orderFlowService;
     private final VolatilityFilter volatilityFilter;
 
+    private final SignalRecorderService signalRecorderService;
+
     private final VolumeBasedRolloverService volumeBasedRolloverService;
     private final SymbolService symbolService;
     private final TA4JService ta4JService;
 
+    private List<CandleDTO> resolveCandles(String symbol, String timeframe, Integer numberLastestCandles,
+                                           LocalDateTime startDate, LocalDateTime endDate) {
+        if (numberLastestCandles != null && numberLastestCandles > 0) {
+            return candleService.getLastCandles(symbol, timeframe, numberLastestCandles);
+        } else if (startDate != null && endDate != null) {
+            return candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
+        } else {
+            return null;
+        }
+    }
+
+
     @GetMapping("/bullish-bearish-stats")
-    public ResponseEntity<Map<String, String>> getBullishContinuationProbability(@RequestParam String symbol, @RequestParam String timeframe) {
+    public ResponseEntity<Map<String, String>> getBullishContinuationProbability(@RequestParam String symbol,
+                                                                                 @RequestParam String timeframe,
+                                                                                 @RequestParam(required = false) Integer numberLastestCandles,
+                                                                                 @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+                                                                                 @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate
+    ) {
+        List<CandleDTO> candles = resolveCandles(symbol, timeframe, numberLastestCandles, startDate, endDate);
+        if (candles == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Veuillez fournir soit 'numberLastestCandles' soit 'startDate'/'endDate'."));
+        }
         Map<String, String> probability = candleStructureFilter.calculateContinuationProbabilities(symbol,timeframe, -1);
         return ResponseEntity.ok(probability);
     }
@@ -67,7 +90,10 @@ public class FilterController {
     @GetMapping("/bullish-bearish-stats/multi-timeframes")
     public ResponseEntity<Map<String, Map<String, String>>> getBullishContinuationProbabilityForMultipleTimeframes(
             @RequestParam String symbol,
-            @RequestParam String timeframes // timeframes passés séparés par des virgules
+            @RequestParam String timeframes,
+            @RequestParam(required = false) Integer numberLastestCandles,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate
     ) {
         Map<String, Map<String, String>> result = new HashMap<>();
 
@@ -90,6 +116,8 @@ public class FilterController {
         // 3. Boucle sur les timeframes et calcul des stats
         for (String tf : validTimeframes) {
             log.info("🔎 Calcul de la probabilité de continuation pour symbol {} sur timeframe {}", symbol, tf);
+            List<CandleDTO> candles = resolveCandles(symbol, tf, numberLastestCandles, startDate, endDate);
+            if (candles == null || candles.isEmpty()) continue;
 
             Map<String, String> probability = candleStructureFilter.calculateContinuationProbabilities(symbol, tf, -1);
             result.put(tf, probability);
@@ -101,11 +129,17 @@ public class FilterController {
 
     @GetMapping("/bullish-bearish-stats/all")
     public ResponseEntity<Map<String, Map<String, String>>> getAllBullishContinuationProbability(
-            @RequestParam String symbol) {
+            @RequestParam String symbol,
+            @RequestParam(required = false) Integer numberLastestCandles,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate
+    ) {
 
         Map<String, Map<String, String>> result = new HashMap<>();
 
         for (String tf : TIMEFRAMESVOLCME) {
+            List<CandleDTO> candles = resolveCandles(symbol, tf, numberLastestCandles, startDate, endDate);
+            if (candles == null || candles.isEmpty()) continue;
             result.put(tf, candleStructureFilter.calculateContinuationProbabilities(symbol, tf, -1));
         }
 
@@ -114,11 +148,17 @@ public class FilterController {
 
     @GetMapping("/bullish-bearish-stats/all/limit")
     public ResponseEntity<Map<String, Map<String, String>>> getAllBullishContinuationProbabilityLimit(
-            @RequestParam String symbol,  @RequestParam Integer numberLastestCandles) {
+            @RequestParam String symbol,
+            @RequestParam(required = false) Integer numberLastestCandles,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate
+    ) {
 
         Map<String, Map<String, String>> result = new HashMap<>();
 
         for (String tf : TIMEFRAMESVOLCME) {
+            List<CandleDTO> candles = resolveCandles(symbol, tf, numberLastestCandles, startDate, endDate);
+            if (candles == null || candles.isEmpty()) continue;
             result.put(tf, candleStructureFilter.calculateContinuationProbabilities(symbol, tf, numberLastestCandles));
         }
 
@@ -141,6 +181,58 @@ public class FilterController {
         result.put("benfordScore", benfordScore);
 
         return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/benford/anomaly/save")
+    public ResponseEntity<Map<String, Object>> getAndSaveBenfordAnomalyScore(
+            @RequestParam String symbol,
+            @RequestParam String timeframe,
+            @RequestParam int numberLastestCandles,
+            @RequestParam List<Integer> horizons) {
+
+        List<CandleDTO> candles = candleService.getLastCandles(symbol, timeframe, numberLastestCandles + Collections.max(horizons));
+        List<Double> priceChanges = candleService.getPriceVariations(symbol, timeframe, numberLastestCandles);
+
+        double benfordScore = benfordLawFilter.calculateBenfordScore(priceChanges);
+
+        // Détection à l’instant t = candle[N]
+        CandleDTO baseCandle = candles.get(numberLastestCandles - 1);
+        double baseClose = baseCandle.getClose().doubleValue();
+        LocalDateTime time = baseCandle.getDate();
+
+        for (int h : horizons) {
+            CandleDTO futureCandle = candles.get(numberLastestCandles - 1 + h);
+            double futureClose = futureCandle.getClose().doubleValue();
+            signalRecorderService.recordSignal("BenfordAnomaly", symbol, timeframe, time, baseClose, h, futureClose);
+        }
+
+        return ResponseEntity.ok(Map.of("benfordScore", benfordScore));
+    }
+
+    @GetMapping("/benford/sliced")
+    public ResponseEntity<String> detectBenfordSliced(
+            @RequestParam String symbol,
+            @RequestParam String timeframe,
+            @RequestParam(required = false) Integer numberLastestCandles,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam int windowSize,
+            @RequestParam List<Integer> horizons) {
+
+        List<CandleDTO> candles;
+
+        if (numberLastestCandles != null && numberLastestCandles > 0) {
+            int total = numberLastestCandles + Collections.max(horizons);
+            candles = candleService.getLastCandles(symbol, timeframe, total);
+        } else if (startDate != null && endDate != null) {
+            candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
+        } else {
+            return ResponseEntity.badRequest().body("Veuillez spécifier 'numberLastestCandles' ou une plage 'startDate' / 'endDate'.");
+        }
+
+        benfordLawFilter.recordBenfordAnomaliesSliced(candles, symbol, timeframe, windowSize, horizons, signalRecorderService);
+
+        return ResponseEntity.ok("Benford anomalies enregistrées par tranches.");
     }
 
     @GetMapping("/institutional-biais")

@@ -8,11 +8,13 @@ import finance.project.api.model.TradeSignalDTO;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.repositories.CandleRepository;
 import finance.project.api.repositories.SymbolRepository;
+import finance.project.api.services.SignalRecorderService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.text.DecimalFormat;
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -22,6 +24,25 @@ public class CandleStructureFilter implements Filter {
     private final CandleRepository candleRepository;
     private final SymbolRepository symbolRepository;
 
+    public void recordBullishStreaks(List<Candle> candles, String symbol, String timeframe, List<Integer> horizons, SignalRecorderService recorder) {
+        for (int i = 1; i < candles.size(); i++) {
+            boolean bullishPrev = candles.get(i - 1).getClose().compareTo(candles.get(i - 1).getOpen()) > 0;
+            boolean bullishCurr = candles.get(i).getClose().compareTo(candles.get(i).getOpen()) > 0;
+
+            if (bullishPrev && bullishCurr) {
+                double baseClose = candles.get(i).getClose().doubleValue();
+                LocalDateTime time = candles.get(i).getDate();
+
+                for (Integer h : horizons) {
+                    int futureIdx = i + h;
+                    if (futureIdx < candles.size()) {
+                        double futureClose = candles.get(futureIdx).getClose().doubleValue();
+                        recorder.recordSignal("BullishStreak2", symbol, timeframe, time, baseClose, h, futureClose);
+                    }
+                }
+            }
+        }
+    }
     /**
      * Calcule l'écart-type d'une liste de valeurs.
      */

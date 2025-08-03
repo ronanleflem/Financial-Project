@@ -6,8 +6,12 @@ import finance.project.api.model.TradeRequestDTO;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.repositories.CandleRepository;
 import finance.project.api.services.CandleService;
+import finance.project.api.services.SignalRecorderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,6 +68,76 @@ public class BenfordLawFilter implements Filter {
     @Override
     public int evaluate(TradeRequestDTO tradeRequest, String symbol, String timeframe, int period) {
         return 1;
+    }
+
+    public double getThreshold() {
+        return THRESHOLD;
+    }
+    public void recordBenfordAnomaliesSliced(List<CandleDTO> candles,
+                                             String symbol,
+                                             String timeframe,
+                                             int windowSize,
+                                             List<Integer> horizons,
+                                             SignalRecorderService recorder) {
+
+        List<Double> priceChanges = extractPriceChanges(candles);
+        List<List<Double>> slices = splitIntoSubwindows(priceChanges, windowSize);
+
+        for (int i = 0; i < slices.size(); i++) {
+            List<Double> slice = slices.get(i);
+            double score = calculateBenfordScore(slice);
+
+            if (score > getThreshold()) {
+                int baseIdx = i * windowSize + windowSize - 1;
+                if (baseIdx >= candles.size()) continue;
+                CandleDTO base = candles.get(baseIdx);
+                double baseClose = base.getClose().doubleValue();
+                LocalDateTime time = base.getDate();
+
+                for (Integer h : horizons) {
+                    int targetIdx = baseIdx + h;
+                    if (targetIdx < candles.size()) {
+                        double futureClose = candles.get(targetIdx).getClose().doubleValue();
+                        recorder.recordSignal("BenfordAnomaly", symbol, timeframe, time, baseClose, h, futureClose);
+                    }
+                }
+            }
+        }
+    }
+    public List<Double> extractPriceChanges(List<CandleDTO> candles) {
+        List<Double> changes = new ArrayList<>();
+        for (int i = 1; i < candles.size(); i++) {
+            double diff = Math.abs(candles.get(i).getClose().doubleValue() - candles.get(i - 1).getClose().doubleValue());
+            changes.add(diff);
+        }
+        return changes;
+    }
+
+    public void recordBenfordAnomalies(List<Double> changes, List<CandleDTO> candles, String symbol, String timeframe, List<Integer> horizons, SignalRecorderService recorder) {
+        double score = calculateBenfordScore(changes);
+        if (score > THRESHOLD) {
+            int lastIdx = changes.size() - 1;
+            CandleDTO base = candles.get(lastIdx);
+            double baseClose = base.getClose().doubleValue();
+            LocalDateTime time = base.getDate();
+
+            for (Integer h : horizons) {
+                int targetIdx = lastIdx + h;
+                if (targetIdx < candles.size()) {
+                    double futureClose = candles.get(targetIdx).getClose().doubleValue();
+                    recorder.recordSignal("BenfordAnomaly", symbol, timeframe, time, baseClose, h, futureClose);
+                }
+            }
+        }
+    }
+
+    public List<List<Double>> splitIntoSubwindows(List<Double> data, int windowSize) {
+        List<List<Double>> slices = new ArrayList<>();
+        for (int i = 0; i <= data.size() - windowSize; i += windowSize) {
+            List<Double> window = data.subList(i, i + windowSize);
+            slices.add(new ArrayList<>(window));
+        }
+        return slices;
     }
 
     /**
