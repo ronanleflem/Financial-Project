@@ -7,12 +7,17 @@ import finance.project.api.repositories.CandleRepository;
 import finance.project.api.repositories.SymbolRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+
+import static org.hibernate.query.sqm.tree.SqmNode.log;
 
 /**
  * BootstrapData est un composant Spring qui charge des données initiales dans la base de données
@@ -48,6 +53,21 @@ public class BootstrapData implements CommandLineRunner {
         loadSymbolData();
         loadCandleData();
 
+    }
+
+    private final RestTemplate restTemplate;
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void sendStartupRequests() {
+        String url1 = "http://localhost:8090/api/finance/charts/binance/historical-range?interval=1m&symbol=BTCUSDT&startDate=2025-07-20T00:00:00&endDate=2025-08-03T00:00:00&limit=1000";
+        String url2 = "http://localhost:8090/api/finance/charts/load-csv/cme/all-timeframes?symbol=EURUSD&timeframe=1min&data=data_2025-02";
+        try {
+            restTemplate.getForObject(url1, String.class);
+            restTemplate.getForObject(url2, String.class);
+            log.info("Startup requests executed");
+        } catch (Exception e) {
+            log.error("Error executing startup requests", e);
+        }
     }
 
     /**
