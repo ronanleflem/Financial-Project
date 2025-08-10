@@ -28,10 +28,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 @Primary
@@ -45,6 +42,7 @@ public class CandleServiceJPA implements CandleService {
     private final AlphaVantageService alphaVantageService;
     private final PointOfInterestRepository pointOfInterestRepository;
     private final EntityManager entityManager;
+    private final VolumeBasedRolloverService volumeBasedRolloverService;
 
     @Override
     public List<CandleDTO> getCandlesForTrade(TradeCompleted trade, String symbol, String timeframe, int beforeCandles, int afterCandles) {
@@ -546,10 +544,26 @@ public class CandleServiceJPA implements CandleService {
             throw new RuntimeException("Error reading CME CSV file: " + filePath, e);
         }
 
-        // Sauvegarde en base
-        saveCandlesToDatabase(candles, symbol, timeframe);
+        candles.sort(Comparator.comparing(CandleDTO::getDate));
+        if (candles.isEmpty()) {
+            return candles;
+        }
 
-        return candles;
+        LocalDateTime startDate = candles.get(0).getDate();
+        LocalDateTime endDate = candles.get(candles.size() - 1).getDate();
+
+        // Generate rollover candles
+        List<CandleDTO> rolloverCandles = volumeBasedRolloverService
+                .getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, 2);
+
+        // Remove raw candles and keep only rollover result
+        List<Candle> rawEntities = candleRepository.findBySymbolAndTimeframeAndDateBetween(
+                symbol, timeframe, startDate, endDate);
+        candleRepository.deleteAll(rawEntities);
+
+        saveCandlesToDatabase(rolloverCandles, symbol, timeframe);
+
+        return rolloverCandles;
     }
 
     /**

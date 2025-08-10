@@ -31,8 +31,11 @@ public class CandleAggregationService {
             return m1Candles;
         }
 
-        // Tri pour fiabilité du début
-        m1Candles.sort(Comparator.comparing(CandleDTO::getDate));
+        m1Candles = new ArrayList<>(m1Candles);
+        m1Candles.sort(Comparator.comparing(
+                CandleDTO::getDate,
+                Comparator.nullsLast(Comparator.naturalOrder())
+        ));
 
         // Déterminer le premier point de regroupement valide
         LocalDateTime startDate = getFirstValidStartDate(m1Candles.get(0).getDate(), timeframe);

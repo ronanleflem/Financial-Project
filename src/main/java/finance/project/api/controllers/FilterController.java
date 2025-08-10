@@ -663,20 +663,10 @@ public class FilterController {
     public Map<String, Double> getVolatilityAnalysis(@RequestParam String symbol, @RequestParam String timeframe,
                                                      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
                                                      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
-        List<CandleDTO> candles;
-        if(timeframe.equals("1min")){
-
-            candles = volumeBasedRolloverService.getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, 2);
-
-        }
-        else {
-            SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
-            System.out.println(symbolDTO);
-
-            candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
-        }
-
-        return volatilityFilter.analyzeVolatility(ta4JService.convertToTimeSeries(candles,timeframe));
+        SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
+        System.out.println(symbolDTO);
+        List<CandleDTO> candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
+        return volatilityFilter.analyzeVolatility(ta4JService.convertToTimeSeries(candles, timeframe));
     }
 
     @GetMapping("/sharpe-ratio")
@@ -684,18 +674,9 @@ public class FilterController {
                                  @RequestParam String timeframe,
                                  @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
                                  @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
-        List<CandleDTO> candles;
-        if(timeframe.equals("1min")){
-
-            candles = volumeBasedRolloverService.getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, 2);
-
-        }
-        else {
-            SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
-            System.out.println(symbolDTO);
-
-            candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
-        }
+        SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
+        System.out.println(symbolDTO);
+        List<CandleDTO> candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
         return marketDataService.calculateSharpeRatio(candles);
     }
 
@@ -704,18 +685,9 @@ public class FilterController {
                                   @RequestParam String timeframe,
                                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
                                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
-        List<CandleDTO> candles;
-        if(timeframe.equals("1min")){
-
-            candles = volumeBasedRolloverService.getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, 2);
-
-        }
-        else {
-            SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
-            System.out.println(symbolDTO);
-
-            candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
-        }
+        SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
+        System.out.println(symbolDTO);
+        List<CandleDTO> candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
         return marketDataService.calculateSortinoRatio(candles);
     }
 
@@ -742,14 +714,9 @@ public class FilterController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
             @RequestParam int period) {
 
-        List<CandleDTO> candles;
-        if ("1min".equals(timeframe)) {
-            candles = volumeBasedRolloverService.getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, 2);
-        } else {
-            SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
-            System.out.println(symbolDTO);
-            candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
-        }
+        SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
+        System.out.println(symbolDTO);
+        List<CandleDTO> candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
 
         List<Double> closePrices = candles.stream()
                 .map(candle -> candle.getClose().doubleValue())
@@ -772,18 +739,9 @@ public class FilterController {
             @RequestParam double omegaThreshold,
             @RequestParam double benchmarkReturn) {
 
-        List<CandleDTO> candles;
-        if(timeframe.equals("1min")){
-
-            candles = volumeBasedRolloverService.getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, 2);
-
-        }
-        else {
-            SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
-            System.out.println(symbolDTO);
-
-            candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
-        }
+        SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
+        System.out.println(symbolDTO);
+        List<CandleDTO> candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
         List<Double> closePrices = candles.stream()
                 .map(candle -> candle.getClose().doubleValue())
                 .collect(Collectors.toList());
@@ -818,18 +776,10 @@ public class FilterController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
             @RequestParam int period) {
 
-        List<CandleDTO> candles;
-        if(timeframe.equals("1min")){
+        SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
+        System.out.println(symbolDTO);
+        List<CandleDTO> candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
 
-            candles = volumeBasedRolloverService.getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, 2);
-
-        }
-        else {
-            SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
-            System.out.println(symbolDTO);
-
-            candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, endDate);
-        }
         List<Double> closePrices = candles.stream()
                 .map(candle -> candle.getClose().doubleValue())
                 .collect(Collectors.toList());
