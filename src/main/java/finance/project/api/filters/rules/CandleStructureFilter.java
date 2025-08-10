@@ -147,12 +147,17 @@ public class CandleStructureFilter implements Filter {
         data.bullishDominance = total == 0 ? 0.0 : (data.bullishCount * 100.0 / total);
         data.bearishDominance = 100.0 - data.bullishDominance;
     }
-    public Map<String, String> calculateContinuationProbabilities(String symbolStr, String timeframe,Integer numberLastestCandles) {
+    public Map<String, String> calculateContinuationProbabilities(String symbolStr, String timeframe,
+                                                                  Integer numberLastestCandles,
+                                                                  LocalDateTime startDate,
+                                                                  LocalDateTime endDate) {
         Optional<Symbol> symbol = symbolRepository.findBySymbol(symbolStr);
         List<Candle> candles;
         if (numberLastestCandles != null && numberLastestCandles > 0) {
             candles = candleRepository.findBySymbolAndTimeframeOrderByDateAscLimitNumberLatestCandle(symbol, timeframe, numberLastestCandles);
-        } else {
+        }else if (startDate != null && endDate != null) {
+            candles = candleRepository.findBySymbolAndTimeframeAndDateBetween(symbol.get(), timeframe, startDate, endDate);
+        }else {
             candles = candleRepository.findBySymbolAndTimeframeOrderByDateAsc(symbol.get(), timeframe);
         }
 

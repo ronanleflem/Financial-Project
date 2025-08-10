@@ -7,6 +7,7 @@ import finance.project.api.model.SymbolDTO;
 import finance.project.api.repositories.CandleRepository;
 import finance.project.api.repositories.SymbolRepository;
 import finance.project.api.services.*;
+import finance.project.api.utils.DurationUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -71,6 +73,17 @@ public class FilterController {
         }
     }
 
+    private List<Double> resolvePriceVariations(String symbol, String timeframe, Integer numberLastestCandles,
+                                                LocalDateTime startDate, LocalDateTime endDate) {
+        if (numberLastestCandles != null && numberLastestCandles > 0) {
+            return candleService.getPriceVariations(symbol, timeframe, numberLastestCandles);
+        } else if (startDate != null && endDate != null) {
+            return candleService.getPriceVariations(symbol, timeframe, startDate, endDate);
+        } else {
+            return null;
+        }
+    }
+
 
     @GetMapping("/bullish-bearish-stats")
     public ResponseEntity<Map<String, String>> getBullishContinuationProbability(@RequestParam String symbol,
@@ -83,7 +96,7 @@ public class FilterController {
         if (candles == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "Veuillez fournir soit 'numberLastestCandles' soit 'startDate'/'endDate'."));
         }
-        Map<String, String> probability = candleStructureFilter.calculateContinuationProbabilities(symbol,timeframe, -1);
+        Map<String, String> probability = candleStructureFilter.calculateContinuationProbabilities(symbol, timeframe, numberLastestCandles, startDate, endDate);
         return ResponseEntity.ok(probability);
     }
 
@@ -119,7 +132,7 @@ public class FilterController {
             List<CandleDTO> candles = resolveCandles(symbol, tf, numberLastestCandles, startDate, endDate);
             if (candles == null || candles.isEmpty()) continue;
 
-            Map<String, String> probability = candleStructureFilter.calculateContinuationProbabilities(symbol, tf, -1);
+            Map<String, String> probability = candleStructureFilter.calculateContinuationProbabilities(symbol, tf, numberLastestCandles, startDate, endDate);
             result.put(tf, probability);
         }
 
@@ -140,7 +153,7 @@ public class FilterController {
         for (String tf : TIMEFRAMESVOLCME) {
             List<CandleDTO> candles = resolveCandles(symbol, tf, numberLastestCandles, startDate, endDate);
             if (candles == null || candles.isEmpty()) continue;
-            result.put(tf, candleStructureFilter.calculateContinuationProbabilities(symbol, tf, -1));
+            result.put(tf, candleStructureFilter.calculateContinuationProbabilities(symbol, tf, numberLastestCandles, startDate, endDate));
         }
 
         return ResponseEntity.ok(result);
@@ -159,53 +172,82 @@ public class FilterController {
         for (String tf : TIMEFRAMESVOLCME) {
             List<CandleDTO> candles = resolveCandles(symbol, tf, numberLastestCandles, startDate, endDate);
             if (candles == null || candles.isEmpty()) continue;
-            result.put(tf, candleStructureFilter.calculateContinuationProbabilities(symbol, tf, numberLastestCandles));
-        }
+            result.put(tf, candleStructureFilter.calculateContinuationProbabilities(symbol, tf, numberLastestCandles, startDate, endDate));
+         }
 
         return ResponseEntity.ok(result);
     }
 
     @GetMapping("/benford/anomaly")
-    public ResponseEntity<Map<String, Double>> getBenfordAnomalyScore(
+    public ResponseEntity<?> getBenfordAnomalyScore(
             @RequestParam String symbol,
             @RequestParam String timeframe,
-            @RequestParam int numberLastestCandles) {
+            @RequestParam(required = false) Integer numberLastestCandles,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
 
-        // Récupération des variations de prix (exemple : différences entre open et close)
-        List<Double> priceChanges = candleService.getPriceVariations(symbol, timeframe, numberLastestCandles);
-
+        List<Double> priceChanges;
+        if (numberLastestCandles != null && numberLastestCandles > 0) {
+            priceChanges = candleService.getPriceVariations(symbol, timeframe, numberLastestCandles);
+        } else if (startDate != null && endDate != null) {
+            priceChanges = candleService.getPriceVariations(symbol, timeframe, startDate, endDate);
+        } else {
+            return ResponseEntity.badRequest().body(Map.of("error", "Veuillez fournir soit 'numberLastestCandles' soit 'startDate'/'endDate'."));
+        }
         // Calcul du score de conformité
         double benfordScore = benfordLawFilter.calculateBenfordScore(priceChanges);
 
-        Map<String, Double> result = new HashMap<>();
-        result.put("benfordScore", benfordScore);
-
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(Map.of("benfordScore", benfordScore));
     }
 
     @GetMapping("/benford/anomaly/save")
     public ResponseEntity<Map<String, Object>> getAndSaveBenfordAnomalyScore(
             @RequestParam String symbol,
             @RequestParam String timeframe,
-            @RequestParam int numberLastestCandles,
+            @RequestParam(required = false) Integer numberLastestCandles,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
             @RequestParam List<Integer> horizons) {
 
-        List<CandleDTO> candles = candleService.getLastCandles(symbol, timeframe, numberLastestCandles + Collections.max(horizons));
-        List<Double> priceChanges = candleService.getPriceVariations(symbol, timeframe, numberLastestCandles);
-
-        double benfordScore = benfordLawFilter.calculateBenfordScore(priceChanges);
-
-        // Détection à l’instant t = candle[N]
-        CandleDTO baseCandle = candles.get(numberLastestCandles - 1);
-        double baseClose = baseCandle.getClose().doubleValue();
-        LocalDateTime time = baseCandle.getDate();
-
-        for (int h : horizons) {
-            CandleDTO futureCandle = candles.get(numberLastestCandles - 1 + h);
-            double futureClose = futureCandle.getClose().doubleValue();
-            signalRecorderService.recordSignal("BenfordAnomaly", symbol, timeframe, time, baseClose, h, futureClose);
+        if ((numberLastestCandles == null || numberLastestCandles <= 0) && (startDate == null || endDate == null)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Veuillez fournir soit 'numberLastestCandles' soit 'startDate'/'endDate'."));
         }
 
+        List<CandleDTO> candles;
+        List<Double> priceChanges;
+        int maxHorizon = Collections.max(horizons);
+
+        if (numberLastestCandles != null && numberLastestCandles > 0) {
+            candles = candleService.getLastCandles(symbol, timeframe, numberLastestCandles + maxHorizon);
+            priceChanges = candleService.getPriceVariations(symbol, timeframe, numberLastestCandles);
+            int baseIndex = numberLastestCandles - 1;
+            CandleDTO baseCandle = candles.get(baseIndex);
+            double baseClose = baseCandle.getClose().doubleValue();
+            LocalDateTime time = baseCandle.getDate();
+            for (int h : horizons) {
+                CandleDTO futureCandle = candles.get(baseIndex + h);
+                double futureClose = futureCandle.getClose().doubleValue();
+                signalRecorderService.recordSignal("BenfordAnomaly", symbol, timeframe, time, baseClose, h, futureClose);
+            }
+        } else {
+            Duration tfDuration = DurationUtils.parseTimeframe(timeframe);
+            LocalDateTime extendedEnd = endDate.plus(tfDuration.multipliedBy(maxHorizon));
+            candles = candleService.getCandlesByTimeframeAndIntervalDate(symbol, timeframe, startDate, extendedEnd);
+            priceChanges = candleService.getPriceVariations(symbol, timeframe, startDate, endDate);
+            int baseIndex = candles.size() - maxHorizon - 1;
+            CandleDTO baseCandle = candles.get(baseIndex);
+            double baseClose = baseCandle.getClose().doubleValue();
+            LocalDateTime time = baseCandle.getDate();
+            for (int h : horizons) {
+                int futureIdx = baseIndex + h;
+                if (futureIdx < candles.size()) {
+                    double futureClose = candles.get(futureIdx).getClose().doubleValue();
+                    signalRecorderService.recordSignal("BenfordAnomaly", symbol, timeframe, time, baseClose, h, futureClose);
+                }
+            }
+        }
+
+        double benfordScore = benfordLawFilter.calculateBenfordScore(priceChanges);
         return ResponseEntity.ok(Map.of("benfordScore", benfordScore));
     }
 
@@ -236,13 +278,17 @@ public class FilterController {
     }
 
     @GetMapping("/institutional-biais")
-    public ResponseEntity<Map<String, Integer>> getInstitutionalBias(
-            @RequestParam String symbol, @RequestParam String timeframe, @RequestParam int maxCandle) {
+    public ResponseEntity<?> getInstitutionalBias(
+            @RequestParam String symbol, @RequestParam String timeframe,
+            @RequestParam(required = false) Integer numberLastestCandles,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
 
-        // Récupération des 1000 dernières bougies
-        List<CandleDTO> candlesLatest = candleService.getLastCandles(symbol, timeframe, maxCandle);
+        List<CandleDTO> candlesLatest = resolveCandles(symbol, timeframe, numberLastestCandles, startDate, endDate);
+        if (candlesLatest == null || candlesLatest.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Veuillez fournir soit 'numberLastestCandles' soit 'startDate'/'endDate'."));
+        }
 
-        // Calcul du biais institutionnel
         int bias = biasInstitutionalFilter.calculateInstitutionalBias(candlesLatest);
 
         Map<String, Integer> result = new HashMap<>();
@@ -252,14 +298,18 @@ public class FilterController {
     }
 
     @GetMapping("/contradictory-signals")
-    public ResponseEntity<Map<String, Integer>> getContradictionScore(
-            @RequestParam String symbol, @RequestParam String timeframe, @RequestParam int maxCandle) {
+    public ResponseEntity<?> getContradictionScore(
+            @RequestParam String symbol, @RequestParam String timeframe,
+            @RequestParam(required = false) Integer numberLastestCandles,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
 
-        List<CandleDTO> candlesLatest = candleService.getLastCandles(symbol, timeframe, maxCandle);
+        List<CandleDTO> candlesLatest = resolveCandles(symbol, timeframe, numberLastestCandles, startDate, endDate);
+        if (candlesLatest == null || candlesLatest.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Veuillez fournir soit 'numberLastestCandles' soit 'startDate'/'endDate'."));
+        }
 
-        // Récupération des indicateurs
-        //double price = marketDataService.getCurrentPrice(symbol);
-        double price = candlesLatest.getFirst().getClose().doubleValue(); // Fixme : VAL TEMPORAIRE
+        double price = candlesLatest.getFirst().getClose().doubleValue();
         double ema50 = marketDataService.calculateEMA(candlesLatest,50);
         double ema200 = marketDataService.calculateEMA(candlesLatest,200);
         double rsi = marketDataService.calculateRSI(candlesLatest, 14);
@@ -282,11 +332,16 @@ public class FilterController {
     }
 
     @GetMapping("/cycles")
-    public ResponseEntity<Map<String, Double>> getMarketCycles(
-            @RequestParam String symbol, @RequestParam String timeframe,@RequestParam int maxCandle) {
+    public ResponseEntity<?> getMarketCycles(
+            @RequestParam String symbol, @RequestParam String timeframe,
+            @RequestParam(required = false) Integer numberLastestCandles,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
 
-        // Récupération des variations de prix
-        List<Double> prices = candleService.getPriceVariations(symbol, timeframe, maxCandle);
+        List<Double> prices = resolvePriceVariations(symbol, timeframe, numberLastestCandles, startDate, endDate);
+        if (prices == null || prices.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Veuillez fournir soit 'numberLastestCandles' soit 'startDate'/'endDate'."));
+        }
 
         // Calcul du coefficient de détermination R²
         double rSquared = cyclesFilter.calculateR2(prices);
@@ -296,16 +351,22 @@ public class FilterController {
 
         Map<String, Double> result = new HashMap<>();
         result.put("rSquared", rSquared);
-        result.put("dominantCycle", (double) dominantCycle); // Converti en Double pour le JSON
+        result.put("dominantCycle", (double) dominantCycle);
 
         return ResponseEntity.ok(result);
     }
 
     @GetMapping("/entropy")
-    public ResponseEntity<Map<String, Double>> getMarketEntropy(
-            @RequestParam String symbol, @RequestParam String timeframe, @RequestParam int maxCandle) {
+    public ResponseEntity<?> getMarketEntropy(
+            @RequestParam String symbol, @RequestParam String timeframe,
+            @RequestParam(required = false) Integer numberLastestCandles,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
 
-        List<Double> priceChanges = candleService.getPriceVariations(symbol, timeframe, maxCandle);
+        List<Double> priceChanges = resolvePriceVariations(symbol, timeframe, numberLastestCandles, startDate, endDate);
+        if (priceChanges == null || priceChanges.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Veuillez fournir soit 'numberLastestCandles' soit 'startDate'/'endDate'."));
+        }
         // 10000 car EURSUD, à adapter pour le symbole
         double entropy = volatilityFilter.calculateMarketEntropy(priceChanges,10000);
 
@@ -323,11 +384,24 @@ public class FilterController {
      * @return
      */
     @GetMapping("/fractal-analysis")
-    public ResponseEntity<Map<String, Double>> getFractalAnalysis(
-            @RequestParam String symbol, @RequestParam String timeframe, @RequestParam int maxCandle) {
+    public ResponseEntity<?> getFractalAnalysis(
+            @RequestParam String symbol, @RequestParam String timeframe,
+            @RequestParam(required = false) Integer numberLastestCandles,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
 
         // Récupération des variations de prix sous forme de rendements
-        List<Double> returns = candleService.getPriceReturns(symbol, timeframe, maxCandle);
+        List<CandleDTO> candles = resolveCandles(symbol, timeframe, numberLastestCandles, startDate, endDate);
+        if (candles == null || candles.size() < 2) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Veuillez fournir soit 'numberLastestCandles' soit 'startDate'/'endDate'."));
+        }
+
+        List<Double> returns = new ArrayList<>();
+        for (int i = 1; i < candles.size(); i++) {
+            double prev = candles.get(i - 1).getClose().doubleValue();
+            double curr = candles.get(i).getClose().doubleValue();
+            returns.add((curr - prev) / prev);
+        }
 
         // Calcul du Ratio de Hurst
         double hurstExponent = fractalAnalysisFilter.calculateHurstExponent(returns);
@@ -345,10 +419,16 @@ public class FilterController {
     }
 
     @GetMapping("/market-manipulation")
-    public ResponseEntity<Map<String, Integer>> detectMarketManipulation(
-            @RequestParam String symbol, @RequestParam String timeframe, @RequestParam int maxCandle) {
+    public ResponseEntity<?> detectMarketManipulation(
+            @RequestParam String symbol, @RequestParam String timeframe,
+            @RequestParam(required = false) Integer numberLastestCandles,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
 
-        List<Double> priceChanges = candleService.getPriceVariations(symbol, timeframe, maxCandle);
+        List<Double> priceChanges = resolvePriceVariations(symbol, timeframe, numberLastestCandles, startDate, endDate);
+        if (priceChanges == null || priceChanges.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Veuillez fournir soit 'numberLastestCandles' soit 'startDate'/'endDate'."));
+        }
         int manipulationScore = marketManipulationFilter.detectManipulationZone(priceChanges);
 
         Map<String, Integer> result = new HashMap<>();
@@ -358,11 +438,17 @@ public class FilterController {
     }
 
     @GetMapping("/high-timeframe-zones")
-    public ResponseEntity<Map<String, Integer>> getHighTimeframeZones(
-            @RequestParam String symbol, @RequestParam String timeframe) {
+    public ResponseEntity<?> getHighTimeframeZones(
+            @RequestParam String symbol, @RequestParam String timeframe,
+            @RequestParam(required = false) Integer numberLastestCandles,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
 
-        // Récupération du prix actuel et des niveaux institutionnels
-        double price = candleService.getLastCandles(symbol,"5min",1).get(0).getClose().doubleValue(); // Plus petite bougie pour récupèrer le prix le plus proches
+        List<CandleDTO> candles = resolveCandles(symbol, "5min", numberLastestCandles != null ? numberLastestCandles : 1, startDate, endDate);
+        if (candles == null || candles.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Veuillez fournir soit 'numberLastestCandles' soit 'startDate'/'endDate'."));
+        }
+        double price = candles.get(candles.size()-1).getClose().doubleValue();
         List<PointOfInterest> keyLevels = candleService.getInstitutionalLevels(symbol,timeframe);
 
         // Calcul du score de confluence
@@ -375,16 +461,30 @@ public class FilterController {
     }
 
     @GetMapping("/high-timeframe-zones-with-orderflow")
-    public ResponseEntity<Map<String, Integer>> getHighTimeframeZonesWithOrderFlow(
-            @RequestParam String symbol) {
+    public ResponseEntity<?> getHighTimeframeZonesWithOrderFlow(
+            @RequestParam String symbol, @RequestParam String timeframe,
+            @RequestParam(required = false) Integer numberLastestCandles,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
 
-        // Récupération des prix et zones institutionnelles
-        double price = candleService.getLastCandles(symbol,"5min",1).get(0).getClose().doubleValue();
-        List<PointOfInterest> keyLevels = candleService.getInstitutionalLevels(symbol,"5min"); // IL FAUT QUE JE CREE UNE TABLE POUR SA
+        List<CandleDTO> candles = resolveCandles(symbol, timeframe, numberLastestCandles != null ? numberLastestCandles : 1, startDate, endDate);
+        if (candles == null || candles.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error",
+                    "Veuillez fournir soit 'numberLastestCandles' soit 'startDate'/'endDate'."));
+        }
+        double price = candles.get(candles.size()-1).getClose().doubleValue();
+        List<PointOfInterest> keyLevels = candleService.getInstitutionalLevels(symbol,timeframe);
 
-        // Récupération du flux d’ordres
-        List<Double> buyVolumes = orderFlowService.getBuyVolumes(symbol, keyLevels, LocalDateTime.now(), LocalDateTime.now()); // FIXME : A changer plus tard pour la date
-        List<Double> sellVolumes = orderFlowService.getSellVolumes(symbol, keyLevels, LocalDateTime.now(), LocalDateTime.now()); // FIXME : A changer plus tard pour la date
+        List<Double> buyVolumes;
+        List<Double> sellVolumes;
+        if (startDate != null && endDate != null) {
+            buyVolumes = orderFlowService.getBuyVolumes(symbol, keyLevels, startDate, endDate);
+            sellVolumes = orderFlowService.getSellVolumes(symbol, keyLevels, startDate, endDate);
+        } else {
+            LocalDateTime now = LocalDateTime.now();
+            buyVolumes = orderFlowService.getBuyVolumes(symbol, keyLevels, now.minusHours(1), now);
+            sellVolumes = orderFlowService.getSellVolumes(symbol, keyLevels, now.minusHours(1), now);
+        }
 
         // Calcul du score final
         int confluenceScore = highTimeframeZoneFilter.checkInstitutionalConfluenceWithOrderFlow(price, keyLevels, buyVolumes, sellVolumes);
@@ -396,11 +496,19 @@ public class FilterController {
     }
 
     @GetMapping("/donchian-channels")
-    public ResponseEntity<Map<String, Double>> getDonchianChannels(
+    public ResponseEntity<?> getDonchianChannels(
             @RequestParam String symbol, @RequestParam String timeframe,
-            @RequestParam(defaultValue = "20") int period) {
+            @RequestParam(defaultValue = "20") int period,
+            @RequestParam(required = false) Integer numberLastestCandles,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
 
-        List<CandleDTO> candlesLatest = candleService.getLastCandles(symbol, timeframe, period);
+        int candlesToFetch = numberLastestCandles != null ? numberLastestCandles : period;
+        List<CandleDTO> candlesLatest = resolveCandles(symbol, timeframe, candlesToFetch, startDate, endDate);
+        if (candlesLatest == null || candlesLatest.size() < period) {
+            return ResponseEntity.badRequest().body(Map.of("error",
+                    "Veuillez fournir soit 'numberLastestCandles' soit 'startDate'/'endDate' avec assez de données."));
+        }
         // Extraction des closes, highs et lows
         List<Double> highs = candlesLatest.stream().map(c -> c.getHigh().doubleValue()).toList();
         List<Double> lows = candlesLatest.stream().map(c -> c.getLow().doubleValue()).toList();
@@ -425,12 +533,20 @@ public class FilterController {
      * @return
      */
     @GetMapping("/liquidity")
-    public ResponseEntity<Map<String, Double>> getMarketLiquidity(
+    public ResponseEntity<?> getMarketLiquidity(
             @RequestParam String symbol, @RequestParam String timeframe,
-            @RequestParam(defaultValue = "20") int period) {
+            @RequestParam(defaultValue = "20") int period,
+            @RequestParam(required = false) Integer numberLastestCandles,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
 
-        List<CandleDTO> candlesLatest = candleService.getLastCandles(symbol, timeframe, period);
         // Extraction des closes, highs et lows
+        int candlesToFetch = numberLastestCandles != null ? numberLastestCandles : period;
+        List<CandleDTO> candlesLatest = resolveCandles(symbol, timeframe, candlesToFetch, startDate, endDate);
+        if (candlesLatest == null || candlesLatest.size() < period) {
+            return ResponseEntity.badRequest().body(Map.of("error",
+                    "Veuillez fournir soit 'numberLastestCandles' soit 'startDate'/'endDate' avec assez de données."));
+        }
         List<Double> closes = candlesLatest.stream().map(c -> c.getClose().doubleValue()).toList();
         List<Double> highs = candlesLatest.stream().map(c -> c.getHigh().doubleValue()).toList();
         List<Double> lows = candlesLatest.stream().map(c -> c.getLow().doubleValue()).toList();
@@ -446,12 +562,19 @@ public class FilterController {
     }
 
     @GetMapping("/lower-timeframe-confluence")
-    public ResponseEntity<Map<String, Integer>> getLowerTimeframeConfluence(
-            @RequestParam String symbol, @RequestParam String timeframe, @RequestParam int period) {
+    public ResponseEntity<?> getLowerTimeframeConfluence(
+            @RequestParam String symbol, @RequestParam String timeframe, @RequestParam int period,
+            @RequestParam(required = false) Integer numberLastestCandles,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
 
-        // Récupération des prix et indicateurs
+        int candlesToFetch = numberLastestCandles != null ? numberLastestCandles : period;
+        List<CandleDTO> candlesLatest = resolveCandles(symbol, timeframe, candlesToFetch, startDate, endDate);
+        if (candlesLatest == null || candlesLatest.size() < period) {
+            return ResponseEntity.badRequest().body(Map.of("error",
+                    "Veuillez fournir soit 'numberLastestCandles' soit 'startDate'/'endDate' avec assez de données."));
+        }
 
-        List<CandleDTO> candlesLatest = candleService.getLastCandles(symbol, timeframe, period);
         // Extraction des closes, highs et lows
         List<Double> closes = candlesLatest.stream().map(c -> c.getClose().doubleValue()).toList();
         List<Double> highs = candlesLatest.stream().map(c -> c.getHigh().doubleValue()).toList();
@@ -468,7 +591,13 @@ public class FilterController {
         );
 
         double vwapDistance = marketDataService.calculateVWAP(candlesLatest) - closes.get(closes.size() - 1);
-        double deltaVolume = orderFlowService.getDeltaVolume(symbol, "5min",LocalDateTime.now(),LocalDateTime.now()); // FIXME : faudra changer les dates
+        double deltaVolume;
+        if (startDate != null && endDate != null) {
+            deltaVolume = orderFlowService.getDeltaVolume(symbol, timeframe, startDate, endDate);
+        } else {
+            LocalDateTime now = LocalDateTime.now();
+            deltaVolume = orderFlowService.getDeltaVolume(symbol, timeframe, now.minusHours(1), now);
+        }
 
         // Calcul du score de confluence
         int confluenceScore = lowerTimeframeConfluenceFilter.calculateConfluenceScore(momentum, adx, trendAligned, vwapDistance, deltaVolume);
@@ -593,11 +722,16 @@ public class FilterController {
     @GetMapping("/mean-reversion-signal")
     public boolean getMeanReversionSignal(@RequestParam String symbol,
                                           @RequestParam String timeframe,
-                                          @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-                                          @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
-                                          @RequestParam int period) {
-        List<CandleDTO> candlesLatest = candleService.getLastCandles(symbol, timeframe, period);
-        return meanReversionProbabilityFilter.isMeanReversionSignal(candlesLatest,period, timeframe);
+                                          @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+                                          @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+                                          @RequestParam int period,
+                                          @RequestParam(required = false) Integer numberLastestCandles) {
+        int candlesToFetch = numberLastestCandles != null ? numberLastestCandles : period;
+        List<CandleDTO> candlesLatest = resolveCandles(symbol, timeframe, candlesToFetch, startDate, endDate);
+        if (candlesLatest == null) {
+            return false;
+        }
+        return meanReversionProbabilityFilter.isMeanReversionSignal(candlesLatest, period, timeframe);
     }
 
     @GetMapping("/stationarity-signal")
