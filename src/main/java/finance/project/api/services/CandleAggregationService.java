@@ -1,7 +1,6 @@
 package finance.project.api.services;
 
 import finance.project.api.model.CandleDTO;
-import finance.project.api.model.SymbolDTO;
 import io.micrometer.common.lang.Nullable;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +12,6 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static finance.project.api.services.VolumeBasedRolloverService.floorToMinute;
 
 
 @Service
@@ -21,7 +19,6 @@ import static finance.project.api.services.VolumeBasedRolloverService.floorToMin
 @Slf4j
 public class CandleAggregationService {
 
-    // -------- Rapport --------
     public static class MissingM1Report {
         public final List<LocalDateTime> missingMinutes;
         public final List<LocalDateTime> duplicateMinutes;
@@ -88,7 +85,7 @@ public class CandleAggregationService {
                 .toList();
         Set<LocalDateTime> actualUnique = counts.keySet();
 
-        // ✅ CORRECTION : on parcourt en UTC et on teste la tradabilité en Chicago
+        // on parcourt en UTC et on teste la tradabilité en Chicago
         Set<LocalDateTime> expected = new LinkedHashSet<>();
         ZonedDateTime zCurUtc = startInclusive.atZone(ZoneOffset.UTC).withSecond(0).withNano(0);
         ZonedDateTime zEndUtc = endExclusive.atZone(ZoneOffset.UTC).withSecond(0).withNano(0);
@@ -154,7 +151,94 @@ public class CandleAggregationService {
         return rpt;
     }
 
+    private LocalDateTime alignToCmeTradingDayStart(LocalDateTime utc) {
+        ZonedDateTime z = utc.atZone(ZoneOffset.UTC);
+        ZonedDateTime chi = z.withZoneSameInstant(EXCHANGE_ZONE);
+        // début de la journée de trading CME = 17:00 heure de Chicago
+        LocalDate d = chi.toLocalDate();
+        LocalDateTime chiStart = LocalDateTime.of(d, LocalTime.of(17,0));
+        if (chi.toLocalTime().isBefore(LocalTime.of(17,0))) {
+            chiStart = chiStart.minusDays(1);
+        }
+        return chiStart.atZone(EXCHANGE_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+    }
+
+    private LocalDateTime cmeMonthlyAnchorStartUtc(LocalDateTime anyUtcInMonth) {
+        ZonedDateTime chi = anyUtcInMonth.atZone(ZoneOffset.UTC).withZoneSameInstant(EXCHANGE_ZONE);
+        // 1er du mois en heure de Chicago
+        LocalDate first = chi.toLocalDate().withDayOfMonth(1);
+        // Premier DIMANCHE >= 1er du mois, à 17:00 CT
+        ZonedDateTime startChi = ZonedDateTime.of(
+                first.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY)),
+                LocalTime.of(17, 0),
+                EXCHANGE_ZONE
+        );
+        return startChi.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+    }
+
+    private LocalDateTime cmeMonthlyAnchorEndUtc(LocalDateTime anyUtcInMonth) {
+        ZonedDateTime chi = anyUtcInMonth.atZone(ZoneOffset.UTC).withZoneSameInstant(EXCHANGE_ZONE);
+        LocalDate firstNext = chi.toLocalDate().withDayOfMonth(1).plusMonths(1);
+        // Premier DIMANCHE >= 1er du mois suivant, 17:00 CT
+        ZonedDateTime endChi = ZonedDateTime.of(
+                firstNext.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY)),
+                LocalTime.of(17, 0),
+                EXCHANGE_ZONE
+        );
+        return endChi.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+    }
+
+    /** Donne le début du bucket monthly contenant/immédiatement avant `dtUtc`. */
+    private LocalDateTime getMonthlyBucketStartUtc(LocalDateTime dtUtc) {
+        LocalDateTime anchorStart = cmeMonthlyAnchorStartUtc(dtUtc);
+        LocalDateTime anchorEnd   = cmeMonthlyAnchorEndUtc(dtUtc);
+        // Si dtUtc < anchorStart → on est encore “dans” le mois précédent côté sessions CME
+        if (dtUtc.isBefore(anchorStart)) {
+            // prendre l’ancre du mois précédent
+            return cmeMonthlyAnchorStartUtc(dtUtc.minusDays(10)); // n’importe quelle date dans le mois précédent
+        }
+        // sinon on est ≥ anchorStart et < anchorEnd → on retourne anchorStart
+        return anchorStart;
+    }
+
+    /** Début de semaine CME (dim 17:00 CT) en UTC pour n'importe quel instant UTC donné. */
+    private LocalDateTime cmeWeekAnchorStartUtc(LocalDateTime anyUtcInWeek) {
+        ZonedDateTime chi = anyUtcInWeek.atZone(ZoneOffset.UTC).withZoneSameInstant(EXCHANGE_ZONE);
+        // aller au DIMANCHE local de la semaine courante
+        ZonedDateTime startChi = chi.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+                .withHour(17).withMinute(0).withSecond(0).withNano(0);
+        return startChi.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+    }
+
+    /** Début de la semaine CME suivante (dim 17:00 CT) en UTC. */
+    private LocalDateTime cmeNextWeekAnchorStartUtc(LocalDateTime weekAnchorStartUtc) {
+        ZonedDateTime chi = weekAnchorStartUtc.atZone(ZoneOffset.UTC).withZoneSameInstant(EXCHANGE_ZONE);
+        ZonedDateTime nextChi = chi.plusWeeks(1)
+                .with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+                .withHour(17).withMinute(0).withSecond(0).withNano(0);
+        return nextChi.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+    }
+    private int expectedTradableCountInRange(LocalDateTime startUtc, LocalDateTime endUtc) {
+        int count = 0;
+        ZonedDateTime z = startUtc.atZone(ZoneOffset.UTC).withSecond(0).withNano(0);
+        ZonedDateTime zEnd = endUtc.atZone(ZoneOffset.UTC).withSecond(0).withNano(0);
+        while (z.isBefore(zEnd)) {
+            if (isTradableMinuteCME(z.withZoneSameInstant(EXCHANGE_ZONE))) count++;
+            z = z.plusMinutes(1);
+        }
+        return count;
+    }
     public List<CandleDTO> aggregateCandles(List<CandleDTO> m1Candles, String timeframe) {
+
+        LocalDateTime windowStart = m1Candles.stream()
+                .map(CandleDTO::getDate).filter(Objects::nonNull)
+                .min(LocalDateTime::compareTo).orElseThrow()
+                .withSecond(0).withNano(0);
+
+        LocalDateTime windowEndExclusive = m1Candles.stream()
+                .map(CandleDTO::getDate).filter(Objects::nonNull)
+                .max(LocalDateTime::compareTo).orElseThrow()
+                .plusMinutes(1).withSecond(0).withNano(0);
 
         if (m1Candles.isEmpty()) {
             log.warn("⚠️ Liste de candles vide, aucune agrégation possible");
@@ -167,7 +251,6 @@ public class CandleAggregationService {
             log.info("ℹ️ Timeframe de 1min demandé, aucune agrégation effectuée.");
             return m1Candles;
         }
-
         MissingM1Report rpt = checkMissingM1BeforeAggregation(
                 m1Candles,
                 null,
@@ -180,6 +263,14 @@ public class CandleAggregationService {
             return Collections.emptyList();
         }
 
+        if ("weekly".equalsIgnoreCase(timeframe)) {
+            return aggregateWeeklyCandles(m1Candles);
+        }
+        if ("monthly".equalsIgnoreCase(timeframe)) {
+            return aggregateMonthlyCandles(m1Candles);
+        }
+
+
         m1Candles = new ArrayList<>(m1Candles);
         m1Candles.sort(Comparator.comparing(
                 CandleDTO::getDate,
@@ -187,11 +278,15 @@ public class CandleAggregationService {
         ));
 
         // Déterminer le premier point de regroupement valide
-        LocalDateTime startDate = getFirstValidStartDate(m1Candles.get(0).getDate(), timeframe);
-
+        LocalDateTime startDate = getFirstValidStartDate(windowStart, timeframe);
+        LocalDateTime firstBucket = getBucketStartTime(windowStart, tfMinutes);
+        if (firstBucket.isBefore(windowStart)) {
+            firstBucket = firstBucket.plusMinutes(tfMinutes);
+        }
+        LocalDateTime finalFirstBucket = firstBucket;
         List<CandleDTO> filteredCandles = m1Candles.stream()
-                .filter(c -> !c.getDate().isBefore(startDate))
-                .collect(Collectors.toList());
+                .filter(c -> !getBucketStartTime(c.getDate(), tfMinutes).isBefore(finalFirstBucket))
+                .toList();
 
         // Regroupement par période (bucket par timeframe supérieur)
         Map<LocalDateTime, List<CandleDTO>> groupedCandles = filteredCandles.stream()
@@ -202,6 +297,11 @@ public class CandleAggregationService {
         for (Map.Entry<LocalDateTime, List<CandleDTO>> entry : groupedCandles.entrySet()) {
             LocalDateTime bucketTime = entry.getKey();
             List<CandleDTO> candlesInBucket = entry.getValue();
+
+            LocalDateTime bucketEnd = bucketTime.plusMinutes(tfMinutes);
+            if (bucketEnd.isAfter(windowEndExclusive)) {
+                continue;
+            }
 
             int expectedCount = expectedTradableCountInBucket(bucketTime, tfMinutes);
             if (candlesInBucket.size() < expectedCount) {
@@ -247,32 +347,160 @@ public class CandleAggregationService {
         };
     }
 
-    private int getExpectedCandleCountForTimeframe(String timeframe) {
+    private LocalDateTime getFirstValidStartDate(LocalDateTime firstCandleTime, String timeframe) {
         return switch (timeframe.toLowerCase()) {
-            case "3min" -> 3;
-            case "5min" -> 5;
-            case "10min" -> 10;
-            case "15min" -> 15;
-            case "30min" -> 30;
-            case "45min" -> 45;
-            case "1h" -> 60;
-            case "2h" -> 120;
-            case "4h" -> 240;
-            case "8h" -> 480;
-            case "12h" -> 720;
-            case "daily" -> 1440;
-            case "weekly" -> 10080;
-            case "monthly" -> 43200;
-            default -> 1;
+            case "daily"   -> alignToCmeTradingDayStart(firstCandleTime);
+            case "weekly"  -> {
+                LocalDateTime d0 = alignToCmeTradingDayStart(firstCandleTime);
+                // semaine CME = dim 17:00 CT → on recule jusqu’au dernier dimanche 17:00
+                ZonedDateTime chi = d0.atZone(ZoneOffset.UTC).withZoneSameInstant(EXCHANGE_ZONE);
+                ZonedDateTime startOfWeekChi = chi.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+                        .withHour(17).withMinute(0).withSecond(0).withNano(0);
+                yield startOfWeekChi.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+            }
+            case "monthly" -> {
+                LocalDateTime d0 = alignToCmeTradingDayStart(firstCandleTime);
+                ZonedDateTime chi = d0.atZone(ZoneOffset.UTC).withZoneSameInstant(EXCHANGE_ZONE);
+                ZonedDateTime monthStartChi = chi.with(TemporalAdjusters.firstDayOfMonth())
+                        .withHour(17).withMinute(0).withSecond(0).withNano(0);
+                if (monthStartChi.isBefore(chi)) {
+                    monthStartChi = monthStartChi.plusMonths(1)
+                            .with(TemporalAdjusters.firstDayOfMonth())
+                            .withHour(17).withMinute(0).withSecond(0).withNano(0);
+                }
+                yield monthStartChi.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+            }
+            default -> firstCandleTime;
         };
     }
 
-    private LocalDateTime getFirstValidStartDate(LocalDateTime firstCandleTime, String timeframe) {
-        return switch (timeframe.toLowerCase()) {
-            case "weekly" -> firstCandleTime.with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY)).toLocalDate().atStartOfDay();
-            case "monthly" -> firstCandleTime.with(TemporalAdjusters.firstDayOfMonth()).toLocalDate().atStartOfDay();
-            default -> firstCandleTime;
-        };
+    private List<CandleDTO> aggregateMonthlyCandles(List<CandleDTO> m1Candles) {
+
+        if (m1Candles.isEmpty()) {
+            log.warn("⚠️ Liste vide, aucune agrégation monthly possible");
+            return Collections.emptyList();
+        }
+
+        // Bornes globales de la série
+        LocalDateTime windowStart = m1Candles.stream()
+                .map(CandleDTO::getDate).filter(Objects::nonNull)
+                .min(LocalDateTime::compareTo).orElseThrow()
+                .withSecond(0).withNano(0);
+
+        LocalDateTime windowEndExclusive = m1Candles.stream()
+                .map(CandleDTO::getDate).filter(Objects::nonNull)
+                .max(LocalDateTime::compareTo).orElseThrow()
+                .plusMinutes(1).withSecond(0).withNano(0);
+
+        // Tri
+        m1Candles = new ArrayList<>(m1Candles);
+        m1Candles.sort(Comparator.comparing(CandleDTO::getDate));
+
+        // Map bucketStart → bougies
+        Map<LocalDateTime, List<CandleDTO>> grouped = new HashMap<>();
+        for (CandleDTO c : m1Candles) {
+            LocalDateTime t = c.getDate().withSecond(0).withNano(0);
+            LocalDateTime anchor = getMonthlyBucketStartUtc(t);
+            grouped.computeIfAbsent(anchor, k -> new ArrayList<>()).add(c);
+        }
+
+        List<CandleDTO> aggregated = new ArrayList<>();
+        for (Map.Entry<LocalDateTime, List<CandleDTO>> e : grouped.entrySet()) {
+            LocalDateTime bucketStart = e.getKey();
+            LocalDateTime bucketEnd   = cmeMonthlyAnchorEndUtc(bucketStart); // 1er dim ≥ 1er mois suivant 17:00 CT (en UTC)
+
+            // borne par la fenêtre de données réellement disponible
+            LocalDateTime effectiveStart = bucketStart.isBefore(windowStart) ? windowStart : bucketStart;
+            LocalDateTime effectiveEnd   = bucketEnd.isAfter(windowEndExclusive) ? windowEndExclusive : bucketEnd;
+
+            // si l'intersection est vide, on saute
+            if (!effectiveStart.isBefore(effectiveEnd)) continue;
+
+            List<CandleDTO> candlesInBucket = e.getValue().stream()
+                    .filter(c -> !c.getDate().isBefore(effectiveStart) && c.getDate().isBefore(effectiveEnd))
+                    .sorted(Comparator.comparing(CandleDTO::getDate))
+                    .toList();
+
+            int expected = expectedTradableCountInRange(effectiveStart, effectiveEnd);
+
+            boolean partial = !effectiveStart.equals(bucketStart) || !effectiveEnd.equals(bucketEnd);
+            if (candlesInBucket.size() < expected) {
+                log.warn("❌ Bougie ignorée (monthly{}) {} : données incomplètes ({}/{})",
+                        partial ? " PARTIAL" : "",
+                        bucketStart, candlesInBucket.size(), expected);
+                continue;
+            }
+
+            aggregated.add(aggregateBucket(candlesInBucket, bucketStart, "monthly"));
+        }
+
+        aggregated.sort(Comparator.comparing(CandleDTO::getDate));
+        log.info("✅ Agrégation complétée. {} bougies créées sur le timeframe monthly", aggregated.size());
+        return aggregated;
+    }
+
+    private List<CandleDTO> aggregateWeeklyCandles(List<CandleDTO> m1Candles) {
+
+        if (m1Candles == null || m1Candles.isEmpty()) {
+            log.warn("⚠️ Liste vide, aucune agrégation weekly possible");
+            return Collections.emptyList();
+        }
+
+        // Fenêtre globale
+        LocalDateTime windowStart = m1Candles.stream()
+                .map(CandleDTO::getDate).filter(Objects::nonNull)
+                .min(LocalDateTime::compareTo).orElseThrow()
+                .withSecond(0).withNano(0);
+
+        LocalDateTime windowEndExclusive = m1Candles.stream()
+                .map(CandleDTO::getDate).filter(Objects::nonNull)
+                .max(LocalDateTime::compareTo).orElseThrow()
+                .plusMinutes(1).withSecond(0).withNano(0);
+
+        // Tri
+        List<CandleDTO> sorted = new ArrayList<>(m1Candles);
+        sorted.sort(Comparator.comparing(CandleDTO::getDate));
+
+        // bucketStart (dim 17:00 CT) → bougies
+        Map<LocalDateTime, List<CandleDTO>> grouped = new HashMap<>();
+        for (CandleDTO c : sorted) {
+            LocalDateTime t = c.getDate().withSecond(0).withNano(0);
+            LocalDateTime anchor = cmeWeekAnchorStartUtc(t);
+            grouped.computeIfAbsent(anchor, k -> new ArrayList<>()).add(c);
+        }
+
+        List<CandleDTO> aggregated = new ArrayList<>();
+        int ignored = 0;
+
+        for (Map.Entry<LocalDateTime, List<CandleDTO>> e : grouped.entrySet()) {
+            LocalDateTime bucketStart = e.getKey();
+            LocalDateTime bucketEnd   = cmeNextWeekAnchorStartUtc(bucketStart);
+
+            // borne par la fenêtre globale
+            if (!bucketEnd.isAfter(windowStart) || !bucketStart.isBefore(windowEndExclusive)) continue;
+
+            List<CandleDTO> candlesInBucket = e.getValue().stream()
+                    .filter(c -> !c.getDate().isBefore(bucketStart) && c.getDate().isBefore(bucketEnd))
+                    .sorted(Comparator.comparing(CandleDTO::getDate))
+                    .toList();
+
+            int expected = expectedTradableCountInRange(bucketStart, bucketEnd);
+            if (candlesInBucket.size() < expected) {
+                ignored++;
+                log.warn("❌ Bougie ignorée (weekly) {} : données incomplètes ({}/{})",
+                        bucketStart, candlesInBucket.size(), expected);
+                continue;
+            }
+
+            aggregated.add(aggregateBucket(candlesInBucket, bucketStart, "weekly"));
+        }
+
+        aggregated.sort(Comparator.comparing(CandleDTO::getDate));
+        log.info("✅ Agrégation complétée. {} bougies créées sur le timeframe weekly", aggregated.size());
+        if (ignored > 0) {
+            log.info("⚠️ Agrégation weekly ignorée pour {} buckets incomplets", ignored);
+        }
+        return aggregated;
     }
 
 
@@ -311,14 +539,14 @@ public class CandleAggregationService {
             // D1 → début de journée
             return dateTime.toLocalDate().atStartOfDay();
 
-        } else if (tfMinutes == 10080) {
-            // Weekly → début de semaine (lundi)
-            return dateTime.with(DayOfWeek.MONDAY).toLocalDate().atStartOfDay();
+        } else if (tfMinutes == 10080) { // weekly
+            ZonedDateTime chi = dateTime.atZone(ZoneOffset.UTC).withZoneSameInstant(EXCHANGE_ZONE);
+            ZonedDateTime startChi = chi.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+                    .withHour(17).withMinute(0).withSecond(0).withNano(0);
+            return startChi.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
 
-        } else if (tfMinutes == 43200) {
-            // Monthly → 1er jour du mois
-            return dateTime.withDayOfMonth(1).toLocalDate().atStartOfDay();
-
+        } else if (tfMinutes == 43200) { // monthly (~30j)
+            return getMonthlyBucketStartUtc(dateTime);
         } else {
             log.warn("⚠️ Timeframe non standard '{} minutes'. Fallback à date brute", tfMinutes);
             return dateTime.withSecond(0).withNano(0);
@@ -332,23 +560,23 @@ public class CandleAggregationService {
         if (candles == null || candles.isEmpty()) {
             throw new IllegalArgumentException("Le groupe de candles est vide pour l'agrégation !");
         }
+        List<CandleDTO> list = new ArrayList<>(candles);
+        list.sort(Comparator.comparing(CandleDTO::getDate, Comparator.nullsLast(Comparator.naturalOrder())));
 
-        candles.sort(Comparator.comparing(CandleDTO::getDate));
+        BigDecimal open = list.get(0).getOpen();
+        BigDecimal close = list.get(list.size() - 1).getClose();
 
-        BigDecimal open = candles.get(0).getOpen();
-        BigDecimal close = candles.get(candles.size() - 1).getClose();
-
-        BigDecimal high = candles.stream()
+        BigDecimal high = list.stream()
                 .map(CandleDTO::getHigh)
                 .max(Comparator.naturalOrder())
                 .orElse(open);
 
-        BigDecimal low = candles.stream()
+        BigDecimal low = list.stream()
                 .map(CandleDTO::getLow)
                 .min(Comparator.naturalOrder())
                 .orElse(open);
 
-        BigDecimal totalVolume = candles.stream()
+        BigDecimal totalVolume = list.stream()
                 .map(c -> c.getVolume() != null ? c.getVolume() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -361,7 +589,7 @@ public class CandleAggregationService {
                 .low(low)
                 .volume(totalVolume)
                 .timeframe(timeframe)
-                .symbol(candles.get(0).getSymbol()) // prend le premier, car on est déjà dans le même symbol
+                .symbol(list.get(0).getSymbol()) // prend le premier, car on est déjà dans le même symbol
                 .build();
     }
 

@@ -318,7 +318,7 @@ public class CandleServiceJPA implements CandleService {
         log.info("🎉 Import terminé de {} bougies pour {} en {} secondes", totalCandles, symbol.getSymbol(), (System.currentTimeMillis() - startTime) / 1000);
     }*/
     public void saveCandlesToDatabase(List<CandleDTO> candles, Symbol symbol, String timeframe) {
-        int batchSize = 500;  // On insère 1000 bougies à la fois
+        int batchSize = 1000;  // On insère 1000 bougies à la fois
         List<Candle> batch = new ArrayList<>();
 
         for (CandleDTO dto : candles) {
