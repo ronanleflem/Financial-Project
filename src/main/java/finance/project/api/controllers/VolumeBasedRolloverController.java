@@ -25,6 +25,7 @@ public class VolumeBasedRolloverController {
     /**
      * Endpoint de récupération des candles avec rollover basé sur la dominance volume
      */
+    /*
     @GetMapping("/unified-candles")
     public ResponseEntity<List<CandleDTO>> getCandlesBasedOnVolume(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
@@ -32,10 +33,10 @@ public class VolumeBasedRolloverController {
             @RequestParam(defaultValue = "2") int analysisPeriodDays,
             @RequestParam(defaultValue = "M1") String timeframe
     ) {
-        List<CandleDTO> candles = volumeBasedRolloverService.getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, analysisPeriodDays);
+        List<CandleDTO> candles = volumeBasedRolloverService.getDynamicRolloverCandlesBasedOnVolumeIndexed(startDate, endDate, analysisPeriodDays);
         List<CandleDTO> aggregatedCandles = candleAggregationService.aggregateCandles(candles, timeframe);
         return ResponseEntity.ok(aggregatedCandles);
-    }
+    }*/
 
     @GetMapping("/heatmap-dominance")
     public ResponseEntity<Map<LocalDateTime, String>> getHeatmapDominance(

@@ -14,6 +14,9 @@ import finance.project.api.utils.CandleSpecification;
 import finance.project.api.utils.DurationUtils;
 import finance.project.api.utils.TimeframeUtils;
 import jakarta.persistence.EntityManager;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -24,11 +27,9 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.time.*;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @Primary
@@ -496,6 +497,98 @@ public class CandleServiceJPA implements CandleService {
         return null; //candleRepository.findAll(new CandleSpecification(filter));
     }
 
+    private static LocalDateTime parseCmeTimestampToUtc(String raw) {
+        // Si ça commence par un chiffre et ne contient pas 'T', on assume epoch-nanos
+        if (!raw.isEmpty() && Character.isDigit(raw.charAt(0)) && raw.indexOf('T') < 0) {
+            long nanos = Long.parseLong(raw);
+            long seconds = nanos / 1_000_000_000L;
+            int nanoAdj = (int) (nanos % 1_000_000_000L);
+            return LocalDateTime.ofInstant(Instant.ofEpochSecond(seconds, nanoAdj), ZoneOffset.UTC);
+        }
+        // Sinon on parse ISO 8601 (Instant.parse gère jusqu’aux nanos + le 'Z')
+        Instant inst = Instant.parse(raw);
+        return LocalDateTime.ofInstant(inst, ZoneOffset.UTC);
+    }
+
+    // ---------- Règles CME (Chicago) ----------
+    private static final ZoneId EXCHANGE_ZONE = ZoneId.of("America/Chicago");
+    private static final LocalTime DAILY_BREAK_START = LocalTime.of(16, 0); // 16:00 CT
+    private static final LocalTime DAILY_BREAK_END   = LocalTime.of(17, 0); // 17:00 CT
+    private static final LocalTime SUNDAY_OPEN       = LocalTime.of(17, 0); // dim 17:00 CT
+    private static final LocalTime FRIDAY_CLOSE      = LocalTime.of(16, 0); // ven 16:00 CT
+
+    private static LocalDateTime floorToMinute(LocalDateTime dt) {
+        return dt.withSecond(0).withNano(0);
+    }
+
+    private static boolean isTradableMinuteCME(ZonedDateTime zdt) {
+        DayOfWeek dow = zdt.getDayOfWeek();
+        LocalTime t = zdt.toLocalTime();
+        if (dow == DayOfWeek.SATURDAY) return false;
+        if (!t.isBefore(DAILY_BREAK_START) && t.isBefore(DAILY_BREAK_END)) return false; // 16:00–17:00 CT
+        if (dow == DayOfWeek.SUNDAY) return !t.isBefore(SUNDAY_OPEN); // dim >= 17:00 CT
+        if (dow == DayOfWeek.FRIDAY) return t.isBefore(FRIDAY_CLOSE); // ven < 16:00 CT
+        return true; // lun–jeu hors pause
+    }
+
+    /** Génère les minutes attendues en UTC, en évaluant la tradabilité à Chicago. */
+    private static Set<LocalDateTime> expectedTradableMinutesUtc(LocalDateTime startUtcIncl, LocalDateTime endUtcExcl) {
+        Set<LocalDateTime> expected = new LinkedHashSet<>();
+        ZonedDateTime zCurUtc = startUtcIncl.atZone(ZoneOffset.UTC).withSecond(0).withNano(0);
+        ZonedDateTime zEndUtc = endUtcExcl.atZone(ZoneOffset.UTC).withSecond(0).withNano(0);
+        while (zCurUtc.isBefore(zEndUtc)) {
+            if (isTradableMinuteCME(zCurUtc.withZoneSameInstant(EXCHANGE_ZONE))) {
+                expected.add(zCurUtc.toLocalDateTime());
+            }
+            zCurUtc = zCurUtc.plusMinutes(1);
+        }
+        return expected;
+    }
+
+    /** Petit rapport rapide de couverture M1 brute. */
+    private record RawM1Precheck(
+            int expected, int unique, int duplicates, int missing,
+            List<LocalDateTime> missingExamples
+    ) {}
+    private static RawM1Precheck quickCheckRawM1(List<CandleDTO> candles, LocalDateTime startUtcIncl, LocalDateTime endUtcExcl) {
+
+        // minutes réelles (arrondies à la minute)
+        Map<LocalDateTime, Long> countByMinute = candles.stream()
+                .filter(Objects::nonNull)
+                .map(CandleDTO::getDate)
+                .filter(Objects::nonNull)
+                .map(d -> d.withSecond(0).withNano(0))
+                .collect(Collectors.groupingBy(x -> x, Collectors.counting()));
+
+        Set<LocalDateTime> unique = countByMinute.keySet();
+        List<LocalDateTime> dupes = countByMinute.entrySet().stream()
+                .filter(e -> e.getValue() > 1)
+                .map(Map.Entry::getKey)
+                .sorted()
+                .toList();
+
+        // minutes attendues (CME)
+        Set<LocalDateTime> expected = expectedTradableMinutesUtc(
+                floorToMinute(startUtcIncl),
+                floorToMinute(endUtcExcl)
+        );
+
+        // manquantes
+        List<LocalDateTime> missing = expected.stream()
+                .filter(min -> !unique.contains(min))
+                .sorted()
+                .toList();
+
+        // exemples (début/fin)
+        List<LocalDateTime> examples = new ArrayList<>();
+        if (!missing.isEmpty()) {
+            examples.add(missing.get(0));
+            if (missing.size() > 1) examples.add(missing.get(missing.size()-1));
+        }
+
+        return new RawM1Precheck(expected.size(), unique.size(), dupes.size(), missing.size(), examples);
+    }
+
     @Override
     public List<CandleDTO> loadCsvCME(String symbolName, String timeframe,String data) {
 
@@ -521,9 +614,7 @@ public class CandleServiceJPA implements CandleService {
                 String[] values = line.split(",");
                 if (values.length < 10) continue;
 
-                LocalDateTime dateTime = Instant.ofEpochSecond(Long.parseLong(values[0]) / 1_000_000_000, Long.parseLong(values[0]) % 1_000_000_000)
-                        .atZone(ZoneId.of("UTC"))
-                        .toLocalDateTime();
+                LocalDateTime dateTime = parseCmeTimestampToUtc(values[0]);
 
                 CandleDTO candleDTO = CandleDTO.builder()
                         .date(dateTime)
@@ -534,7 +625,7 @@ public class CandleServiceJPA implements CandleService {
                         .volume(new BigDecimal(values[8]))
                         .timeframe(timeframe)
                         .symbol(SymbolDTO.builder().id(symbol.getId()).name(symbol.getName()).build())
-                        .symbolFuture(values[9])
+                        .symbolFuture(norm(values[9]))
                         .build();
 
                 candles.add(candleDTO);
@@ -552,18 +643,43 @@ public class CandleServiceJPA implements CandleService {
         LocalDateTime startDate = candles.get(0).getDate();
         LocalDateTime endDate = candles.get(candles.size() - 1).getDate();
 
+        LocalDateTime endDateExcl = candles.get(candles.size() - 1).getDate().plusMinutes(1); // EXCLUSIVE
+        // 🔎 Pré-check M1 brut avant rollover
+        RawM1Precheck pre = quickCheckRawM1(candles, startDate, endDateExcl);
+        double coverage = pre.expected() == 0 ? 100.0 : (100.0 * pre.unique() / pre.expected());
+        log.info("🧮 Pré-check M1 brut {} → {} | attendus={} | uniques={} | dupes={} | missing={} | couverture={}%",
+                startDate, endDateExcl, pre.expected(), pre.unique(), pre.duplicates(), pre.missing(),
+                String.format(Locale.US, "%.2f", coverage));
+        if (!pre.missingExamples().isEmpty()) {
+            if (pre.missingExamples().size() == 1) {
+                log.warn("⛳ Exemple minute manquante: {}", pre.missingExamples().get(0));
+            } else {
+                log.warn("⛳ Exemples minutes manquantes: first={} last={}",
+                        pre.missingExamples().get(0), pre.missingExamples().get(1));
+            }
+        }
+
+        // 👉 si tu veux ‘bloquer’ tôt en cas de mauvaise couverture :
+        double minCoverage = 0.85; // à ajuster
+        if (coverage < minCoverage) {
+            log.warn("🚧 Couverture brute ({}) < seuil ({}). On peut décider de stopper ici.",
+                    String.format(Locale.US,"%.2f", coverage), minCoverage * 100.0);
+            // return Collections.emptyList(); // décommente si tu veux empêcher la suite
+        }
         // Generate rollover candles
         List<CandleDTO> rolloverCandles = volumeBasedRolloverService
-                .getDynamicRolloverCandlesBasedOnVolumeOld(startDate, endDate, 2);
+                .getDynamicRolloverCandlesSessionWithMinuteFallbackGlobalIndexed(candles,startDate, endDateExcl, 2);
+
+        List<CandleDTO> patched = volumeBasedRolloverService
+                .backfillOneMinuteGapsWithSynthetic(rolloverCandles, candles, startDate, endDateExcl);
 
         // Remove raw candles and keep only rollover result
-        List<Candle> rawEntities = candleRepository.findBySymbolAndTimeframeAndDateBetween(
-                symbol, timeframe, startDate, endDate);
-        candleRepository.deleteAll(rawEntities);
+        //List<Candle> rawEntities = candleRepository.findBySymbolAndTimeframeAndDateBetween(symbol, timeframe, startDate, endDate);
+        //candleRepository.deleteAll(rawEntities);
 
-        saveCandlesToDatabase(rolloverCandles, symbol, timeframe);
+        saveCandlesToDatabase(patched, symbol, timeframe);
 
-        return rolloverCandles;
+        return patched;
     }
 
     /**
@@ -591,4 +707,9 @@ public class CandleServiceJPA implements CandleService {
 
         return keyLevels;
     }
+
+    private static String norm(String s) {
+        return s == null ? null : s.trim();
+    }
+
 }
