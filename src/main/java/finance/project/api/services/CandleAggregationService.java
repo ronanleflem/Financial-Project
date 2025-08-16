@@ -45,6 +45,29 @@ public class CandleAggregationService {
     private static final LocalTime SUNDAY_OPEN       = LocalTime.of(17, 0); // dim 17:00
     private static final LocalTime FRIDAY_CLOSE      = LocalTime.of(16, 0); // ven 16:00
 
+    /** Début de bucket intraday (>=60min & <1440) ancré sur la session CME (17:00 CT). Retour en UTC. */
+    private LocalDateTime getCmeIntradayBucketStartUtc(LocalDateTime dtUtc, int tfMinutes) {
+        // heure de Chicago au même instant
+        ZonedDateTime chiNow = dtUtc.atZone(ZoneOffset.UTC).withZoneSameInstant(EXCHANGE_ZONE);
+
+        // début de session (17:00 CT) qui précède ou coïncide
+        ZonedDateTime sessionStartChi = ZonedDateTime.of(
+                chiNow.toLocalDate(), LocalTime.of(17, 0), EXCHANGE_ZONE
+        ).withSecond(0).withNano(0);
+        if (chiNow.toLocalTime().isBefore(LocalTime.of(17, 0))) {
+            sessionStartChi = sessionStartChi.minusDays(1);
+        }
+
+        // minutes écoulées depuis le début de session
+        long minutesSinceStart = java.time.Duration.between(sessionStartChi, chiNow).toMinutes();
+
+        // on se “clipse” au multiple de tfMinutes
+        long anchorMinutes = (minutesSinceStart / tfMinutes) * tfMinutes;
+        ZonedDateTime bucketStartChi = sessionStartChi.plusMinutes(anchorMinutes);
+
+        // retour en UTC (LocalDateTime)
+        return bucketStartChi.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+    }
     private boolean isTradableMinuteCME(ZonedDateTime zdt) {
         DayOfWeek dow = zdt.getDayOfWeek();
         LocalTime t = zdt.toLocalTime();
@@ -511,33 +534,13 @@ public class CandleAggregationService {
             int minuteOfPeriod = (dateTime.getMinute() / tfMinutes) * tfMinutes;
             return dateTime.withMinute(minuteOfPeriod).withSecond(0).withNano(0);
 
-        } else if (tfMinutes == 60) {
-            // H1
-            return dateTime.withMinute(0).withSecond(0).withNano(0);
-
-        } else if (tfMinutes == 120) {
-            // 2H
-            int hourOfPeriod = (dateTime.getHour() / 2) * 2;
-            return dateTime.withHour(hourOfPeriod).withMinute(0).withSecond(0).withNano(0);
-
-        } else if (tfMinutes == 240) {
-            // 4H → 00h, 04h, 08h, etc.
-            int hourOfPeriod = (dateTime.getHour() / 4) * 4;
-            return dateTime.withHour(hourOfPeriod).withMinute(0).withSecond(0).withNano(0);
-
-        } else if (tfMinutes == 480) {
-            // 8H → 00h, 08h, 16h
-            int hourOfPeriod = (dateTime.getHour() / 8) * 8;
-            return dateTime.withHour(hourOfPeriod).withMinute(0).withSecond(0).withNano(0);
-
-        } else if (tfMinutes == 720) {
-            // 12H → 00h, 12h
-            int hourOfPeriod = (dateTime.getHour() / 12) * 12;
-            return dateTime.withHour(hourOfPeriod).withMinute(0).withSecond(0).withNano(0);
+        } else if (tfMinutes >= 60 && tfMinutes < 1440) {
+            // Tous les intraday >= 1h sont ancrés sur la session CME (17:00 CT)
+            return getCmeIntradayBucketStartUtc(dateTime, tfMinutes);
 
         } else if (tfMinutes == 1440) {
-            // D1 → début de journée
-            return dateTime.toLocalDate().atStartOfDay();
+            // D1 = début de session (17:00 CT) en UTC
+            return alignToCmeTradingDayStart(dateTime);
 
         } else if (tfMinutes == 10080) { // weekly
             ZonedDateTime chi = dateTime.atZone(ZoneOffset.UTC).withZoneSameInstant(EXCHANGE_ZONE);
