@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.math.MathContext;
 import java.time.*;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -24,7 +25,6 @@ import java.util.stream.Collectors;
 public class VolumeBasedRolloverService {
 
     private final CandleRepository candleRepository;
-    private final CandleMapper candleMapper;
 
     private static final LocalTime SESSION_START_CT = LocalTime.of(17, 0);
 
@@ -33,11 +33,16 @@ public class VolumeBasedRolloverService {
     private static final int OVERLAP_MINUTES = 10;
 
     private static final boolean RELAX_PREV_NEXT = true;
+    private static final BigDecimal MAX_BRIDGE_ABS = new BigDecimal("0.0200");
+
+    private static final double BRIDGE_RANGE_FACTOR = 1.25;       // gap > 1.25 * range secondaire → trop grand
+    private static final BigDecimal RANGE_EPSILON   = new BigDecimal("0.00000001");
 
     static final class CandleIndex {
         final NavigableMap<LocalDateTime, List<CandleDTO>> byDate = new TreeMap<>();
         final Map<String, NavigableMap<LocalDateTime, List<CandleDTO>>> bySymbolThenDate = new HashMap<>();
     }
+
     private static final String SYNTHETIC_SECONDARY = "SYNTHETIC_SECONDARY";
     private static final String SYNTHETIC_EMPTY     = "SYNTHETIC_EMPTY";
 
@@ -48,15 +53,55 @@ public class VolumeBasedRolloverService {
         return chi.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
 
-    private static String fmt(CandleDTO c) {
-        if (c == null) return "null";
-        return String.format("sym=%s O=%.6f H=%.6f L=%.6f C=%.6f V=%s",
-                c.getSymbolFuture(),
-                c.getOpen()  == null ? null : c.getOpen(),
-                c.getHigh()  == null ? null : c.getHigh(),
-                c.getLow()   == null ? null : c.getLow(),
-                c.getClose() == null ? null : c.getClose(),
-                c.getVolume()== null ? null : c.getVolume());
+    private static final double MIN_DOM_PRESENCE_RATIO = 0.40; // ex: ≥40% des minutes de la session
+    private static final int    MIN_DOM_PRESENCE_ABS   = 300;  // ou au moins 300 minutes
+
+    private int sessionPresenceCount(String sym,
+                                     NavigableSet<LocalDateTime> expectedSession,
+                                     Map<String, Map<LocalDateTime, CandleDTO>> bySymbolMinute) {
+        Map<LocalDateTime, CandleDTO> mm = bySymbolMinute.get(sym);
+        if (mm == null) return 0;
+        int cnt = 0;
+        for (LocalDateTime m : expectedSession) if (mm.containsKey(m)) cnt++;
+        return cnt;
+    }
+
+    private String pickSessionDominantWithPresence(LinkedHashSet<String> order,
+                                                   NavigableSet<LocalDateTime> expectedSession,
+                                                   Map<String, Map<LocalDateTime, CandleDTO>> bySymbolMinute) {
+        int sessionLen = expectedSession.size();
+        String proposed = order.iterator().next();
+
+        String best = null; int bestCnt = -1;
+        Map<String,Integer> dbg = new LinkedHashMap<>();
+        for (String s : order) {
+            int cnt = sessionPresenceCount(s, expectedSession, bySymbolMinute);
+            dbg.put(s, cnt);
+            if (cnt > bestCnt) { best = s; bestCnt = cnt; }
+        }
+
+        int thresh = Math.max(MIN_DOM_PRESENCE_ABS, (int)Math.round(MIN_DOM_PRESENCE_RATIO * sessionLen));
+        String chosen = proposed;
+
+        int proposedCnt = dbg.getOrDefault(proposed, 0);
+        if (proposedCnt == 0 && bestCnt > 0) {
+            chosen = best;
+        } else if (proposedCnt < thresh && bestCnt >= thresh) {
+            chosen = best;
+        }
+
+        if (!Objects.equals(chosen, proposed)) {
+            log.warn("🎯 Session dominant override: proposed={}({}) → chosen={}({}) / session={}",
+                    proposed, proposedCnt, chosen, bestCnt, sessionLen);
+        } else {
+            log.info("ℹ️ Session dominant kept: {} (present={}/{})", proposed, proposedCnt, sessionLen);
+        }
+        // petit log des 3 premiers pour l’audit
+        dbg.entrySet().stream().sorted((a,b)->Integer.compare(b.getValue(), a.getValue()))
+                .limit(3)
+                .forEach(e -> log.debug("   presence {} = {}", e.getKey(), e.getValue()));
+
+        return chosen;
     }
 
     private LocalDateTime sessionStartOnOrBefore(LocalDateTime utc) {
@@ -68,6 +113,57 @@ public class VolumeBasedRolloverService {
             candidate = candidate.minusDays(1);
         }
         return toUtc(candidate);
+    }
+
+    private CandleDTO buildSyntheticSecondary(LocalDateTime minute,
+                                              CandleDTO prev, CandleDTO next,
+                                              CandleDTO adjustedSecondary,
+                                              String timeframe,
+                                              SymbolDTO baseSymbol) {
+
+        BigDecimal open  = prev.getClose();
+        BigDecimal close = next.getOpen();
+
+        BigDecimal high  = adjustedSecondary.getHigh();
+        BigDecimal low   = adjustedSecondary.getLow();
+
+        BigDecimal hiBase = open.max(close);
+        BigDecimal loBase = open.min(close);
+        if (high.compareTo(hiBase) < 0) high = hiBase;
+        if (low.compareTo(loBase) > 0)  low  = loBase;
+
+        String src = norm(adjustedSecondary.getSymbolFuture()); // <-- contrat source
+        String tag = (src == null || src.isBlank())
+                ? SYNTHETIC_SECONDARY
+                : SYNTHETIC_SECONDARY + "@" + src;              // <-- PAS de '-'
+
+        return CandleDTO.builder()
+                .date(minute)
+                .open(open)
+                .close(close)
+                .high(high)
+                .low(low)
+                .volume(BigDecimal.ZERO)
+                .timeframe(timeframe)
+                .symbol(baseSymbol)
+                .symbolFuture(tag)
+                .build();
+    }
+
+    private boolean bridgeTooBig(BigDecimal prevClose, BigDecimal nextOpen,
+                                 BigDecimal secHigh, BigDecimal secLow) {
+        if (prevClose == null || nextOpen == null || secHigh == null || secLow == null) {
+            return false; // pas assez d’info → ne pas bloquer
+        }
+        BigDecimal gap = nextOpen.subtract(prevClose).abs();
+        BigDecimal range = secHigh.subtract(secLow).abs();
+
+        if (range.compareTo(RANGE_EPSILON) < 0) {
+            // secondary quasi plate → si gap non nul, considère trop grand
+            return gap.compareTo(RANGE_EPSILON) > 0;
+        }
+        BigDecimal limit = range.multiply(BigDecimal.valueOf(BRIDGE_RANGE_FACTOR));
+        return gap.compareTo(limit) > 0;
     }
 
     private Map<String, Map<LocalDateTime, CandleDTO>> mapBySymbolMinute(List<CandleDTO> pool) {
@@ -202,46 +298,434 @@ public class VolumeBasedRolloverService {
         return best;
     }
 
-    private CandleDTO buildSyntheticSecondary(LocalDateTime minute,
-                                              CandleDTO prev, CandleDTO next,
-                                              CandleDTO adjustedSecondary,
-                                              String timeframe,
-                                              SymbolDTO baseSymbol) {
+    private static final int MAX_BACKFILL_PASSES = 3;
+    // Option: garde-fou sur la taille du pont (ex: 15 pips EURUSD)
+    private static final BigDecimal MAX_BRIDGE = new BigDecimal("0.0015");
 
-        BigDecimal open  = prev.getClose();
-        BigDecimal close = next.getOpen();
-
-        BigDecimal high  = adjustedSecondary.getHigh();
-        BigDecimal low   = adjustedSecondary.getLow();
-
-        // Cohérence minimale avec O/C
-        BigDecimal hiBase = open.max(close);
-        BigDecimal loBase = open.min(close);
-        if (high.compareTo(hiBase) < 0) high = hiBase;
-        if (low.compareTo(loBase) > 0)  low  = loBase;
-
-        return CandleDTO.builder()
-                .date(minute)
-                .open(open)
-                .close(close)
-                .high(high)
-                .low(low)
-                .volume(BigDecimal.ZERO)
-                .timeframe(timeframe)
-                .symbol(baseSymbol)
-                .symbolFuture(SYNTHETIC_SECONDARY)
+    private CandleDTO addSpread(CandleDTO base, CandleDTO s) {
+        return base.toBuilder()
+                .open(base.getOpen().add(s.getOpen()))
+                .high(base.getHigh().add(s.getHigh()))
+                .low (base.getLow ().add(s.getLow ()))
+                .close(base.getClose().add(s.getClose()))
                 .build();
     }
 
+    private CandleDTO negateSpread(CandleDTO s) {
+        return s.toBuilder()
+                .open (s.getOpen ().negate())
+                .high (s.getHigh ().negate())
+                .low  (s.getLow  ().negate())
+                .close(s.getClose().negate())
+                .build();
+    }
+
+    public List<CandleDTO> backfillOneMinuteGapsWithSynthetic(
+            List<CandleDTO> rolled,
+            List<CandleDTO> pool,
+            LocalDateTime startInclusive,
+            LocalDateTime endExclusive) {
+
+        if (rolled == null || rolled.isEmpty()) return rolled;
+
+        // index série sortie
+        Map<LocalDateTime, CandleDTO> byMinute = new HashMap<>();
+        for (CandleDTO c : rolled) {
+            if (c == null || c.getDate() == null) continue;
+            byMinute.put(floorToMinute(c.getDate()), c);
+        }
+
+        // pool: meilleurs outrights à la minute (volume max)
+        Map<String, Map<LocalDateTime, CandleDTO>> bySymMin = mapBySymbolMinute(pool);  // tu l'as déjà
+        Map<LocalDateTime, CandleDTO> secondaryAtMinute = new HashMap<>();
+        // construit le "meilleur" sur tous outrights
+        for (LocalDateTime m : expectedTradableMinutes(floorToMinute(startInclusive), floorToMinute(endExclusive))) {
+            CandleDTO pick = pickBestOutrightAtMinute(bySymMin, m);
+            if (pick != null) secondaryAtMinute.put(m, pick);
+        }
+
+        Set<LocalDateTime> expected = expectedTradableMinutes(
+                floorToMinute(startInclusive), floorToMinute(endExclusive));
+
+        String timeframe = Optional.ofNullable(rolled.get(0).getTimeframe()).orElse("1min");
+        SymbolDTO baseSymbol = rolled.get(0).getSymbol();
+
+        List<CandleDTO> patched = new ArrayList<>(rolled);
+        int addedSecondary = 0, addedEmpty = 0;
+
+        for (LocalDateTime m : expected) {
+            if (byMinute.containsKey(m)) continue; // pas de trou
+
+            // voisins
+            LocalDateTime prevMin = m.minusMinutes(1);
+            LocalDateTime nextMin = m.plusMinutes(1);
+            CandleDTO prev = byMinute.get(prevMin);
+            CandleDTO next = byMinute.get(nextMin);
+            boolean havePrev = (prev != null);
+            boolean haveNext = (next != null);
+
+            if ((!havePrev || !haveNext) && RELAX_PREV_NEXT) {
+                for (int k = 2; k <= 5 && (!havePrev || !haveNext); k++) {
+                    if (!havePrev) { prev = byMinute.get(m.minusMinutes(k)); havePrev = (prev != null); }
+                    if (!haveNext) { next = byMinute.get(m.plusMinutes(k)); haveNext = (next != null); }
+                }
+            }
+
+            CandleDTO sec = secondaryAtMinute.get(m);
+
+            // DEBUG
+            if (log.isDebugEnabled()) {
+                log.debug("🔎 MISSING {} | prev={} next={} | sec={}",
+                        m, havePrev ? prev.getSymbolFuture() : "∅",
+                        haveNext ? next.getSymbolFuture() : "∅",
+                        (sec != null ? sec.getSymbolFuture() : "∅"));
+            }
+
+            CandleDTO synth;
+
+            if (sec != null) {
+                // Ajust local vers le "front" (prend le voisin dispo en priorité)
+                String frontSym = canon(havePrev ? prev.getSymbolFuture() : haveNext ? next.getSymbolFuture() : sec.getSymbolFuture());
+                String secSym   = canon(sec.getSymbolFuture());
+
+                AdjustCoeffs adj = (frontSym != null && frontSym.equals(secSym))
+                        ? new AdjustCoeffs(0.0, 1.0, DEFAULT_ADJUST)
+                        : computeLocalAdjust(frontSym, secSym, m, mapBySymbolMinute(pool), OVERLAP_MINUTES, DEFAULT_ADJUST);
+
+                CandleDTO secAdj = applyAdjust(sec, adj);
+
+                if (havePrev && haveNext) {
+                    CandleDTO built = buildSyntheticSecondary(m, prev, next, secAdj, timeframe, baseSymbol)
+                            .toBuilder()
+                            .symbolFuture(SYNTHETIC_SECONDARY + ":" + secSym)
+                            .build();
+                    synth = built;
+                    addedSecondary++;
+                } else if (havePrev) {
+                    CandleDTO built = buildSyntheticSecondaryOneSided(m, prev, true, secAdj, timeframe, baseSymbol)
+                            .toBuilder()
+                            .symbolFuture(SYNTHETIC_SECONDARY + ":" + secSym)
+                            .build();
+                    synth = built;
+                    addedSecondary++;
+                } else if (haveNext) {
+                    CandleDTO built = buildSyntheticSecondaryOneSided(m, next, false, secAdj, timeframe, baseSymbol)
+                            .toBuilder()
+                            .symbolFuture(SYNTHETIC_SECONDARY + ":" + secSym)
+                            .build();
+                    synth = built;
+                    addedSecondary++;
+                } else {
+                    // aucun voisin → EMPTY plano
+                    synth = buildSyntheticEmpty(m, null, null, timeframe, baseSymbol);
+                    addedEmpty++;
+                }
+            } else {
+                // pas d'info secondaire → EMPTY avec voisins si dispo
+                if (havePrev || haveNext) {
+                    CandleDTO side = havePrev ? prev : next;
+                    BigDecimal oc = havePrev ? side.getClose() : side.getOpen();
+                    synth = CandleDTO.builder()
+                            .date(m).open(oc).close(oc).high(oc).low(oc)
+                            .volume(BigDecimal.ZERO)
+                            .timeframe(timeframe)
+                            .symbol(baseSymbol)
+                            .symbolFuture(SYNTHETIC_EMPTY)
+                            .build();
+                } else {
+                    synth = buildSyntheticEmpty(m, null, null, timeframe, baseSymbol);
+                }
+                addedEmpty++;
+            }
+
+            patched.add(synth);
+            byMinute.put(m, synth);
+        }
+
+        patched.sort(Comparator.comparing(CandleDTO::getDate));
+        log.info("🩹 Backfill M1: {} SYNTHETIC_SECONDARY, {} SYNTHETIC_EMPTY ajoutées", addedSecondary, addedEmpty);
+        return patched;
+    }
+
+    public List<CandleDTO> getDynamicRolloverCandlesSessionWithMinuteFallbackGlobalIndexed(
+            List<CandleDTO> inputCandles,
+            LocalDateTime startDateTime,
+            LocalDateTime endDateTime,
+            int analysisPeriodDays
+    ) {
+        if (inputCandles == null || inputCandles.isEmpty()) {
+            log.warn("⚠️ Liste source vide → rien à faire.");
+            return Collections.emptyList();
+        }
+
+        // 1) Nettoyage minimal
+        List<CandleDTO> src = inputCandles.stream()
+                .filter(Objects::nonNull)
+                .filter(c -> c.getDate() != null)
+                .filter(c -> c.getSymbolFuture() != null && !c.getSymbolFuture().isBlank())
+                .collect(Collectors.toCollection(ArrayList::new));
+        if (src.isEmpty()) {
+            log.warn("⚠️ Après filtrage, plus aucune bougie exploitable.");
+            return Collections.emptyList();
+        }
+
+        // 2) Index temporel (fenêtres) + volumes globaux
+        CandleIndex idx = buildIndex(src);
+
+        Map<String, Map<LocalDateTime, CandleDTO>> bySymbolMinute = new HashMap<>();
+        Map<String, Double> globalVol = new HashMap<>();
+        for (CandleDTO c : src) {
+            String sym = c.getSymbolFuture();
+            LocalDateTime m = floorToMinute(c.getDate());
+            bySymbolMinute.computeIfAbsent(sym, k -> new HashMap<>()).put(m, c);
+            double v = (c.getVolume() != null) ? c.getVolume().doubleValue() : 0.0;
+            // on cumule le volume seulement pour les outrights
+            if (!sym.contains("-")) globalVol.merge(canon(sym), v, Double::sum);
+        }
+
+        // 3) Index spreads: "A-B" → minute → spread candle
+        Map<String, Map<LocalDateTime, CandleDTO>> bySpreadMinute = new HashMap<>();
+        for (CandleDTO c : src) {
+            String s = canon(c.getSymbolFuture());
+            if (s == null || !s.contains("-")) continue; // garder UNIQUEMENT les spreads ici
+            LocalDateTime m = floorToMinute(c.getDate());
+            bySpreadMinute.computeIfAbsent(s, k -> new HashMap<>()).put(m, c);
+        }
+
+        // 4) Ranking GLOBAL par volume
+        List<String> globalRanking = globalVol.entrySet().stream()
+                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                .map(Map.Entry::getKey)
+                .toList();
+
+        // 5) Minutes attendues globales
+        NavigableSet<LocalDateTime> expectedAll = new TreeSet<>(
+                expectedTradableMinutes(
+                        startDateTime.withSecond(0).withNano(0),
+                        endDateTime.withSecond(0).withNano(0)
+                )
+        );
+
+        // helper: ranking session [a,b)
+        java.util.function.BiFunction<LocalDateTime, LocalDateTime, List<String>> rankSymbolsByVolume =
+                (a, b) -> {
+                    List<CandleDTO> window = getWindow(idx, a, b);
+                    if (window.isEmpty()) return List.of();
+                    return window.stream()
+                            .filter(c -> !c.getSymbolFuture().contains("-"))
+                            .collect(Collectors.groupingBy(
+                                    c -> canon(c.getSymbolFuture()),
+                                    Collectors.summingDouble(c -> c.getVolume() != null ? c.getVolume().doubleValue() : 0.0)
+                            ))
+                            .entrySet().stream()
+                            .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                            .map(Map.Entry::getKey)
+                            .toList();
+                };
+
+        List<CandleDTO> out = new ArrayList<>();
+        LocalDateTime sessionStart = sessionStartOnOrBefore(startDateTime);
+
+        // état pour bridging “runs”
+        BigDecimal lastCloseOut = null;
+        String    activeRunSym  = null;
+        BigDecimal runOffset    = BigDecimal.ZERO;
+
+        while (sessionStart.isBefore(endDateTime)) {
+            LocalDateTime sessionNext = nextSessionStart(sessionStart);
+
+            LocalDateTime windowStart = sessionStart.isBefore(startDateTime) ? startDateTime : sessionStart;
+            LocalDateTime windowEnd   = sessionNext.isAfter(endDateTime)     ? endDateTime   : sessionNext;
+            if (!windowStart.isBefore(windowEnd)) break;
+
+            if (!isTradableSessionStart(sessionStart)) {
+                sessionStart = sessionNext;
+                continue;
+            }
+
+            LocalDateTime analysisEnd   = sessionStart;
+            LocalDateTime analysisStart = toUtc(toChi(sessionStart).minusDays(analysisPeriodDays));
+            List<String> sessionRanking = rankSymbolsByVolume.apply(analysisStart, analysisEnd);
+
+            List<String> orderList = new ArrayList<>();
+            if (!sessionRanking.isEmpty()) orderList.addAll(sessionRanking);
+            if (orderList.isEmpty()) orderList.addAll(globalRanking);
+            if (orderList.isEmpty()) {
+                sessionStart = sessionNext;
+                continue;
+            }
+
+            String dominant = orderList.get(0); // canon déjà
+            LinkedHashSet<String> order = new LinkedHashSet<>(orderList);
+
+            NavigableSet<LocalDateTime> expectedSession = expectedAll.subSet(
+                    windowStart.withSecond(0).withNano(0), true,
+                    windowEnd.withSecond(0).withNano(0), false
+            );
+
+            String sessionDominant = pickSessionDominantWithPresence(order, expectedSession, bySymbolMinute);
+            if (!sessionDominant.equals(dominant)) {
+                // place le dominant retenu en tête de l’ordre
+                LinkedHashSet<String> newOrder = new LinkedHashSet<>();
+                newOrder.add(sessionDominant);
+                for (String s : order) if (!s.equals(sessionDominant)) newOrder.add(s);
+                order = newOrder;
+                dominant = sessionDominant;
+            }
+
+            int usedDom = 0, usedFb = 0, skipped = 0;
+
+            for (LocalDateTime m : expectedSession) {
+                CandleDTO chosen = null;
+
+                Map<LocalDateTime, CandleDTO> mdom = bySymbolMinute.get(dominant);
+                if (mdom != null) chosen = mdom.get(m);
+
+                if (chosen == null) {
+                    // autres symbols en fallback
+                    for (String sym : order) {
+                        if (sym.equals(dominant)) continue;
+                        Map<LocalDateTime, CandleDTO> mm = bySymbolMinute.get(sym);
+                        if (mm == null) continue;
+                        CandleDTO alt = mm.get(m);
+                        if (alt != null) { chosen = alt; usedFb++; break; }
+                    }
+                } else {
+                    usedDom++;
+                }
+
+                if (chosen == null) { skipped++; continue; }
+
+                String chosenSym = canon(chosen.getSymbolFuture());
+                CandleDTO outCandle;
+
+                if (chosenSym.equals(dominant)) {
+                    // dominant : pas d’offset
+                    outCandle = chosen;
+                    activeRunSym = chosenSym;
+                    runOffset = BigDecimal.ZERO;
+                } else {
+                    // 1) spread exact si dispo
+                    CandleDTO adjusted = null;
+                    CandleDTO sprAB = bySpreadMinute.getOrDefault(spreadKey(dominant, chosenSym), Map.of()).get(m);
+                    if (sprAB != null) {
+                        adjusted = translateWithSpread(chosen, sprAB, "1min", chosen.getSymbol());
+                    } else {
+                        CandleDTO sprBA = bySpreadMinute.getOrDefault(spreadKey(chosenSym, dominant), Map.of()).get(m);
+                        if (sprBA != null) {
+                            CandleDTO sprNeg = sprBA.toBuilder()
+                                    .open(sprBA.getOpen().negate())
+                                    .high(sprBA.getHigh().negate())
+                                    .low (sprBA.getLow().negate())
+                                    .close(sprBA.getClose().negate())
+                                    .build();
+                            adjusted = translateWithSpread(chosen, sprNeg, "1min", chosen.getSymbol());
+                        }
+                    }
+
+                    // 2) sinon bridging de continuité
+                    if (adjusted == null && lastCloseOut != null && chosen.getClose() != null) {
+                        BigDecimal needed = lastCloseOut.subtract(chosen.getClose());
+                        if (!bridgeTooBig(needed)) {
+                            adjusted = shiftOHLC(chosen, needed);
+                            if (!chosenSym.equals(activeRunSym)) runOffset = needed;
+                        }
+                    }
+
+                    // 3) sinon runOffset courant (si on reste sur le même run)
+                    if (adjusted == null && !runOffset.equals(BigDecimal.ZERO) && chosenSym.equals(activeRunSym)) {
+                        adjusted = shiftOHLC(chosen, runOffset);
+                    }
+
+                    // 4) dernier recours: ajust local médian
+                    if (adjusted == null) {
+                        AdjustCoeffs adj = computeLocalAdjust(
+                                dominant, chosenSym, m, bySymbolMinute, OVERLAP_MINUTES, DEFAULT_ADJUST
+                        );
+                        adjusted = applyAdjust(chosen, adj);
+                    }
+
+                    outCandle = adjusted.toBuilder()
+                            .symbolFuture(SYNTHETIC_SECONDARY + ":" + chosenSym)
+                            .volume(BigDecimal.ZERO)
+                            .build();
+
+                    activeRunSym = chosenSym;
+                }
+
+                out.add(outCandle);
+                lastCloseOut = outCandle.getClose();
+            }
+            if (usedFb > usedDom) {
+                log.warn("⚠️ fallback > dominant in session {} → {} (dom={} fb={}) | dominant={}",
+                        sessionStart, sessionNext, usedDom, usedFb, dominant);
+            }
+            log.info("📦 Session {} → {} | dominant={} | minutes: dominant={}, fallback={}, skippedForSynth={}",
+                    sessionStart, sessionNext, dominant, usedDom, usedFb, skipped);
+
+            sessionStart = sessionNext;
+        }
+
+        // tri + log coverage rapide
+        out.sort(Comparator.comparing(CandleDTO::getDate, Comparator.nullsLast(Comparator.naturalOrder())));
+        if (!out.isEmpty()) {
+            LocalDateTime s = out.get(0).getDate();
+            LocalDateTime e = out.get(out.size()-1).getDate().plusMinutes(1);
+            Set<LocalDateTime> expected = expectedTradableMinutes(floorToMinute(s), floorToMinute(e));
+            int uniq = (int) out.stream().map(c -> c.getDate().withSecond(0).withNano(0)).distinct().count();
+            double cov = expected.isEmpty() ? 100.0 : 100.0 * uniq / expected.size();
+            log.info("✅ Coverage après session+fallback (avant synthèse) {} → {} : uniques={} / attendus={} ({}%)",
+                    s, e, uniq, expected.size(), String.format(Locale.US, "%.2f", cov));
+        }
+
+        return out;
+    }
+
+    private static String canon(String s) {
+        return s == null ? null : s.replace(" ", "").toUpperCase(Locale.ROOT);
+    }
+    private static String spreadKey(String a, String b) { // "A-B"
+        return canon(a) + "-" + canon(b);
+    }
+
+    // --- logs rapides ---
+    private static String fmt(CandleDTO c) {
+        if (c == null) return "null";
+        return String.format(Locale.US,
+                "%s O=%s H=%s L=%s C=%s V=%s @%s",
+                c.getSymbolFuture(),
+                String.valueOf(c.getOpen()),
+                String.valueOf(c.getHigh()),
+                String.valueOf(c.getLow()),
+                String.valueOf(c.getClose()),
+                String.valueOf(c.getVolume()),
+                String.valueOf(c.getDate()));
+    }
+
+    // --- décalage additif sur OHLC (bridging/offset) ---
+    private static CandleDTO shiftOHLC(CandleDTO c, BigDecimal off) {
+        if (c == null || off == null || BigDecimal.ZERO.compareTo(off) == 0) return c;
+        return c.toBuilder()
+                .open (c.getOpen().add(off))
+                .high (c.getHigh().add(off))
+                .low  (c.getLow().add(off))
+                .close(c.getClose().add(off))
+                .build();
+    }
+    private static boolean bridgeTooBig(BigDecimal off) {
+        return off == null || off.abs().compareTo(MAX_BRIDGE_ABS) > 0;
+    }
+
+    // --- synthétiques simples ---
     private CandleDTO buildSyntheticEmpty(LocalDateTime minute,
                                           CandleDTO prev, CandleDTO next,
                                           String timeframe,
                                           SymbolDTO baseSymbol) {
-        BigDecimal prevClose = prev.getClose();
-        BigDecimal nextOpen  = next.getOpen();
+        BigDecimal ocPrev = (prev != null && prev.getClose()!=null) ? prev.getClose() : BigDecimal.ZERO;
+        BigDecimal ocNext = (next != null && next.getOpen() !=null) ? next.getOpen()  : ocPrev;
 
-        BigDecimal open  = prevClose;
-        BigDecimal close = nextOpen;
+        BigDecimal open  = ocPrev;
+        BigDecimal close = ocNext;
         BigDecimal high  = open.max(close);
         BigDecimal low   = open.min(close);
 
@@ -258,229 +742,137 @@ public class VolumeBasedRolloverService {
                 .build();
     }
 
+    private CandleDTO buildSyntheticSecondaryOneSided(
+            LocalDateTime minute,
+            CandleDTO side,                // prev OU next (un seul)
+            boolean isPrev,                // true si side = prev
+            CandleDTO adjustedSecondary,   // sert pour les mèches
+            String timeframe,
+            SymbolDTO baseSymbol
+    ) {
+        BigDecimal oc = isPrev ? side.getClose() : side.getOpen(); // O=C
+        BigDecimal open  = oc;
+        BigDecimal close = oc;
 
-    public List<CandleDTO> backfillOneMinuteGapsWithSynthetic(
-            List<CandleDTO> rolled,
-            List<CandleDTO> pool,
-            LocalDateTime startInclusive,
-            LocalDateTime endExclusive) {
+        BigDecimal high = adjustedSecondary.getHigh();
+        BigDecimal low  = adjustedSecondary.getLow();
 
-        if (rolled == null || rolled.isEmpty()) return rolled;
+        // cohérence
+        BigDecimal hiBase = open.max(close);
+        BigDecimal loBase = open.min(close);
+        if (high.compareTo(hiBase) < 0) high = hiBase;
+        if (low.compareTo(loBase)  > 0) low  = loBase;
 
-        Map<LocalDateTime, CandleDTO> byMinute = new HashMap<>();
-        for (CandleDTO c : rolled) {
+        return CandleDTO.builder()
+                .date(minute)
+                .open(open).close(close).high(high).low(low)
+                .volume(BigDecimal.ZERO)
+                .timeframe(timeframe)
+                .symbol(baseSymbol)
+                .symbolFuture(SYNTHETIC_SECONDARY) // le call-site suffixe : ":<sym>"
+                .build();
+    }
+
+    // --- application d’un spread A-B sur un outrigth B pour l’exprimer en A ---
+    private CandleDTO translateWithSpread(CandleDTO secB, CandleDTO sprAminusB, String timeframe, SymbolDTO baseSymbol) {
+        BigDecimal o = secB.getOpen().add(sprAminusB.getOpen());
+        BigDecimal h = secB.getHigh().add(sprAminusB.getHigh());
+        BigDecimal l = secB.getLow().add(sprAminusB.getLow());
+        BigDecimal c = secB.getClose().add(sprAminusB.getClose());
+        return secB.toBuilder()
+                .open(o).high(h).low(l).close(c)
+                .symbolFuture(SYNTHETIC_SECONDARY) // le call-site suffixe : ":<sym>"
+                .timeframe(timeframe)
+                .symbol(baseSymbol)
+                .volume(BigDecimal.ZERO)
+                .build();
+    }
+
+    // --- meilleur outright à une minute (par volume) ---
+    private CandleDTO pickBestOutrightAtMinute(Map<String, Map<LocalDateTime, CandleDTO>> bySymMin,
+                                               LocalDateTime m) {
+        CandleDTO best = null;
+        BigDecimal bestVol = BigDecimal.valueOf(-1);
+        for (Map.Entry<String, Map<LocalDateTime, CandleDTO>> e : bySymMin.entrySet()) {
+            String sym = e.getKey();
+            if (sym == null || sym.contains("-")) continue;
+            CandleDTO c = e.getValue().get(m);
+            if (c == null) continue;
+            BigDecimal v = c.getVolume() == null ? BigDecimal.ZERO : c.getVolume();
+            if (best == null || v.compareTo(bestVol) > 0) {
+                best = c; bestVol = v;
+            }
+        }
+        return best;
+    }
+
+    // --- debug : quels symbols bruts existent à une minute ---
+    private Map<LocalDateTime, List<String>> buildPoolPresenceIndex(List<CandleDTO> pool) {
+        Map<LocalDateTime, Set<String>> tmp = new HashMap<>();
+        for (CandleDTO c : pool) {
             if (c == null || c.getDate() == null) continue;
-            byMinute.put(floorToMinute(c.getDate()), c);
+            String s = canon(c.getSymbolFuture());
+            if (s == null || s.isBlank() || s.contains("-")) continue;
+            LocalDateTime m = floorToMinute(c.getDate());
+            tmp.computeIfAbsent(m, k -> new LinkedHashSet<>()).add(s);
         }
-
-        Map<LocalDateTime, CandleDTO> secondaryAtMinute = buildBestSecondaryByMinute(pool);
-        log.info("🔧 Backfill pool size={} | secondaryAtMinute keys={}", pool.size(), secondaryAtMinute.size());
-
-        // NEW: index par symbole/minute sur tout le pool (ou au moins front + secondaire autour de m)
-        Map<String, Map<LocalDateTime, CandleDTO>> bySymMin = mapBySymbolMinute(pool);
-
-        Set<LocalDateTime> expected = expectedTradableMinutes(
-                floorToMinute(startInclusive), floorToMinute(endExclusive));
-
-        String timeframe = Optional.ofNullable(rolled.get(0).getTimeframe()).orElse("1min");
-        SymbolDTO baseSymbol = rolled.get(0).getSymbol();
-
-        List<CandleDTO> patched = new ArrayList<>(rolled);
-        int addedSecondary = 0, addedEmpty = 0;
-        int poolHasButMapMiss = 0;
-        for (LocalDateTime m : expected) {
-            if (byMinute.containsKey(m)) continue;
-
-            LocalDateTime prevMin = m.minusMinutes(1);
-            LocalDateTime nextMin = m.plusMinutes(1);
-            CandleDTO prev = byMinute.get(prevMin);
-            CandleDTO next = byMinute.get(nextMin);
-            boolean havePrev = (prev != null);
-            boolean haveNext = (next != null);
-
-            if (!havePrev || !haveNext) {
-                if (RELAX_PREV_NEXT) {
-                    for (int k = 2; k <= 5 && (!havePrev || !haveNext); k++) {
-                        if (!havePrev) { prev = byMinute.get(m.minusMinutes(k)); havePrev = (prev != null); }
-                        if (!haveNext) { next = byMinute.get(m.plusMinutes(k)); haveNext = (next != null); }
-                    }
-                }
-            }
-
-            // Candidate secondaire à la minute m (meilleur volume)
-            CandleDTO sec = secondaryAtMinute.get(m);
-            if (sec == null) {
-                sec = pickBestOutrightAtMinute(bySymMin, m);
-            }
-
-            // DEBUG: état initial à la minute
-            if (log.isDebugEnabled()) {
-                log.debug("🔎 MISSING {} | prev:{} | next:{} | secCandidate:{}",
-                        m, havePrev ? prev.getSymbolFuture() : "∅",
-                        haveNext ? next.getSymbolFuture() : "∅",
-                        (sec != null ? sec.getSymbolFuture() : "∅"));
-            }
-
-            // Si aucune secondary candidate trouvée mais on avait des bougies brutes → expliquer
-            if (sec == null) {
-                Map<LocalDateTime, List<String>> dbgPresence = buildPoolPresenceIndex(pool);
-                List<String> dbgSyms = dbgPresence.getOrDefault(m, List.of());
-                if (!dbgSyms.isEmpty()) {
-                    poolHasButMapMiss++; // FIX: on incrémente réellement ce compteur
-                    // On avait du brut, mais tous exclus (spreads? filtrage?) → log détaillé
-                    log.info("🔎 {}: brut présent mais aucune SECONDARY exploitable | rawSymbols={} (spreads exclus, horodatage exact requis)",
-                            m, dbgSyms);
-                }
-            }
-
-            CandleDTO synth;
-            if (sec != null) {
-                // Déterminer le "front" pour l'ajustement
-                String frontSym = norm(havePrev ? prev.getSymbolFuture() : haveNext ? next.getSymbolFuture() : sec.getSymbolFuture());
-                String secSym   = norm(sec.getSymbolFuture());
-
-                // Coeffs d'ajustement locaux
-                AdjustCoeffs adj = (frontSym != null && frontSym.equals(secSym))
-                        ? new AdjustCoeffs(0.0, 1.0, DEFAULT_ADJUST)
-                        : computeLocalAdjust(frontSym, secSym, m, bySymMin, OVERLAP_MINUTES, DEFAULT_ADJUST);
-
-                CandleDTO secAdj = applyAdjust(sec, adj);
-
-                // Log opportunité SECONDARY (avant fabrication)
-                log.info("🧪 SECONDARY_OPPORTUNITY {} | front={} havePrev={} haveNext={} | sec={} | adjType={} A={} R={}",
-                        m, frontSym, havePrev, haveNext, secSym, adj.type, adj.A, adj.R);
-
-                // Garde-fou: si OHLC null → impossible de bâtir une vraie SECONDARY
-                if (secAdj.getOpen()==null || secAdj.getHigh()==null || secAdj.getLow()==null || secAdj.getClose()==null) {
-                    log.warn("🚫 SECONDARY_ABORT {} | Raison=OHLC incomplet après ajustement | secAdj={}", m, fmt(secAdj));
-                    synth = (havePrev && haveNext)
-                            ? buildSyntheticEmpty(m, prev, next, timeframe, baseSymbol)
-                            : CandleDTO.builder()
-                            .date(m)
-                            .open((havePrev?prev.getClose():haveNext?next.getOpen():BigDecimal.ZERO))
-                            .close((havePrev?prev.getClose():haveNext?next.getOpen():BigDecimal.ZERO))
-                            .high((havePrev?prev.getClose():haveNext?next.getOpen():BigDecimal.ZERO))
-                            .low((havePrev?prev.getClose():haveNext?next.getOpen():BigDecimal.ZERO))
-                            .volume(BigDecimal.ZERO)
-                            .timeframe(timeframe)
-                            .symbol(baseSymbol)
-                            .symbolFuture(SYNTHETIC_EMPTY)
-                            .build();
-                    addedEmpty++;
-                } else {
-                    if (havePrev && haveNext) {
-                        synth = buildSyntheticSecondary(m, prev, next, secAdj, timeframe, baseSymbol);
-                        log.info("✅ SECONDARY_USED {} | mode=BOTH_SIDES | sec={} | prev={} | next={}",
-                                m, secSym, prev.getSymbolFuture(), next.getSymbolFuture());
-                    } else if (havePrev) {
-                        synth = buildSyntheticSecondaryOneSided(m, prev, true, secAdj, timeframe, baseSymbol);
-                        log.info("✅ SECONDARY_USED {} | mode=ONE_SIDED(prev) | sec={} | prev={}",
-                                m, secSym, prev.getSymbolFuture());
-                    } else if (haveNext) {
-                        synth = buildSyntheticSecondaryOneSided(m, next, false, secAdj, timeframe, baseSymbol);
-                        log.info("✅ SECONDARY_USED {} | mode=ONE_SIDED(next) | sec={} | next={}",
-                                m, secSym, next.getSymbolFuture());
-                    } else {
-                        // Dernier recours : O=C sur secAdj.close/open
-                        BigDecimal oc = secAdj.getClose() != null ? secAdj.getClose() : secAdj.getOpen();
-                        if (oc == null) {
-                            log.warn("🚫 SECONDARY_ABORT {} | Raison=pas de voisin et pas de prix secAdj | secAdj={}", m, fmt(secAdj));
-                            synth = buildSyntheticEmpty(m,
-                                    CandleDTO.builder().close(BigDecimal.ZERO).build(),
-                                    CandleDTO.builder().open(BigDecimal.ZERO).build(),
-                                    timeframe, baseSymbol);
-                            addedEmpty++;
-                        } else {
-                            BigDecimal high = secAdj.getHigh() != null ? secAdj.getHigh() : oc;
-                            BigDecimal low  = secAdj.getLow()  != null ? secAdj.getLow()  : oc;
-                            synth = CandleDTO.builder()
-                                    .date(m).open(oc).close(oc)
-                                    .high(high.max(oc)).low(low.min(oc))
-                                    .volume(BigDecimal.ZERO)
-                                    .timeframe(timeframe)
-                                    .symbol(baseSymbol)
-                                    .symbolFuture(SYNTHETIC_SECONDARY)
-                                    .build();
-                            log.info("✅ SECONDARY_USED {} | mode=PURE_SEC (O=C) | sec={}", m, secSym);
-                        }
-                        if (synth.getSymbolFuture().equals(SYNTHETIC_SECONDARY)) addedSecondary++; else addedEmpty++;
-                    }
-
-                    if (synth.getSymbolFuture().equals(SYNTHETIC_SECONDARY)) addedSecondary++;
-                }
-            } else {
-                // Aucune secondary → EMPTY
-                if (havePrev || haveNext) {
-                    CandleDTO side = havePrev ? prev : next;
-                    BigDecimal oc = havePrev ? side.getClose() : side.getOpen();
-                    synth = CandleDTO.builder()
-                            .date(m).open(oc).close(oc)
-                            .high(oc).low(oc)
-                            .volume(BigDecimal.ZERO)
-                            .timeframe(timeframe)
-                            .symbol(baseSymbol)
-                            .symbolFuture(SYNTHETIC_EMPTY)
-                            .build();
-                    log.info("ℹ️ EMPTY_USED {} | raison=NO_SECONDARY_AVAILABLE | sideOnly={} | sideSym={}",
-                            m, havePrev ? "prev" : "next", side.getSymbolFuture());
-                } else {
-                    synth = buildSyntheticEmpty(m,
-                            CandleDTO.builder().close(BigDecimal.ZERO).build(),
-                            CandleDTO.builder().open(BigDecimal.ZERO).build(),
-                            timeframe, baseSymbol);
-                    log.info("ℹ️ EMPTY_USED {} | raison=NO_NEIGHBORS_NO_SECONDARY", m);
-                }
-                addedEmpty++;
-            }
-
-            patched.add(synth);
-            byMinute.put(m, synth);
-        }
-        log.info("📈 Minutes où pool avait des bougies mais sec=null: {}", poolHasButMapMiss);
-        patched.sort(Comparator.comparing(CandleDTO::getDate));
-        log.info("🩹 Backfill M1: {} SYNTHETIC_SECONDARY, {} SYNTHETIC_EMPTY ajoutées", addedSecondary, addedEmpty);
-        return patched;
+        Map<LocalDateTime, List<String>> out = new HashMap<>();
+        tmp.forEach((k,v)-> out.put(k, new ArrayList<>(v)));
+        return out;
     }
 
-    public record TimeRange(LocalDateTime startInclusive, LocalDateTime endExclusive) {}
+    private CandleDTO buildSyntheticSecondaryWithSourceName(
+            LocalDateTime minute,
+            CandleDTO prev, CandleDTO next,
+            CandleDTO adjustedSecondary,
+            String timeframe,
+            SymbolDTO baseSymbol,
+            String sourceSym) {
 
-    public static class ContractMissing {
-        public final String symbol;
-        public final List<TimeRange> missingRanges;
-        public final int expectedMinutes;
-        public final int presentMinutes;
-        public final double coveragePct;
+        BigDecimal open  = prev.getClose();
+        BigDecimal close = next.getOpen();
 
-        public ContractMissing(String symbol, List<TimeRange> missingRanges,
-                               int expectedMinutes, int presentMinutes) {
-            this.symbol = symbol;
-            this.missingRanges = missingRanges;
-            this.expectedMinutes = expectedMinutes;
-            this.presentMinutes = presentMinutes;
-            this.coveragePct = expectedMinutes == 0 ? 100.0 : (100.0 * presentMinutes / expectedMinutes);
-        }
+        BigDecimal hiBase = open.max(close);
+        BigDecimal loBase = open.min(close);
+        BigDecimal high = adjustedSecondary.getHigh();
+        BigDecimal low  = adjustedSecondary.getLow();
+        if (high.compareTo(hiBase) < 0) high = hiBase;
+        if (low.compareTo(loBase) > 0)  low  = loBase;
+
+        return CandleDTO.builder()
+                .date(minute).open(open).close(close)
+                .high(high).low(low)
+                .volume(BigDecimal.ZERO)
+                .timeframe(timeframe).symbol(baseSymbol)
+                .symbolFuture("SYNTHETIC_SECONDARY(" + sourceSym + ")")
+                .build();
     }
 
-    public static class MultiContractsMissingReport {
-        public final List<String> symbols;                 // les N contrats étudiés (ordre = ranking)
-        public final List<ContractMissing> perContract;    // détail par contrat
-        public final List<TimeRange> missingAll;           // manquantes sur TOUS les N (intersection)
-        public final List<TimeRange> missingAny;           // manquantes sur AU MOINS 1 des N (union)
-        public final int expectedMinutes;                  // minutes tradables totales (mêmes pour tous)
+    private CandleDTO buildSyntheticEmptyWithSourceName(
+            LocalDateTime minute, CandleDTO prev, CandleDTO next,
+            String timeframe, SymbolDTO baseSymbol) {
 
-        public MultiContractsMissingReport(List<String> symbols,
-                                           List<ContractMissing> perContract,
-                                           List<TimeRange> missingAll,
-                                           List<TimeRange> missingAny,
-                                           int expectedMinutes) {
-            this.symbols = symbols;
-            this.perContract = perContract;
-            this.missingAll = missingAll;
-            this.missingAny = missingAny;
-            this.expectedMinutes = expectedMinutes;
-        }
+        // si un seul côté dispo, O=C sur ce côté (sinon O=C=0)
+        BigDecimal oc = (prev != null) ? prev.getClose()
+                : (next != null) ? next.getOpen()
+                : BigDecimal.ZERO;
+
+        String src = (prev != null) ? prev.getSymbolFuture()
+                : (next != null) ? next.getSymbolFuture()
+                : "NONE";
+
+        return CandleDTO.builder()
+                .date(minute).open(oc).close(oc)
+                .high(oc).low(oc)
+                .volume(BigDecimal.ZERO)
+                .timeframe(timeframe).symbol(baseSymbol)
+                .symbolFuture("SYNTHETIC_EMPTY(" + src + ")")
+                .build();
     }
 
+    private static String key(String s) {
+        return s == null ? null : s.replace(" ", "").toUpperCase(Locale.ROOT);
+    }
 
     // ===============================================
 // Règles CME (FX / 6E) – fuseau Chicago
@@ -513,25 +905,6 @@ public class VolumeBasedRolloverService {
         return dt.withSecond(0).withNano(0);
     }
 
-    private List<TimeRange> compressConsecutiveMinutes(List<LocalDateTime> minutesSorted) {
-        List<TimeRange> out = new ArrayList<>();
-        if (minutesSorted.isEmpty()) return out;
-
-        LocalDateTime runStart = minutesSorted.get(0);
-        LocalDateTime prev = runStart;
-
-        for (int i = 1; i < minutesSorted.size(); i++) {
-            LocalDateTime cur = minutesSorted.get(i);
-            if (!cur.equals(prev.plusMinutes(1))) {
-                out.add(new TimeRange(runStart, prev.plusMinutes(1))); // [start, prev+1min)
-                runStart = cur;
-            }
-            prev = cur;
-        }
-        out.add(new TimeRange(runStart, prev.plusMinutes(1)));
-        return out;
-    }
-
     private Set<LocalDateTime> expectedTradableMinutes(LocalDateTime startInclusiveUtc,
                                                        LocalDateTime endExclusiveUtc) {
         Set<LocalDateTime> expected = new LinkedHashSet<>();
@@ -552,125 +925,6 @@ public class VolumeBasedRolloverService {
         return expected;
     }
 
-    private Map<String, Set<LocalDateTime>> minutesBySymbol(Set<String> keepSymbols, List<CandleDTO> candles) {
-        Map<String, Set<LocalDateTime>> map = new HashMap<>();
-        for (CandleDTO c : candles) {
-            if (c == null || c.getDate() == null) continue;
-            String sym = c.getSymbolFuture();
-            if (sym == null || sym.isBlank()) continue;
-            if (sym.contains("-")) continue; // ignore spreads type "6EM5-6EH5"
-            if (!keepSymbols.contains(sym)) continue;
-
-            map.computeIfAbsent(sym, k -> new HashSet<>()).add(floorToMinute(c.getDate()));
-        }
-        return map;
-    }
-
-// ===============================================
-// Fonction principale demandée
-// ===============================================
-    /**
-     * Détecte les plages M1 manquantes pour les deux contrats présents dans `candles`.
-     * - Choisit les 2 contrats les plus représentés (en nombre de bougies) en ignorant les spreads "X-Y".
-     * - Respecte le calendrier CME (break, week-end, horaires).
-     * - Retourne les ranges manquants par contrat + l'intersection (manquants sur les deux).
-     */
-    public MultiContractsMissingReport findMissingRangesForNContracts(
-            List<CandleDTO> candles,
-            LocalDateTime startInclusive,
-            LocalDateTime endExclusive,
-            int topN,
-            boolean rankByVolume
-    ) {
-        if (candles == null || candles.isEmpty()) throw new IllegalArgumentException("Liste de candles vide");
-        if (startInclusive == null || endExclusive == null || !startInclusive.isBefore(endExclusive))
-            throw new IllegalArgumentException("Fenêtre temporelle invalide");
-        if (topN < 1) throw new IllegalArgumentException("topN doit être ≥ 1");
-
-        // 1) Agrégats par contrat (hors spreads)
-        Map<String, Long> countBySym = new HashMap<>();
-        Map<String, Double> volBySym = new HashMap<>();
-        for (CandleDTO c : candles) {
-            if (c == null || c.getDate() == null) continue;
-            String sym = c.getSymbolFuture();
-            if (sym == null || sym.isBlank() || sym.contains("-")) continue;
-            countBySym.merge(sym, 1L, Long::sum);
-            double v = (c.getVolume() != null) ? c.getVolume().doubleValue() : 0.0;
-            volBySym.merge(sym, v, Double::sum);
-        }
-        if (countBySym.isEmpty()) throw new IllegalStateException("Aucun contrat outright détecté.");
-
-        // 2) Sélection topN
-        Comparator<String> cmp = rankByVolume
-                ? Comparator.<String>comparingDouble(sym -> volBySym.getOrDefault(sym, 0.0)).reversed()
-                : Comparator.<String>comparingLong(sym -> countBySym.getOrDefault(sym, 0L)).reversed();
-
-        List<String> symbols = countBySym.keySet().stream().sorted(cmp).limit(topN).toList();
-
-        // 3) Minutes attendues
-        Set<LocalDateTime> expected = expectedTradableMinutes(
-                floorToMinute(startInclusive), floorToMinute(endExclusive));
-        int expectedCount = expected.size();
-
-        // 4) Minutes présentes par symbole
-        Map<String, Set<LocalDateTime>> presentBySym = new HashMap<>();
-        for (String s : symbols) presentBySym.put(s, new HashSet<>());
-        for (CandleDTO c : candles) {
-            if (c == null || c.getDate() == null) continue;
-            String sym = c.getSymbolFuture();
-            if (sym == null || sym.isBlank() || sym.contains("-")) continue;
-            if (!presentBySym.containsKey(sym)) continue; // on ne garde que les topN
-            LocalDateTime m = floorToMinute(c.getDate());
-            if (m.isBefore(startInclusive) || !m.isBefore(endExclusive)) continue;
-            // On ne compte que les minutes tradables
-            if (!expected.contains(m)) continue;
-            presentBySym.get(sym).add(m);
-        }
-
-        // 5) Missing par contrat + stats
-        List<ContractMissing> per = new ArrayList<>();
-        List<Set<LocalDateTime>> missingSets = new ArrayList<>();
-        for (String s : symbols) {
-            Set<LocalDateTime> present = presentBySym.getOrDefault(s, Set.of());
-            List<LocalDateTime> missingList = expected.stream()
-                    .filter(min -> !present.contains(min))
-                    .sorted()
-                    .toList();
-            missingSets.add(new HashSet<>(missingList));
-            List<TimeRange> ranges = compressConsecutiveMinutes(missingList);
-            int presentCount = expectedCount == 0 ? 0 : expectedCount - missingList.size();
-            per.add(new ContractMissing(s, ranges, expectedCount, presentCount));
-        }
-
-        // 6) Intersection (minutes manquantes sur TOUS les N)
-        Set<LocalDateTime> inter = new HashSet<>(expected);
-        for (Set<LocalDateTime> s : missingSets) inter.retainAll(s);
-        List<TimeRange> missingAll = compressConsecutiveMinutes(inter.stream().sorted().toList());
-
-        // 7) Union (minutes manquantes sur AU MOINS 1)
-        Set<LocalDateTime> uni = new HashSet<>();
-        for (Set<LocalDateTime> s : missingSets) uni.addAll(s);
-        List<TimeRange> missingAny = compressConsecutiveMinutes(uni.stream().sorted().toList());
-
-        // Logs utiles
-        log.info("🔎 Top{} contrats ({}): {}", symbols.size(), rankByVolume ? "par volume" : "par count", symbols);
-        for (ContractMissing cm : per) {
-            log.info("   {} → couverture={}%, expected={}, present={}, ranges manquants={}",
-                    cm.symbol, String.format(Locale.US,"%.2f", cm.coveragePct),
-                    cm.expectedMinutes, cm.presentMinutes, cm.missingRanges.size());
-            if (!cm.missingRanges.isEmpty()) {
-                TimeRange r = cm.missingRanges.get(0);
-                log.debug("     ex range: {} → {}", r.startInclusive(), r.endExclusive());
-            }
-        }
-        if (!missingAll.isEmpty()) {
-            TimeRange r = missingAll.get(0);
-            log.warn("❗ Manquantes sur TOUS ({}) : {} ranges (ex: {} → {})",
-                    symbols, missingAll.size(), r.startInclusive(), r.endExclusive());
-        }
-
-        return new MultiContractsMissingReport(symbols, per, missingAll, missingAny, expectedCount);
-    }
 
     private CandleIndex buildIndex(List<CandleDTO> input) {
         CandleIndex idx = new CandleIndex();
@@ -702,298 +956,62 @@ public class VolumeBasedRolloverService {
         return out;
     }
 
-    // Récupère les candles d’un symbol [start, end)
-    private List<CandleDTO> getWindowForSymbol(CandleIndex idx, String symbol, LocalDateTime start, LocalDateTime end) {
-        NavigableMap<LocalDateTime, List<CandleDTO>> map = idx.bySymbolThenDate.get(symbol);
-        if (map == null || start == null || end == null || !start.isBefore(end)) return Collections.emptyList();
-        NavigableMap<LocalDateTime, List<CandleDTO>> sub = map.subMap(start, true, end, false);
-        if (sub.isEmpty()) return Collections.emptyList();
-        List<CandleDTO> out = new ArrayList<>();
-        for (List<CandleDTO> bucket : sub.values()) out.addAll(bucket);
-        return out;
+    private CandleDTO snapIfRawBaseExists(LocalDateTime m,
+                                          String baseSym,
+                                          CandleDTO candidate,
+                                          Map<String, Map<LocalDateTime, CandleDTO>> bySymbolMinute) {
+        Map<LocalDateTime, CandleDTO> map = bySymbolMinute.get(baseSym);
+        if (map == null) return candidate;
+        CandleDTO base = map.get(m);
+        if (base == null) return candidate;
+
+        BigDecimal o = base.getOpen();
+        BigDecimal c = base.getClose();
+
+        // high/low doivent englober O et C
+        BigDecimal hi = candidate.getHigh() != null ? candidate.getHigh() : (o.max(c));
+        BigDecimal lo = candidate.getLow()  != null ? candidate.getLow()  : (o.min(c));
+        if (hi.compareTo(o) < 0) hi = o;
+        if (hi.compareTo(c) < 0) hi = c;
+        if (lo.compareTo(o) > 0) lo = o;
+        if (lo.compareTo(c) > 0) lo = c;
+
+        return candidate.toBuilder()
+                .open(o)
+                .close(c)
+                .high(hi)
+                .low(lo)
+                .build();
     }
 
-    public List<CandleDTO> getDynamicRolloverCandlesSessionWithMinuteFallbackGlobalIndexed(
-            List<CandleDTO> inputCandles,
-            LocalDateTime startDateTime,
-            LocalDateTime endDateTime,
-            int analysisPeriodDays
+    private CandleDTO adjustToBase(
+            LocalDateTime m,
+            String baseSym,                // A
+            CandleDTO chosen,              // B
+            Map<String, Map<LocalDateTime, CandleDTO>> bySymbolMinute,
+            Map<String, Map<LocalDateTime, CandleDTO>> bySpreadMinute,
+            int overlapMinutes
     ) {
-        if (inputCandles == null || inputCandles.isEmpty()) {
-            log.warn("⚠️ Liste source vide → rien à faire.");
-            return Collections.emptyList();
+        String A = norm(baseSym);
+        String B = norm(chosen.getSymbolFuture());
+
+        if (A.equals(B)) return chosen;    // rien à faire
+
+        // 1) Spread direct A-B à la minute m ?
+        CandleDTO sAB = bySpreadMinute.getOrDefault(spreadKey(A,B), Map.of()).get(m);
+        if (sAB != null) {
+            return addSpread(chosen, sAB); // P_B + (A-B)
         }
 
-        // --- Nettoyage minimal (ignore null, dates null, spreads) ---
-        List<CandleDTO> src = inputCandles.stream()
-                .filter(Objects::nonNull)
-                .filter(c -> c.getDate() != null)
-                .filter(c -> c.getSymbolFuture() != null && !c.getSymbolFuture().isBlank())
-                .collect(Collectors.toCollection(ArrayList::new));
-        if (src.isEmpty()) {
-            log.warn("⚠️ Après filtrage, plus aucune bougie exploitable.");
-            return Collections.emptyList();
+        // 2) Spread inverse B-A ?
+        CandleDTO sBA = bySpreadMinute.getOrDefault(spreadKey(B,A), Map.of()).get(m);
+        if (sBA != null) {
+            return addSpread(chosen, negateSpread(sBA)); // P_B - (B-A)
         }
 
-        // --- Index principaux ---
-        CandleIndex idx = buildIndex(src);
-
-        // bySymbolMinute[symbol][minute] = candle
-        Map<String, Map<LocalDateTime, CandleDTO>> bySymbolMinute = new HashMap<>();
-        Map<String, Double> globalVol = new HashMap<>();
-        for (CandleDTO c : src) {
-            String sym = c.getSymbolFuture();
-            if (sym.contains("-")) continue; // ignore spreads
-            LocalDateTime m = floorToMinute(c.getDate());
-            bySymbolMinute.computeIfAbsent(sym, k -> new HashMap<>()).put(m, c);
-            double v = (c.getVolume() != null) ? c.getVolume().doubleValue() : 0.0;
-            globalVol.merge(sym, v, Double::sum);
-        }
-
-        // Ranking GLOBAL par volume (desc)
-        List<String> globalRanking = globalVol.entrySet().stream()
-                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
-                .map(Map.Entry::getKey)
-                .toList();
-
-        // --- Minutes attendues GLOBAL (UTC) puis sous-ensembles par session ---
-        NavigableSet<LocalDateTime> expectedAll = new TreeSet<>(
-                expectedTradableMinutes(
-                        startDateTime.withSecond(0).withNano(0),
-                        endDateTime.withSecond(0).withNano(0)
-                )
-        );
-
-        // Helper : classement par volume sur fenêtre [a,b)
-        java.util.function.BiFunction<LocalDateTime, LocalDateTime, List<String>> rankSymbolsByVolume =
-                (a, b) -> {
-                    List<CandleDTO> window = getWindow(idx, a, b);
-                    if (window.isEmpty()) return List.of();
-                    return window.stream()
-                            .filter(c -> !c.getSymbolFuture().contains("-"))
-                            .collect(Collectors.groupingBy(
-                                    CandleDTO::getSymbolFuture,
-                                    Collectors.summingDouble(c -> c.getVolume() != null ? c.getVolume().doubleValue() : 0.0)
-                            ))
-                            .entrySet().stream()
-                            .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
-                            .map(Map.Entry::getKey)
-                            .toList();
-                };
-
-        List<CandleDTO> out = new ArrayList<>();
-        LocalDateTime sessionStart = sessionStartOnOrBefore(startDateTime);
-
-        while (sessionStart.isBefore(endDateTime)) {
-            LocalDateTime sessionNext = nextSessionStart(sessionStart);
-
-            // Fenêtre effective bornée par la plage globale
-            LocalDateTime windowStart = sessionStart.isBefore(startDateTime) ? startDateTime : sessionStart;
-            LocalDateTime windowEnd   = sessionNext.isAfter(endDateTime)     ? endDateTime   : sessionNext;
-            if (!windowStart.isBefore(windowEnd)) break;
-
-            // Minute “pivot” tradable ? (samedi/ven 17h, etc.)
-            if (!isTradableSessionStart(sessionStart)) {
-                sessionStart = sessionNext;
-                continue;
-            }
-
-            // Classement SESSION (fenêtre analyse N jours *Chicago*)
-            LocalDateTime analysisEnd   = sessionStart;
-            LocalDateTime analysisStart = toUtc(toChi(sessionStart).minusDays(analysisPeriodDays));
-            List<String> sessionRanking = rankSymbolsByVolume.apply(analysisStart, analysisEnd);
-
-            List<String> orderList = new ArrayList<>();
-            if (!sessionRanking.isEmpty()) {
-                orderList.addAll(sessionRanking);
-            } else {
-                // NEW: fallback global si aucune donnée dans la fenêtre d’analyse (1ʳᵉ session typiquement)
-                orderList.addAll(globalRanking);
-                if (orderList.isEmpty()) {
-                    sessionStart = sessionNext;
-                    continue; // rien du tout à proposer
-                }
-                log.warn("🧭 Session {} → {} : sessionRanking vide, fallback sur globalRanking ({}…)",
-                        sessionStart, sessionNext, orderList.get(0));
-            }
-            String dominant = orderList.get(0);
-
-            // Ordre de fallback : dominant → (reste de la liste) – déjà sans doublons
-            LinkedHashSet<String> order = new LinkedHashSet<>(orderList);
-
-            // Minutes attendues pour CETTE session (issues du set GLOBAL)
-            NavigableSet<LocalDateTime> expectedSession = expectedAll.subSet(
-                    windowStart.withSecond(0).withNano(0), true,
-                    windowEnd.withSecond(0).withNano(0), false
-            );
-
-            int usedDominant = 0, usedFallback = 0, skipped = 0;
-
-            for (LocalDateTime m : expectedSession) {
-                CandleDTO chosen = null;
-
-                // 1) dominant
-                Map<LocalDateTime, CandleDTO> mdom = bySymbolMinute.get(dominant);
-                if (mdom != null) {
-                    chosen = mdom.get(m);
-                }
-
-                // 2) fallback : autres symbols (session → global)
-                if (chosen == null) {
-                    for (String sym : order) {
-                        if (sym.equals(dominant)) continue;
-                        Map<LocalDateTime, CandleDTO> mm = bySymbolMinute.get(sym);
-                        if (mm == null) continue;
-                        CandleDTO alt = mm.get(m);
-                        if (alt != null) {
-                            chosen = alt;
-                            usedFallback++;
-                            break;
-                        }
-                    }
-                } else {
-                    usedDominant++;
-                }
-
-                if (chosen != null) {
-                    out.add(chosen);
-                } else {
-                    skipped++; // laissé à la synthèse
-                }
-            }
-
-            log.info("📦 Session {} → {} | dominant={} | minutes: dominant={}, fallback={}, skippedForSynth={}",
-                    sessionStart, sessionNext, dominant, usedDominant, usedFallback, skipped);
-
-            sessionStart = sessionNext;
-        }
-
-        // Ordonner + log coverage pré-synthèse
-        out.sort(Comparator.comparing(CandleDTO::getDate, Comparator.nullsLast(Comparator.naturalOrder())));
-        if (!out.isEmpty()) {
-            LocalDateTime s = out.get(0).getDate();
-            LocalDateTime e = out.get(out.size()-1).getDate().plusMinutes(1);
-            Set<LocalDateTime> expected = expectedTradableMinutes(floorToMinute(s), floorToMinute(e));
-            int uniq = (int) out.stream().map(c -> c.getDate().withSecond(0).withNano(0)).distinct().count();
-            double cov = expected.isEmpty() ? 100.0 : 100.0 * uniq / expected.size();
-            log.info("✅ Coverage après session+fallback GLOBAL (avant synthèse) {} → {} : uniques={} / attendus={} ({}%)",
-                    s, e, uniq, expected.size(), String.format(Locale.US, "%.2f", cov));
-        }
-
-
-        RolloverCoverageReport report = auditRolloverCoverage(
-                out,           // série produite
-                inputCandles,     // pool brut
-                startDateTime,
-                endDateTime
-        );
-
-        log.info("📊 ROLLOVER COVERAGE: produced={} / expected={} ({}%)",
-                report.getProducedMinutes(), report.getExpectedMinutes(),
-                String.format(Locale.US, "%.2f", report.getCoveragePct()));
-
-        report.getMissing().stream().limit(5).forEach(g -> {
-            log.info("⛔ Missing {} | in raw: {} {}",
-                    g.getMinute(),
-                    g.isPresentInPool() ? "YES" : "NO",
-                    g.isPresentInPool() ? g.getAvailableSymbols() : "");
-        });
-
-        return out;
-    }
-
-    private LocalDateTime plusDaysChicago(LocalDateTime utc, int days) {
-        return toUtc(toChi(utc).plusDays(days)); // avance d'1 jour *local Chicago*
-    }
-    private boolean isSaturdayChicago(LocalDateTime utc) {
-        return toChi(utc).getDayOfWeek() == DayOfWeek.SATURDAY;
-    }
-
-    public List<CandleDTO> getDynamicRolloverCandlesPerMinuteWithFallback(
-            LocalDateTime startDateTime,
-            LocalDateTime endDateTime,
-            int analysisPeriodDays) {
-
-        List<Candle> resultCandles = new ArrayList<>();
-        LocalDateTime currentMinute = startDateTime;
-
-        log.info("🚀 Démarrage de l'analyse minute par minute avec fallback sur la période {} -> {}", startDateTime, endDateTime);
-
-        while (!currentMinute.isAfter(endDateTime)) {
-
-            DayOfWeek day = currentMinute.getDayOfWeek();
-            if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
-                log.info("⏭️ Weekend ignoré : {}", currentMinute);
-                currentMinute = currentMinute.plusMinutes(1);
-                continue;
-            }
-
-            // Fenêtre d'analyse pour déterminer les contrats dominants
-            LocalDateTime analysisStart = currentMinute.minusDays(analysisPeriodDays);
-            LocalDateTime analysisEnd = currentMinute;
-
-            log.info("🔎 Analyse volume sur la fenêtre {} -> {}", analysisStart, analysisEnd);
-
-            List<Candle> analysisCandles = candleRepository.findByDateBetween(analysisStart, analysisEnd);
-
-            if (analysisCandles.isEmpty()) {
-                log.warn("❌ Aucune candle trouvée pour l'analyse volume de {} -> {}", analysisStart, analysisEnd);
-                currentMinute = currentMinute.plusMinutes(1);
-                continue;
-            }
-
-            // Classement des symboles par volume décroissant
-            List<Map.Entry<String, Double>> sortedVolumes = analysisCandles.stream()
-                    .collect(Collectors.groupingBy(
-                            Candle::getSymbolFuture,
-                            Collectors.summingDouble(c -> c.getVolume() != null ? c.getVolume().doubleValue() : 0.0)
-                    ))
-                    .entrySet()
-                    .stream()
-                    .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
-                    .toList();
-
-            if (sortedVolumes.isEmpty()) {
-                log.warn("❌ Aucun symbole dominant sur la fenêtre {} -> {}", analysisStart, analysisEnd);
-                currentMinute = currentMinute.plusMinutes(1);
-                continue;
-            }
-
-            // Recherche de la candle sur cette minute, par ordre de dominance
-            Candle candleForThisMinute = null;
-
-            for (Map.Entry<String, Double> entry : sortedVolumes) {
-                String candidateSymbol = entry.getKey();
-                Double candidateVolume = entry.getValue();
-
-                log.debug("🔎 Tentative récupération candle à {} pour {} (volume cumulé : {})", currentMinute, candidateSymbol, candidateVolume);
-
-                Optional<Candle> candleOpt = candleRepository.findBySymbolFutureAndDate(
-                        candidateSymbol, currentMinute
-                );
-
-                if (candleOpt.isPresent()) {
-                    candleForThisMinute = candleOpt.get();
-                    log.info("✅ Candle trouvée pour {} à {} : {}", candidateSymbol, currentMinute, candleForThisMinute);
-                    break; // Stop dès qu'on en trouve une
-                }
-            }
-
-            if (candleForThisMinute != null) {
-                resultCandles.add(candleForThisMinute);
-            } else {
-                log.warn("⚠️ Aucune candle trouvée pour la minute {}", currentMinute);
-            }
-
-            currentMinute = currentMinute.plusMinutes(1);
-        }
-
-        // Tri final (normalement inutile, mais on assure)
-        resultCandles.sort(Comparator.comparing(Candle::getDate));
-
-        log.info("🎉 Flux final généré avec {} candles sur {} -> {}", resultCandles.size(), startDateTime, endDateTime);
-
-        return resultCandles.stream().map(candleMapper::toDto).toList();
+        // 3) Pas de spread dispo → fallback différentiel local (médiane sur ±overlap)
+        AdjustCoeffs adj = computeLocalAdjust(A, B, m, bySymbolMinute, overlapMinutes, AdjustType.DIFFERENTIAL);
+        return applyAdjust(chosen, adj);
     }
 
     public Map<LocalDateTime, String> getDominantContractsPerDay(
@@ -1079,36 +1097,6 @@ public class VolumeBasedRolloverService {
         private List<MinuteGap> missing;             // détail des minutes manquantes
     }
 
-    private CandleDTO pickBestOutrightAtMinute(Map<String, Map<LocalDateTime, CandleDTO>> bySymMin,
-                                               LocalDateTime m) {
-        CandleDTO best = null;
-        BigDecimal bestVol = BigDecimal.valueOf(-1);
-        for (Map.Entry<String, Map<LocalDateTime, CandleDTO>> e : bySymMin.entrySet()) {
-            String sym = e.getKey();
-            if (sym == null || sym.contains("-")) continue;
-            CandleDTO c = e.getValue().get(m);
-            if (c == null) continue;
-            BigDecimal v = c.getVolume() == null ? BigDecimal.ZERO : c.getVolume();
-            if (best == null || v.compareTo(bestVol) > 0) {
-                best = c; bestVol = v;
-            }
-        }
-        return best;
-    }
-
-    private Map<LocalDateTime, List<String>> buildPoolPresenceIndex(List<CandleDTO> pool) {
-        Map<LocalDateTime, Set<String>> tmp = new HashMap<>();
-        for (CandleDTO c : pool) {
-            if (c == null || c.getDate() == null) continue;
-            String s = norm(c.getSymbolFuture());
-            if (s == null || s.isBlank() || s.contains("-")) continue;
-            LocalDateTime m = floorToMinute(c.getDate());
-            tmp.computeIfAbsent(m, k -> new LinkedHashSet<>()).add(s);
-        }
-        Map<LocalDateTime, List<String>> out = new HashMap<>();
-        tmp.forEach((k,v)-> out.put(k, new ArrayList<>(v)));
-        return out;
-    }
 
     public RolloverCoverageReport auditRolloverCoverage(
             List<CandleDTO> rolled,     // la série produite par ton rollover (après fallback/synthèse ou avant selon ton besoin)
@@ -1145,41 +1133,6 @@ public class VolumeBasedRolloverService {
         double coverage = expectedCount == 0 ? 100.0 : (100.0 * producedCount / (double) expectedCount);
 
         return new RolloverCoverageReport(expectedCount, producedCount, coverage, gaps);
-    }
-
-    private CandleDTO buildSyntheticSecondaryOneSided(
-            LocalDateTime minute,
-            CandleDTO side,                // prev OU next (un seul)
-            boolean isPrev,                // true si side=prev
-            CandleDTO adjustedSecondary,
-            String timeframe,
-            SymbolDTO baseSymbol
-    ) {
-        // Si on n'a qu'un côté, on cale O/C sur la seule info dispo
-        BigDecimal oc = isPrev ? side.getClose() : side.getOpen();
-        BigDecimal open  = oc;
-        BigDecimal close = oc;
-
-        BigDecimal high = adjustedSecondary.getHigh();
-        BigDecimal low  = adjustedSecondary.getLow();
-
-        // Assurer cohérence min/max
-        BigDecimal hiBase = open.max(close);
-        BigDecimal loBase = open.min(close);
-        if (high.compareTo(hiBase) < 0) high = hiBase;
-        if (low.compareTo(loBase) > 0)  low  = loBase;
-
-        return CandleDTO.builder()
-                .date(minute)
-                .open(open)
-                .close(close)
-                .high(high)
-                .low(low)
-                .volume(BigDecimal.ZERO)
-                .timeframe(timeframe)
-                .symbol(baseSymbol)
-                .symbolFuture(SYNTHETIC_SECONDARY)
-                .build();
     }
 
 }

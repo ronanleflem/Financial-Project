@@ -668,7 +668,7 @@ public class CandleServiceJPA implements CandleService {
         }
         // Generate rollover candles
         List<CandleDTO> rolloverCandles = volumeBasedRolloverService
-                .getDynamicRolloverCandlesSessionWithMinuteFallbackGlobalIndexed(candles,startDate, endDateExcl, 2);
+                .getDynamicRolloverCandlesSessionWithMinuteFallbackGlobalIndexed(candles,startDate, endDateExcl, 1);
 
         List<CandleDTO> patched = volumeBasedRolloverService
                 .backfillOneMinuteGapsWithSynthetic(rolloverCandles, candles, startDate, endDateExcl);
@@ -681,6 +681,8 @@ public class CandleServiceJPA implements CandleService {
 
         return patched;
     }
+
+
 
     /**
      * Retourne les niveaux institutionnels pour un symbol et un timeframe donnés.
