@@ -44,6 +44,7 @@ public class CandleServiceJPA implements CandleService {
     private final PointOfInterestRepository pointOfInterestRepository;
     private final EntityManager entityManager;
     private final VolumeBasedRolloverService volumeBasedRolloverService;
+    private final VolumeBasedRolloverNewService volumeBasedRolloverNewService;
 
     @Override
     public List<CandleDTO> getCandlesForTrade(TradeCompleted trade, String symbol, String timeframe, int beforeCandles, int afterCandles) {
@@ -667,15 +668,19 @@ public class CandleServiceJPA implements CandleService {
             // return Collections.emptyList(); // décommente si tu veux empêcher la suite
         }
         // Generate rollover candles
+        /*
         List<CandleDTO> rolloverCandles = volumeBasedRolloverService
                 .getDynamicRolloverCandlesSessionWithMinuteFallbackGlobalIndexed(candles,startDate, endDateExcl, 1);
 
         List<CandleDTO> patched = volumeBasedRolloverService
-                .backfillOneMinuteGapsWithSynthetic(rolloverCandles, candles, startDate, endDateExcl);
+                .backfillOneMinuteGapsWithSynthetic(rolloverCandles, candles, startDate, endDateExcl);*/
 
         // Remove raw candles and keep only rollover result
         //List<Candle> rawEntities = candleRepository.findBySymbolAndTimeframeAndDateBetween(symbol, timeframe, startDate, endDate);
         //candleRepository.deleteAll(rawEntities);
+
+        List<CandleDTO> patched = volumeBasedRolloverNewService
+                .getDynamicRolloverCandlesSessionWithMinuteFallbackGlobalIndexed(candles,startDate, endDateExcl, 1);
 
         saveCandlesToDatabase(patched, symbol, timeframe);
 

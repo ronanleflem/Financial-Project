@@ -18,6 +18,7 @@ import java.time.*;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -447,6 +448,37 @@ public class VolumeBasedRolloverService {
         return patched;
     }
 
+    private BigDecimal projectPriceToBase(LocalDateTime m,
+                                          BigDecimal priceOnFrom,  // scalaire sur FROM
+                                          String baseTo,           // TO (échelle cible)
+                                          String fromSym,          // FROM (échelle source)
+                                          Map<String, Map<LocalDateTime, CandleDTO>> bySymbolMinute,
+                                          Map<String, Map<LocalDateTime, CandleDTO>> bySpreadMinute,
+                                          int overlapMinutes) {
+
+        String A = canon(baseTo);   // A = TO
+        String B = canon(fromSym);  // B = FROM
+        if (priceOnFrom == null || A == null || B == null || A.equals(B)) return priceOnFrom;
+
+        // 1) Spread direct A-B ?
+        CandleDTO sAB = bySpreadMinute.getOrDefault(spreadKey(A, B), Map.of()).get(m);
+        if (sAB != null && sAB.getClose() != null) {
+            return priceOnFrom.add(sAB.getClose());  // P_B + (A-B) = P_A
+        }
+
+        // 2) Spread inverse B-A ?
+        CandleDTO sBA = bySpreadMinute.getOrDefault(spreadKey(B, A), Map.of()).get(m);
+        if (sBA != null && sBA.getClose() != null) {
+            return priceOnFrom.subtract(sBA.getClose()); // P_B - (B-A) = P_A
+        }
+
+        // 3) Fallback diff/ratio local
+        AdjustCoeffs adj = computeLocalAdjust(A, B, m, bySymbolMinute, overlapMinutes, AdjustType.DIFFERENTIAL);
+        // DIFFERENTIAL: A ≈ B + A_medDiff
+        BigDecimal Aoff = BigDecimal.valueOf(adj.A);
+        return priceOnFrom.add(Aoff);
+    }
+
     public List<CandleDTO> getDynamicRolloverCandlesSessionWithMinuteFallbackGlobalIndexed(
             List<CandleDTO> inputCandles,
             LocalDateTime startDateTime,
@@ -472,22 +504,36 @@ public class VolumeBasedRolloverService {
         // 2) Index temporel (fenêtres) + volumes globaux
         CandleIndex idx = buildIndex(src);
 
-        Map<String, Map<LocalDateTime, CandleDTO>> bySymbolMinute = new HashMap<>();
+        // OUTRIGHTS canoniques → minute → candle (pour médianes locales)
+        Map<String, Map<LocalDateTime, CandleDTO>> byOutrightMinute = new HashMap<>();
+
+        // TOUS symboles canoniques (outrights + spreads) → minute → candle (pour lookup simple)
+        Map<String, Map<LocalDateTime, CandleDTO>> bySymbolMinute   = new HashMap<>();
+
         Map<String, Double> globalVol = new HashMap<>();
+
         for (CandleDTO c : src) {
-            String sym = c.getSymbolFuture();
+            String raw = c.getSymbolFuture();
+            if (raw == null) continue;
+            String sym = canon(raw);
             LocalDateTime m = floorToMinute(c.getDate());
+
             bySymbolMinute.computeIfAbsent(sym, k -> new HashMap<>()).put(m, c);
+
+            boolean isSpread = sym.contains("-");
             double v = (c.getVolume() != null) ? c.getVolume().doubleValue() : 0.0;
-            // on cumule le volume seulement pour les outrights
-            if (!sym.contains("-")) globalVol.merge(canon(sym), v, Double::sum);
+
+            if (!isSpread) {
+                byOutrightMinute.computeIfAbsent(sym, k -> new HashMap<>()).put(m, c);
+                globalVol.merge(sym, v, Double::sum);
+            }
         }
 
-        // 3) Index spreads: "A-B" → minute → spread candle
+        // Index spreads canoniques
         Map<String, Map<LocalDateTime, CandleDTO>> bySpreadMinute = new HashMap<>();
         for (CandleDTO c : src) {
             String s = canon(c.getSymbolFuture());
-            if (s == null || !s.contains("-")) continue; // garder UNIQUEMENT les spreads ici
+            if (s == null || !s.contains("-")) continue;
             LocalDateTime m = floorToMinute(c.getDate());
             bySpreadMinute.computeIfAbsent(s, k -> new HashMap<>()).put(m, c);
         }
@@ -530,9 +576,15 @@ public class VolumeBasedRolloverService {
         BigDecimal lastCloseOut = null;
         String    activeRunSym  = null;
         BigDecimal runOffset    = BigDecimal.ZERO;
+        LocalDateTime lastOutMinute = null;   // dernière minute effectivement écrite dans out
+        LocalDateTime lastBridgeMinute = null; // minute du dernier bridge (pour ne pas le rejouer)
+        String anchorSym = null;
+        Map<String, BigDecimal> lockedOffsetsToAnchor = new HashMap<>();
 
         while (sessionStart.isBefore(endDateTime)) {
             LocalDateTime sessionNext = nextSessionStart(sessionStart);
+
+            lastBridgeMinute = null;
 
             LocalDateTime windowStart = sessionStart.isBefore(startDateTime) ? startDateTime : sessionStart;
             LocalDateTime windowEnd   = sessionNext.isAfter(endDateTime)     ? endDateTime   : sessionNext;
@@ -573,6 +625,11 @@ public class VolumeBasedRolloverService {
                 dominant = sessionDominant;
             }
 
+            if (anchorSym == null) {
+                anchorSym = dominant;     // on fixe l’échelle d’ancrage
+                log.info("📌 ANCHOR SET → {}", anchorSym);
+            }
+
             int usedDom = 0, usedFb = 0, skipped = 0;
 
             for (LocalDateTime m : expectedSession) {
@@ -580,6 +637,15 @@ public class VolumeBasedRolloverService {
 
                 Map<LocalDateTime, CandleDTO> mdom = bySymbolMinute.get(dominant);
                 if (mdom != null) chosen = mdom.get(m);
+
+                // --- NEW: détection d’enchaînement / gap / ouverture session
+                boolean isConsecutive = (lastOutMinute != null && m.equals(lastOutMinute.plusMinutes(1)));
+                boolean prevTradable  = (lastOutMinute != null) && isTradableMinuteCME(toChi(lastOutMinute));
+                boolean curTradable   = isTradableMinuteCME(toChi(m));
+
+                // ouverture de session CME (17:00 CT) ou réouverture après période non-tradable
+                boolean isSessionOpen = (!prevTradable && curTradable);
+                boolean isGap = (lastOutMinute == null) || !isConsecutive;
 
                 if (chosen == null) {
                     // autres symbols en fallback
@@ -597,64 +663,76 @@ public class VolumeBasedRolloverService {
                 if (chosen == null) { skipped++; continue; }
 
                 String chosenSym = canon(chosen.getSymbolFuture());
-                CandleDTO outCandle;
 
-                if (chosenSym.equals(dominant)) {
-                    // dominant : pas d’offset
-                    outCandle = chosen;
-                    activeRunSym = chosenSym;
-                    runOffset = BigDecimal.ZERO;
-                } else {
-                    // 1) spread exact si dispo
-                    CandleDTO adjusted = null;
-                    CandleDTO sprAB = bySpreadMinute.getOrDefault(spreadKey(dominant, chosenSym), Map.of()).get(m);
-                    if (sprAB != null) {
-                        adjusted = translateWithSpread(chosen, sprAB, "1min", chosen.getSymbol());
-                    } else {
-                        CandleDTO sprBA = bySpreadMinute.getOrDefault(spreadKey(chosenSym, dominant), Map.of()).get(m);
-                        if (sprBA != null) {
-                            CandleDTO sprNeg = sprBA.toBuilder()
-                                    .open(sprBA.getOpen().negate())
-                                    .high(sprBA.getHigh().negate())
-                                    .low (sprBA.getLow().negate())
-                                    .close(sprBA.getClose().negate())
-                                    .build();
-                            adjusted = translateWithSpread(chosen, sprNeg, "1min", chosen.getSymbol());
-                        }
-                    }
+                // --- switch de contrat (info)
+                boolean switched = (activeRunSym != null && !chosenSym.equals(activeRunSym));
 
-                    // 2) sinon bridging de continuité
-                    if (adjusted == null && lastCloseOut != null && chosen.getClose() != null) {
-                        BigDecimal needed = lastCloseOut.subtract(chosen.getClose());
-                        if (!bridgeTooBig(needed)) {
-                            adjusted = shiftOHLC(chosen, needed);
-                            if (!chosenSym.equals(activeRunSym)) runOffset = needed;
-                        }
-                    }
+                // --- 1) (optionnel) bougie visuelle de transition à l’instant du roll (conserve le petit “gap”)
+                // déclenchée seulement si switch + (ouverture ou gap) + on a une close précédente
+                boolean doForwardBridgeVisual = switched && (isSessionOpen || !isConsecutive) && lastCloseOut != null;
+                if (doForwardBridgeVisual) {
+                    // 1) scalaire ancien → nouvelle échelle
+                    BigDecimal prevOnNew = projectPriceToBase(
+                            m, lastCloseOut, chosenSym, activeRunSym,
+                            byOutrightMinute,      // <-- bien passer OUTRIGHTS
+                            bySpreadMinute,
+                            OVERLAP_MINUTES
+                    );
 
-                    // 3) sinon runOffset courant (si on reste sur le même run)
-                    if (adjusted == null && !runOffset.equals(BigDecimal.ZERO) && chosenSym.equals(activeRunSym)) {
-                        adjusted = shiftOHLC(chosen, runOffset);
-                    }
+// 2) OC-only clamp (pas de H/L du NEW)
+                    BigDecimal oBridge = prevOnNew;                       // OPEN = ancien close projeté
+                    BigDecimal newO    = chosen.getOpen();
+                    BigDecimal cBridge = (newO != null) ? newO : oBridge; // CLOSE = OPEN du NEW (sinon égal OPEN)
 
-                    // 4) dernier recours: ajust local médian
-                    if (adjusted == null) {
-                        AdjustCoeffs adj = computeLocalAdjust(
-                                dominant, chosenSym, m, bySymbolMinute, OVERLAP_MINUTES, DEFAULT_ADJUST
-                        );
-                        adjusted = applyAdjust(chosen, adj);
-                    }
+                    BigDecimal hi = (oBridge.max(cBridge));
+                    BigDecimal lo = (oBridge.min(cBridge));
 
-                    outCandle = adjusted.toBuilder()
-                            .symbolFuture(SYNTHETIC_SECONDARY + ":" + chosenSym)
+                    CandleDTO bridgedFwd = CandleDTO.builder()
+                            .date(m)
+                            .open(oBridge)
+                            .close(cBridge)
+                            .high(hi)
+                            .low(lo)
                             .volume(BigDecimal.ZERO)
+                            .timeframe(chosen.getTimeframe())
+                            .symbol(chosen.getSymbol())
+                            .symbolFuture("SYNTHETIC_ROLL_BRIDGE_FWD:" + activeRunSym + "->" + chosenSym)
                             .build();
 
-                    activeRunSym = chosenSym;
+                    out.add(bridgedFwd);
+                    lastCloseOut  = bridgedFwd.getClose();
+                    lastOutMinute = m;
+                    activeRunSym  = chosenSym;
+
+                    // 🔒 on verrouille l’offset from->anchor ICI (voir point 3 ci-dessous)
+                    BigDecimal lockedOff = computeLockedOffsetToAnchor(
+                            m, anchorSym, chosenSym, byOutrightMinute, bySpreadMinute, OVERLAP_MINUTES
+                    );
+                    if (lockedOff != null) {
+                        lockedOffsetsToAnchor.put(chosenSym, lockedOff);
+                        log.info("🔒 LOCK OFFSET to anchor {} : from {} offset={}", anchorSym, chosenSym, lockedOff);
+                    }
+
+                    continue; // ne PAS réécrire la minute avec autre chose
                 }
 
+                // --- 2) POUR TOUTES LES MINUTES : exprimer chosen → ANCRE (et pas → dominant)
+                CandleDTO adjustedToAnchor = adjustToAnchorWithLockedOffsets(
+                        m, anchorSym, chosen, lockedOffsetsToAnchor, byOutrightMinute, bySpreadMinute, OVERLAP_MINUTES
+                );
+
+                // tagging + volume
+                CandleDTO outCandle = adjustedToAnchor.toBuilder()
+                        .symbolFuture(chosenSym.equals(anchorSym)
+                                ? chosenSym
+                                : ("SYNTHETIC_ANCHORED:" + chosenSym + "->" + anchorSym))
+                        .volume(chosenSym.equals(anchorSym) ? chosen.getVolume() : BigDecimal.ZERO)
+                        .build();
+
+                activeRunSym = chosenSym; // info
                 out.add(outCandle);
                 lastCloseOut = outCandle.getClose();
+                lastOutMinute = m;
             }
             if (usedFb > usedDom) {
                 log.warn("⚠️ fallback > dominant in session {} → {} (dom={} fb={}) | dominant={}",
@@ -665,6 +743,19 @@ public class VolumeBasedRolloverService {
 
             sessionStart = sessionNext;
         }
+
+        // audit des transitions de contrat
+        Map<String, Long> bridgeCounts = out.stream()
+                .filter(c -> c.getSymbolFuture() != null && c.getSymbolFuture().startsWith("SYNTHETIC_ROLL_BRIDGE"))
+                .collect(Collectors.groupingBy(CandleDTO::getSymbolFuture, Collectors.counting()));
+
+        if (!bridgeCounts.isEmpty()) {
+            log.info("🔎 Audit des roll bridges ({} total):", bridgeCounts.values().stream().mapToLong(Long::longValue).sum());
+            bridgeCounts.forEach((k,v) -> log.info("   {} → {} occurrences", k, v));
+        } else {
+            log.info("✅ Aucun roll bridge détecté dans la période {} → {}", startDateTime, endDateTime);
+        }
+        // Fin audit des transitions de contrat
 
         // tri + log coverage rapide
         out.sort(Comparator.comparing(CandleDTO::getDate, Comparator.nullsLast(Comparator.naturalOrder())));
@@ -679,6 +770,63 @@ public class VolumeBasedRolloverService {
         }
 
         return out;
+    }
+
+    /** Exprime 'chosen' vers l'échelle 'anchorSym' :
+     *  - si un offset verrouillé existe pour FROM -> on applique shiftOHLC( offset ).
+     *  - sinon, on tente le spread minute (A-B / B-A), sinon diff local (fallback).
+     */
+    private CandleDTO adjustToAnchorWithLockedOffsets(LocalDateTime m,
+                                                      String anchorSym,                // TO (A)
+                                                      CandleDTO chosen,                // FROM (B)
+                                                      Map<String, BigDecimal> lockedOffsetsToAnchor,
+                                                      Map<String, Map<LocalDateTime, CandleDTO>> byOutrightMinute,
+                                                      Map<String, Map<LocalDateTime, CandleDTO>> bySpreadMinute,
+                                                      int overlapMinutes) {
+        String A = canon(anchorSym);
+        String B = canon(chosen.getSymbolFuture());
+        if (A == null || B == null || A.equals(B)) return chosen;
+
+        // 0) Si offset verrouillé → shift additif strict (pas de recalcul minute)
+        BigDecimal locked = lockedOffsetsToAnchor.get(B);
+        if (locked != null) {
+            CandleDTO out = shiftOHLC(chosen, locked);
+            log.debug("🔒 APPLY LOCKED OFFSET anchor={} from={} off={} @{}", A, B, locked, m);
+            return out;
+        }
+        // sinon, faire l'ajust "normal"
+        return adjustToBase(m, A, chosen, byOutrightMinute, bySpreadMinute, overlapMinutes);
+    }
+
+    /** Offset additif (toAnchor - from) verrouillé au moment du switch.
+     *  Si on a le spread A-B ou B-A à la minute m, on retourne exactement cette différence.
+     *  Sinon on retombe sur la médiane locale (différentiel).
+     */
+    private BigDecimal computeLockedOffsetToAnchor(LocalDateTime m,
+                                                   String anchorSym,   // TO (A)
+                                                   String fromSym,     // FROM (B)
+                                                   Map<String, Map<LocalDateTime, CandleDTO>> bySymbolMinute,
+                                                   Map<String, Map<LocalDateTime, CandleDTO>> bySpreadMinute,
+                                                   int overlapMinutes) {
+        String A = canon(anchorSym);
+        String B = canon(fromSym);
+        if (A == null || B == null || A.equals(B)) return BigDecimal.ZERO;
+
+        // 1) Spread direct A-B ? → offset = (A-B).close
+        CandleDTO sAB = bySpreadMinute.getOrDefault(spreadKey(A,B), Map.of()).get(m);
+        if (sAB != null && sAB.getClose() != null) {
+            return sAB.getClose();  // P_B + (A-B) = P_A  ⇒ offset = A-B
+        }
+
+        // 2) Spread inverse B-A ? → offset = -(B-A).close
+        CandleDTO sBA = bySpreadMinute.getOrDefault(spreadKey(B,A), Map.of()).get(m);
+        if (sBA != null && sBA.getClose() != null) {
+            return sBA.getClose().negate();    // A-B = -(B-A)
+        }
+
+        // 3) Pas de spread → médiane locale A ≈ B + diff ⇒ offset ≈ diff
+        AdjustCoeffs adj = computeLocalAdjust(A, B, m, bySymbolMinute, overlapMinutes, AdjustType.DIFFERENTIAL);
+        return BigDecimal.valueOf(adj.A);
     }
 
     private static String canon(String s) {
@@ -997,21 +1145,46 @@ public class VolumeBasedRolloverService {
 
         if (A.equals(B)) return chosen;    // rien à faire
 
-        // 1) Spread direct A-B à la minute m ?
-        CandleDTO sAB = bySpreadMinute.getOrDefault(spreadKey(A,B), Map.of()).get(m);
+        BigDecimal beforeClose = chosen.getClose();
+
+        // 1) Spread direct A-B ?
+        String keyAB = spreadKey(A, B);
+        CandleDTO sAB = bySpreadMinute.getOrDefault(keyAB, Map.of()).get(m);
         if (sAB != null) {
-            return addSpread(chosen, sAB); // P_B + (A-B)
+            CandleDTO out = addSpread(chosen, sAB); // P_B + (A-B)
+            BigDecimal afterClose = out.getClose();
+            log.info("🎯 SECONDARY_ADJUST via SPREAD {} @ {} | base={} sec={} | close {} → {} | volSec={}",
+                    keyAB, m, A, B, beforeClose, afterClose, chosen.getVolume());
+            return out;
         }
 
         // 2) Spread inverse B-A ?
-        CandleDTO sBA = bySpreadMinute.getOrDefault(spreadKey(B,A), Map.of()).get(m);
+        String keyBA = spreadKey(B, A);
+        CandleDTO sBA = bySpreadMinute.getOrDefault(keyBA, Map.of()).get(m);
         if (sBA != null) {
-            return addSpread(chosen, negateSpread(sBA)); // P_B - (B-A)
+            CandleDTO neg = sBA.toBuilder()
+                    .open (sBA.getOpen().negate())
+                    .high (sBA.getHigh().negate())
+                    .low  (sBA.getLow().negate())
+                    .close(sBA.getClose().negate())
+                    .build();
+            CandleDTO out = addSpread(chosen, neg); // P_B - (B-A)
+            BigDecimal afterClose = out.getClose();
+            log.info("🎯 SECONDARY_ADJUST via SPREAD_NEG {} (negated) @ {} | base={} sec={} | close {} → {} | volSec={}",
+                    keyBA, m, A, B, beforeClose, afterClose, chosen.getVolume());
+            return out;
         }
 
-        // 3) Pas de spread dispo → fallback différentiel local (médiane sur ±overlap)
+        // 3) Pas de spread → fallback différentiel local (médiane sur ±overlap)
         AdjustCoeffs adj = computeLocalAdjust(A, B, m, bySymbolMinute, overlapMinutes, AdjustType.DIFFERENTIAL);
-        return applyAdjust(chosen, adj);
+        CandleDTO out = applyAdjust(chosen, adj);
+        BigDecimal afterClose = out.getClose();
+        log.info("🧮 SECONDARY_ADJUST via LOCAL_DIFF @ {} | base={} sec={} | A(medianDiff)={} R(medianRatio)={} | close {} → {} | overlap={}min",
+                m, A, B,
+                String.format(java.util.Locale.US, "%.6f", adj.A),
+                String.format(java.util.Locale.US, "%.6f", adj.R),
+                beforeClose, afterClose, overlapMinutes);
+        return out;
     }
 
     public Map<LocalDateTime, String> getDominantContractsPerDay(

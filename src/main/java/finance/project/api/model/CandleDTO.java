@@ -25,7 +25,4 @@ public class CandleDTO {
     private BigDecimal volume;
     private BigDecimal volumeAverage;
     private BigDecimal openInterest;
-
-
-
 }
