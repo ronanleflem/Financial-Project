@@ -1,5 +1,6 @@
 package finance.project.api.services;
 
+import finance.project.api.enums.MarketType;
 import finance.project.api.model.CandleDTO;
 import io.micrometer.common.lang.Nullable;
 import lombok.RequiredArgsConstructor;
@@ -8,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.*;
+import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -68,6 +70,60 @@ public class CandleAggregationService {
         // retour en UTC (LocalDateTime)
         return bucketStartChi.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
+
+    private boolean isTradableMinute(MarketType market, ZonedDateTime zdtUtc) {
+        if (market == MarketType.CRYPTO) return true; // 24/7
+        // CME : test sur zone Chicago
+        return isTradableMinuteCME(zdtUtc.withZoneSameInstant(EXCHANGE_ZONE));
+    }
+
+    private int expectedTradableCountInRange(LocalDateTime startUtc, LocalDateTime endUtc, MarketType market) {
+        int count = 0;
+        ZonedDateTime z = startUtc.atZone(ZoneOffset.UTC).withSecond(0).withNano(0);
+        ZonedDateTime zEnd = endUtc.atZone(ZoneOffset.UTC).withSecond(0).withNano(0);
+        while (z.isBefore(zEnd)) {
+            if (isTradableMinute(market, z)) count++;
+            z = z.plusMinutes(1);
+        }
+        return count;
+    }
+
+    private int expectedTradableCountInBucket(LocalDateTime bucketStartUtc, int tfMinutes, MarketType market) {
+        return expectedTradableCountInRange(bucketStartUtc, bucketStartUtc.plusMinutes(tfMinutes), market);
+    }
+
+    // Vérifie la continuité minute par minute (unicité + pas de trou)
+    private boolean hasContinuousCoverage(List<CandleDTO> candles, LocalDateTime bucketStartUtc, int tfMinutes, MarketType market) {
+        if (candles == null || candles.isEmpty()) return false;
+
+        // minutes uniques réelles (UTC, arrondies à la minute)
+        List<LocalDateTime> actual = candles.stream()
+                .filter(Objects::nonNull)
+                .map(CandleDTO::getDate)
+                .filter(Objects::nonNull)
+                .map(dt -> dt.withSecond(0).withNano(0))
+                .distinct()
+                .sorted()
+                .toList();
+
+        // minutes attendues (selon marché)
+        List<LocalDateTime> expected = new ArrayList<>();
+        ZonedDateTime z = bucketStartUtc.atZone(ZoneOffset.UTC).withSecond(0).withNano(0);
+        ZonedDateTime zEnd = z.plusMinutes(tfMinutes);
+        while (z.isBefore(zEnd)) {
+            if (isTradableMinute(market, z)) {
+                expected.add(z.toLocalDateTime());
+            }
+            z = z.plusMinutes(1);
+        }
+
+        if (actual.size() != expected.size()) return false;
+        for (int i = 0; i < expected.size(); i++) {
+            if (!expected.get(i).equals(actual.get(i))) return false;
+        }
+        return true;
+    }
+
     private boolean isTradableMinuteCME(ZonedDateTime zdt) {
         DayOfWeek dow = zdt.getDayOfWeek();
         LocalTime t = zdt.toLocalTime();
@@ -251,7 +307,80 @@ public class CandleAggregationService {
         }
         return count;
     }
-    public List<CandleDTO> aggregateCandles(List<CandleDTO> m1Candles, String timeframe) {
+
+    // 24/7 : arrimage intraday sur 00:00 UTC
+    private LocalDateTime getCryptoIntradayBucketStartUtc(LocalDateTime dtUtc, int tfMinutes) {
+        LocalDateTime dayStart = dtUtc.truncatedTo(ChronoUnit.DAYS); // 00:00 UTC
+        long minutesSince = Duration.between(dayStart, dtUtc).toMinutes();
+        long anchor = (minutesSince / tfMinutes) * tfMinutes;
+        return dayStart.plusMinutes(anchor);
+    }
+
+    // Semaine CRYPTO : Lundi 00:00 UTC → Lundi 00:00 UTC
+    private LocalDateTime cryptoWeekAnchorStartUtc(LocalDateTime anyUtcInWeek) {
+        ZonedDateTime z = anyUtcInWeek.atZone(ZoneOffset.UTC)
+                .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                .withHour(0).withMinute(0).withSecond(0).withNano(0);
+        return z.toLocalDateTime();
+    }
+    private LocalDateTime cryptoNextWeekAnchorStartUtc(LocalDateTime weekAnchorStartUtc) {
+        return weekAnchorStartUtc.plusWeeks(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+    }
+
+    // Mois CRYPTO : 1er du mois 00:00 UTC → 1er du mois suivant 00:00 UTC
+    private LocalDateTime cryptoMonthlyAnchorStartUtc(LocalDateTime anyUtcInMonth) {
+        LocalDate first = anyUtcInMonth.toLocalDate().withDayOfMonth(1);
+        return LocalDateTime.of(first, LocalTime.MIDNIGHT);
+    }
+    private LocalDateTime cryptoMonthlyAnchorEndUtc(LocalDateTime anyUtcInMonth) {
+        LocalDate firstNext = anyUtcInMonth.toLocalDate().withDayOfMonth(1).plusMonths(1);
+        return LocalDateTime.of(firstNext, LocalTime.MIDNIGHT);
+    }
+
+    public MissingM1Report findMissingM1CandlesCrypto(List<CandleDTO> m1Candles,
+                                                      LocalDateTime startInclusive,
+                                                      LocalDateTime endExclusive) {
+        if (startInclusive == null || endExclusive == null || !startInclusive.isBefore(endExclusive)) {
+            throw new IllegalArgumentException("Fenêtre temporelle invalide");
+        }
+        if (m1Candles == null) m1Candles = Collections.emptyList();
+
+        List<LocalDateTime> actualMinutes = m1Candles.stream()
+                .filter(Objects::nonNull)
+                .map(CandleDTO::getDate)
+                .filter(Objects::nonNull)
+                .map(dt -> dt.withSecond(0).withNano(0))
+                .toList();
+
+        Map<LocalDateTime, Long> counts = actualMinutes.stream()
+                .collect(Collectors.groupingBy(x -> x, Collectors.counting()));
+        List<LocalDateTime> duplicateMinutes = counts.entrySet().stream()
+                .filter(e -> e.getValue() > 1)
+                .map(Map.Entry::getKey)
+                .sorted()
+                .toList();
+        Set<LocalDateTime> actualUnique = counts.keySet();
+
+        Set<LocalDateTime> expected = new LinkedHashSet<>();
+        LocalDateTime cur = startInclusive.withSecond(0).withNano(0);
+        while (cur.isBefore(endExclusive)) {
+            expected.add(cur);
+            cur = cur.plusMinutes(1);
+        }
+
+        List<LocalDateTime> missing = expected.stream()
+                .filter(min -> !actualUnique.contains(min))
+                .sorted()
+                .toList();
+
+        return new MissingM1Report(missing, duplicateMinutes, expected.size(), actualUnique.size());
+    }
+
+    private List<CandleDTO> aggregateWeeklyCandles(List<CandleDTO> m1Candles, MarketType market, boolean requireContinuousM1) {
+        if (m1Candles == null || m1Candles.isEmpty()) {
+            log.warn("⚠️ Liste vide, aucune agrégation weekly possible");
+            return Collections.emptyList();
+        }
 
         LocalDateTime windowStart = m1Candles.stream()
                 .map(CandleDTO::getDate).filter(Objects::nonNull)
@@ -263,87 +392,275 @@ public class CandleAggregationService {
                 .max(LocalDateTime::compareTo).orElseThrow()
                 .plusMinutes(1).withSecond(0).withNano(0);
 
-        if (m1Candles.isEmpty()) {
+        List<CandleDTO> sorted = new ArrayList<>(m1Candles);
+        sorted.sort(Comparator.comparing(CandleDTO::getDate));
+
+        Map<LocalDateTime, List<CandleDTO>> grouped = new HashMap<>();
+        for (CandleDTO c : sorted) {
+            LocalDateTime t = c.getDate().withSecond(0).withNano(0);
+            LocalDateTime anchor = (market == MarketType.CME) ? cmeWeekAnchorStartUtc(t) : cryptoWeekAnchorStartUtc(t);
+            grouped.computeIfAbsent(anchor, k -> new ArrayList<>()).add(c);
+        }
+
+        List<CandleDTO> aggregated = new ArrayList<>();
+        int ignored = 0;
+
+        for (Map.Entry<LocalDateTime, List<CandleDTO>> e : grouped.entrySet()) {
+            LocalDateTime bucketStart = e.getKey();
+            LocalDateTime bucketEnd   = (market == MarketType.CME)
+                    ? cmeNextWeekAnchorStartUtc(bucketStart)
+                    : cryptoNextWeekAnchorStartUtc(bucketStart);
+
+            // Intersection fenêtre↔bucket
+            LocalDateTime effectiveStart = bucketStart.isBefore(windowStart) ? windowStart : bucketStart;
+            LocalDateTime effectiveEnd   = bucketEnd.isAfter(windowEndExclusive) ? windowEndExclusive : bucketEnd;
+            if (!effectiveStart.isBefore(effectiveEnd)) continue;
+
+            // 🔒 Règle stricte: weekly = bucket complet en CME et en CRYPTO
+            boolean requireFullBucket = (market == MarketType.CRYPTO) || (market == MarketType.CME);
+            boolean fullBucket = effectiveStart.equals(bucketStart) && effectiveEnd.equals(bucketEnd);
+            if (requireFullBucket && !fullBucket) {
+                ignored++;
+                log.warn("❌ Bougie ignorée (weekly PARTIAL) {} : fenêtre incomplète ({} -> {} vs {} -> {})",
+                        bucketStart, effectiveStart, effectiveEnd, bucketStart, bucketEnd);
+                continue;
+            }
+
+            // Couverture à vérifier (sur tout le bucket si full, sinon sur l'intersection)
+            LocalDateTime covStart = requireFullBucket ? bucketStart : effectiveStart;
+            LocalDateTime covEnd   = requireFullBucket ? bucketEnd   : effectiveEnd;
+
+            List<CandleDTO> bucket = e.getValue().stream()
+                    .filter(c -> !c.getDate().isBefore(covStart) && c.getDate().isBefore(covEnd))
+                    .sorted(Comparator.comparing(CandleDTO::getDate))
+                    .toList();
+
+            int expected = expectedTradableCountInRange(covStart, covEnd, market);
+            long uniques = bucket.stream().map(CandleDTO::getDate)
+                    .map(dt -> dt.withSecond(0).withNano(0)).distinct().count();
+
+            boolean requireContinuous = (market == MarketType.CRYPTO) || requireContinuousM1 || requireFullBucket;
+            boolean continuous = !requireContinuous || hasContinuousCoverage(
+                    bucket, covStart, (int) Duration.between(covStart, covEnd).toMinutes(), market
+            );
+
+            if (uniques < expected || !continuous) {
+                ignored++;
+                log.warn("❌ Bougie ignorée (weekly{}) {} : uniques={}/{} continuous={}",
+                        fullBucket ? "" : " PARTIAL", bucketStart, uniques, expected, continuous);
+                continue;
+            }
+
+            aggregated.add(aggregateBucket(bucket, bucketStart, "weekly"));
+        }
+
+        aggregated.sort(Comparator.comparing(CandleDTO::getDate));
+        log.info("✅ Agrégation complétée. {} bougies weekly", aggregated.size());
+        if (ignored > 0) log.info("⚠️ Weekly ignorée pour {} buckets incomplets", ignored);
+        return aggregated;
+    }
+
+    private List<CandleDTO> aggregateMonthlyCandles(List<CandleDTO> m1Candles, MarketType market, boolean requireContinuousM1) {
+        if (m1Candles == null || m1Candles.isEmpty()) {
+            log.warn("⚠️ Liste vide, aucune agrégation monthly possible");
+            return Collections.emptyList();
+        }
+
+        // Fenêtre globale réellement disponible
+        LocalDateTime windowStart = m1Candles.stream()
+                .map(CandleDTO::getDate).filter(Objects::nonNull)
+                .min(LocalDateTime::compareTo).orElseThrow()
+                .withSecond(0).withNano(0);
+
+        LocalDateTime windowEndExclusive = m1Candles.stream()
+                .map(CandleDTO::getDate).filter(Objects::nonNull)
+                .max(LocalDateTime::compareTo).orElseThrow()
+                .plusMinutes(1).withSecond(0).withNano(0);
+
+        List<CandleDTO> sorted = new ArrayList<>(m1Candles);
+        sorted.sort(Comparator.comparing(CandleDTO::getDate));
+
+        Map<LocalDateTime, List<CandleDTO>> grouped = new HashMap<>();
+        for (CandleDTO c : sorted) {
+            LocalDateTime t = c.getDate().withSecond(0).withNano(0);
+            LocalDateTime anchor = (market == MarketType.CME) ? getMonthlyBucketStartUtc(t) : cryptoMonthlyAnchorStartUtc(t);
+            grouped.computeIfAbsent(anchor, k -> new ArrayList<>()).add(c);
+        }
+
+        List<CandleDTO> aggregated = new ArrayList<>();
+
+        for (Map.Entry<LocalDateTime, List<CandleDTO>> e : grouped.entrySet()) {
+            LocalDateTime bucketStart = e.getKey();
+            LocalDateTime bucketEnd   = (market == MarketType.CME)
+                    ? cmeMonthlyAnchorEndUtc(bucketStart)
+                    : cryptoMonthlyAnchorEndUtc(bucketStart);
+
+            // Intersection avec la fenêtre réellement disponible
+            LocalDateTime effectiveStart = bucketStart.isBefore(windowStart) ? windowStart : bucketStart;
+            LocalDateTime effectiveEnd   = bucketEnd.isAfter(windowEndExclusive) ? windowEndExclusive : bucketEnd;
+            if (!effectiveStart.isBefore(effectiveEnd)) continue;
+
+            boolean fullBucket = effectiveStart.equals(bucketStart) && effectiveEnd.equals(bucketEnd);
+
+            // En CRYPTO : on exige le bucket complet
+            if (market == MarketType.CRYPTO && !fullBucket) {
+                log.warn("❌ Bougie ignorée (monthly CRYPTO PARTIAL) {} : fenêtre incomplète ({} -> {} vs bucketEnd={})",
+                        bucketStart, effectiveStart, effectiveEnd, bucketEnd);
+                continue;
+            }
+
+            // Bougies dans l'intersection
+            List<CandleDTO> bucket = e.getValue().stream()
+                    .filter(c -> !c.getDate().isBefore(effectiveStart) && c.getDate().isBefore(effectiveEnd))
+                    .sorted(Comparator.comparing(CandleDTO::getDate))
+                    .toList();
+
+            int expected = expectedTradableCountInRange(effectiveStart, effectiveEnd, market);
+            long uniques = bucket.stream().map(CandleDTO::getDate)
+                    .map(dt -> dt.withSecond(0).withNano(0)).distinct().count();
+
+            boolean requireContinuous = (market == MarketType.CRYPTO) || requireContinuousM1;
+            boolean continuous = !requireContinuous || hasContinuousCoverage(
+                    bucket, effectiveStart,
+                    (int) Duration.between(effectiveStart, effectiveEnd).toMinutes(),
+                    market
+            );
+
+            if (uniques < expected || !continuous) {
+                log.warn("❌ Bougie ignorée (monthly{}) {} : uniques={}/{} continuous={}",
+                        fullBucket ? "" : " PARTIAL", bucketStart, uniques, expected, continuous);
+                continue;
+            }
+
+            aggregated.add(aggregateBucket(bucket, bucketStart, "monthly"));
+        }
+
+        aggregated.sort(Comparator.comparing(CandleDTO::getDate));
+        log.info("✅ Agrégation complétée. {} bougies monthly", aggregated.size());
+        return aggregated;
+    }
+
+
+    public List<CandleDTO> aggregateCandles(List<CandleDTO> m1Candles,
+                                            String timeframe,
+                                            MarketType market,
+                                            boolean requireContinuousM1) {
+        if (m1Candles == null || m1Candles.isEmpty()) {
             log.warn("⚠️ Liste de candles vide, aucune agrégation possible");
             return Collections.emptyList();
         }
 
-        // Détermination de la durée d'un bloc temporel en minutes
+        // Fenêtre
+        LocalDateTime windowStart = m1Candles.stream()
+                .map(CandleDTO::getDate).filter(Objects::nonNull)
+                .min(LocalDateTime::compareTo).orElseThrow()
+                .withSecond(0).withNano(0);
+
+        LocalDateTime windowEndExclusive = m1Candles.stream()
+                .map(CandleDTO::getDate).filter(Objects::nonNull)
+                .max(LocalDateTime::compareTo).orElseThrow()
+                .plusMinutes(1).withSecond(0).withNano(0);
+
         int tfMinutes = convertTimeframeToMinutes(timeframe);
         if (tfMinutes <= 1) {
             log.info("ℹ️ Timeframe de 1min demandé, aucune agrégation effectuée.");
             return m1Candles;
         }
-        MissingM1Report rpt = checkMissingM1BeforeAggregation(
-                m1Candles,
-                null,
-                null,
-                0
-        );
 
-        if (rpt.missingMinutes.size() > 0) {
-            log.warn("🚧 Agrégation annulée : minutes manquantes détectées ({})", rpt.missingMinutes.size());
-            return Collections.emptyList();
+        // Optionnel : contrôle global des trous avant agrégation
+        if (market == MarketType.CME) {
+            // Comportement historique identique
+            MissingM1Report rpt = checkMissingM1BeforeAggregation(m1Candles, null, null, 0);
+            if (!rpt.missingMinutes.isEmpty()) {
+                log.warn("🚧 Agrégation annulée : minutes manquantes détectées ({})", rpt.missingMinutes.size());
+                return Collections.emptyList();
+            }
+        } else {
+            MissingM1Report rpt = findMissingM1CandlesCrypto(m1Candles, windowStart, windowEndExclusive);
+            if (!rpt.missingMinutes.isEmpty()) {
+                log.warn("⛔ CRYPTO: minutes manquantes={}. Agrégation annulée.", rpt.missingMinutes.size());
+                return Collections.emptyList();
+            }
         }
 
+        // Timeframes spéciaux
         if ("weekly".equalsIgnoreCase(timeframe)) {
-            return aggregateWeeklyCandles(m1Candles);
+            return aggregateWeeklyCandles(m1Candles, market, requireContinuousM1);
         }
         if ("monthly".equalsIgnoreCase(timeframe)) {
-            return aggregateMonthlyCandles(m1Candles);
+            return aggregateMonthlyCandles(m1Candles, market, requireContinuousM1);
         }
 
+        // Tri
+        List<CandleDTO> sorted = new ArrayList<>(m1Candles);
+        sorted.sort(Comparator.comparing(CandleDTO::getDate, Comparator.nullsLast(Comparator.naturalOrder())));
 
-        m1Candles = new ArrayList<>(m1Candles);
-        m1Candles.sort(Comparator.comparing(
-                CandleDTO::getDate,
-                Comparator.nullsLast(Comparator.naturalOrder())
-        ));
-
-        // Déterminer le premier point de regroupement valide
-        LocalDateTime startDate = getFirstValidStartDate(windowStart, timeframe);
-        LocalDateTime firstBucket = getBucketStartTime(windowStart, tfMinutes);
-        if (firstBucket.isBefore(windowStart)) {
-            firstBucket = firstBucket.plusMinutes(tfMinutes);
-        }
+        // Premier bucket valide
+        LocalDateTime firstBucket = getBucketStartTime(windowStart, tfMinutes, market);
+        if (firstBucket.isBefore(windowStart)) firstBucket = firstBucket.plusMinutes(tfMinutes);
         LocalDateTime finalFirstBucket = firstBucket;
-        List<CandleDTO> filteredCandles = m1Candles.stream()
-                .filter(c -> !getBucketStartTime(c.getDate(), tfMinutes).isBefore(finalFirstBucket))
+
+        List<CandleDTO> filtered = sorted.stream()
+                .filter(c -> !getBucketStartTime(c.getDate(), tfMinutes, market).isBefore(finalFirstBucket))
                 .toList();
 
-        // Regroupement par période (bucket par timeframe supérieur)
-        Map<LocalDateTime, List<CandleDTO>> groupedCandles = filteredCandles.stream()
-                .collect(Collectors.groupingBy(c -> getBucketStartTime(c.getDate(), tfMinutes)));
+        // Regroupement
+        Map<LocalDateTime, List<CandleDTO>> grouped = filtered.stream()
+                .collect(Collectors.groupingBy(c -> getBucketStartTime(c.getDate(), tfMinutes, market)));
 
-        List<CandleDTO> aggregatedCandles = new ArrayList<>();
-        int aggregIgnored = 0;
-        for (Map.Entry<LocalDateTime, List<CandleDTO>> entry : groupedCandles.entrySet()) {
-            LocalDateTime bucketTime = entry.getKey();
-            List<CandleDTO> candlesInBucket = entry.getValue();
+        List<CandleDTO> out = new ArrayList<>();
+        int ignored = 0;
 
-            LocalDateTime bucketEnd = bucketTime.plusMinutes(tfMinutes);
-            if (bucketEnd.isAfter(windowEndExclusive)) {
+        for (Map.Entry<LocalDateTime, List<CandleDTO>> e : grouped.entrySet()) {
+            LocalDateTime bucketStart = e.getKey();
+            LocalDateTime bucketEnd = bucketStart.plusMinutes(tfMinutes);
+            if (bucketEnd.isAfter(windowEndExclusive)) continue;
+
+            List<CandleDTO> bucket = e.getValue();
+
+            int expected = expectedTradableCountInBucket(bucketStart, tfMinutes, market);
+
+            // 1) comptage attendu
+            boolean enough = bucket.stream().map(CandleDTO::getDate).filter(Objects::nonNull)
+                    .map(dt -> dt.withSecond(0).withNano(0)).distinct().count() == expected;
+
+            boolean requireContinuous = (market == MarketType.CRYPTO) || requireContinuousM1;
+
+            // 2) continuité stricte si demandé
+            boolean continuous = !requireContinuous
+                    ? true
+                    : hasContinuousCoverage(bucket, bucketStart, tfMinutes, market);
+
+            if (!enough || !continuous) {
+                ignored++;
+                log.warn("❌ Bougie ignorée {} : uniques={}/{} continuous={} (expected={}, requireContinuous={})",
+                        bucketStart,
+                        bucket.stream().map(CandleDTO::getDate).filter(Objects::nonNull)
+                                .map(dt -> dt.withSecond(0).withNano(0)).distinct().count(),
+                        expected,
+                        continuous,
+                        expected,
+                        requireContinuous);
                 continue;
             }
 
-            int expectedCount = expectedTradableCountInBucket(bucketTime, tfMinutes);
-            if (candlesInBucket.size() < expectedCount) {
-                aggregIgnored++;
-                log.warn("❌ Bougie ignorée pour {} : données incomplètes ({}/{})", bucketTime, candlesInBucket.size(), expectedCount);
-                continue;
-            }
-
-            CandleDTO aggregated = aggregateBucket(candlesInBucket, bucketTime, timeframe);
-            aggregatedCandles.add(aggregated);
+            out.add(aggregateBucket(bucket, bucketStart, timeframe));
         }
 
-        aggregatedCandles.sort(Comparator.comparing(CandleDTO::getDate));
-        log.info("✅ Agrégation complétée. {} bougies créées sur le timeframe {}", aggregatedCandles.size(), timeframe);
-        if(aggregatedCandles.size() > 1) {
-            log.info("⚠️ Agrégation ignorée. {} données incomplètes sur le timeframe {}", aggregIgnored, timeframe);
-        }
+        out.sort(Comparator.comparing(CandleDTO::getDate));
+        log.info("✅ Agrégation complétée. {} bougies créées sur {}", out.size(), timeframe);
+        if (ignored > 0) log.info("⚠️ Agrégation ignorée pour {} buckets incomplets", ignored);
 
-        return aggregatedCandles;
+        return out;
+    }
+
+    public List<CandleDTO> aggregateCandles(List<CandleDTO> m1Candles, String timeframe) {
+        return aggregateCandles(m1Candles, timeframe, MarketType.CME, true);
+    }
+
+    // *** Compatibilité arrière : CME + continuité stricte (comportement actuel) ***
+    public List<CandleDTO> aggregateCandles(List<CandleDTO> m1Candles, String timeframe, MarketType marketType) {
+        return aggregateCandles(m1Candles, timeframe, marketType, true);
     }
 
     private int convertTimeframeToMinutes(String timeframe) {
@@ -462,100 +779,38 @@ public class CandleAggregationService {
         return aggregated;
     }
 
-    private List<CandleDTO> aggregateWeeklyCandles(List<CandleDTO> m1Candles) {
 
-        if (m1Candles == null || m1Candles.isEmpty()) {
-            log.warn("⚠️ Liste vide, aucune agrégation weekly possible");
-            return Collections.emptyList();
-        }
-
-        // Fenêtre globale
-        LocalDateTime windowStart = m1Candles.stream()
-                .map(CandleDTO::getDate).filter(Objects::nonNull)
-                .min(LocalDateTime::compareTo).orElseThrow()
-                .withSecond(0).withNano(0);
-
-        LocalDateTime windowEndExclusive = m1Candles.stream()
-                .map(CandleDTO::getDate).filter(Objects::nonNull)
-                .max(LocalDateTime::compareTo).orElseThrow()
-                .plusMinutes(1).withSecond(0).withNano(0);
-
-        // Tri
-        List<CandleDTO> sorted = new ArrayList<>(m1Candles);
-        sorted.sort(Comparator.comparing(CandleDTO::getDate));
-
-        // bucketStart (dim 17:00 CT) → bougies
-        Map<LocalDateTime, List<CandleDTO>> grouped = new HashMap<>();
-        for (CandleDTO c : sorted) {
-            LocalDateTime t = c.getDate().withSecond(0).withNano(0);
-            LocalDateTime anchor = cmeWeekAnchorStartUtc(t);
-            grouped.computeIfAbsent(anchor, k -> new ArrayList<>()).add(c);
-        }
-
-        List<CandleDTO> aggregated = new ArrayList<>();
-        int ignored = 0;
-
-        for (Map.Entry<LocalDateTime, List<CandleDTO>> e : grouped.entrySet()) {
-            LocalDateTime bucketStart = e.getKey();
-            LocalDateTime bucketEnd   = cmeNextWeekAnchorStartUtc(bucketStart);
-
-            // borne par la fenêtre globale
-            if (!bucketEnd.isAfter(windowStart) || !bucketStart.isBefore(windowEndExclusive)) continue;
-
-            List<CandleDTO> candlesInBucket = e.getValue().stream()
-                    .filter(c -> !c.getDate().isBefore(bucketStart) && c.getDate().isBefore(bucketEnd))
-                    .sorted(Comparator.comparing(CandleDTO::getDate))
-                    .toList();
-
-            int expected = expectedTradableCountInRange(bucketStart, bucketEnd);
-            if (candlesInBucket.size() < expected) {
-                ignored++;
-                log.warn("❌ Bougie ignorée (weekly) {} : données incomplètes ({}/{})",
-                        bucketStart, candlesInBucket.size(), expected);
-                continue;
-            }
-
-            aggregated.add(aggregateBucket(candlesInBucket, bucketStart, "weekly"));
-        }
-
-        aggregated.sort(Comparator.comparing(CandleDTO::getDate));
-        log.info("✅ Agrégation complétée. {} bougies créées sur le timeframe weekly", aggregated.size());
-        if (ignored > 0) {
-            log.info("⚠️ Agrégation weekly ignorée pour {} buckets incomplets", ignored);
-        }
-        return aggregated;
-    }
-
-
-    private LocalDateTime getBucketStartTime(LocalDateTime dateTime, int tfMinutes) {
+    private LocalDateTime getBucketStartTime(LocalDateTime dateTime, int tfMinutes, MarketType market) {
 
         if (tfMinutes < 60) {
             // Timeframes en minutes : 1min, 3min, 5min, 10min, 15min, 30min, 45min
             int minuteOfPeriod = (dateTime.getMinute() / tfMinutes) * tfMinutes;
             return dateTime.withMinute(minuteOfPeriod).withSecond(0).withNano(0);
 
-        } else if (tfMinutes >= 60 && tfMinutes < 1440) {
-            // Tous les intraday >= 1h sont ancrés sur la session CME (17:00 CT)
-            return getCmeIntradayBucketStartUtc(dateTime, tfMinutes);
+        }  else if (tfMinutes >= 60 && tfMinutes < 1440) {
+            return (market == MarketType.CME)
+                    ? getCmeIntradayBucketStartUtc(dateTime, tfMinutes)
+                    : getCryptoIntradayBucketStartUtc(dateTime, tfMinutes);
 
         } else if (tfMinutes == 1440) {
-            // D1 = début de session (17:00 CT) en UTC
-            return alignToCmeTradingDayStart(dateTime);
+            return (market == MarketType.CME)
+                    ? alignToCmeTradingDayStart(dateTime)               // 17:00 CT
+                    : dateTime.truncatedTo(ChronoUnit.DAYS);            // 00:00 UTC
 
-        } else if (tfMinutes == 10080) { // weekly
-            ZonedDateTime chi = dateTime.atZone(ZoneOffset.UTC).withZoneSameInstant(EXCHANGE_ZONE);
-            ZonedDateTime startChi = chi.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
-                    .withHour(17).withMinute(0).withSecond(0).withNano(0);
-            return startChi.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+        } else if (tfMinutes == 10080) {
+            return (market == MarketType.CME)
+                    ? cmeWeekAnchorStartUtc(dateTime)                   // dim 17:00 CT
+                    : cryptoWeekAnchorStartUtc(dateTime);               // lun 00:00 UTC
 
-        } else if (tfMinutes == 43200) { // monthly (~30j)
-            return getMonthlyBucketStartUtc(dateTime);
+        } else if (tfMinutes == 43200) {
+            return (market == MarketType.CME)
+                    ? getMonthlyBucketStartUtc(dateTime)                // ancre CME (dim 17:00)
+                    : cryptoMonthlyAnchorStartUtc(dateTime);            // 1er 00:00 UTC
         } else {
             log.warn("⚠️ Timeframe non standard '{} minutes'. Fallback à date brute", tfMinutes);
             return dateTime.withSecond(0).withNano(0);
         }
     }
-
 
 
     private CandleDTO aggregateBucket(List<CandleDTO> candles, LocalDateTime bucketStart, String timeframe) {

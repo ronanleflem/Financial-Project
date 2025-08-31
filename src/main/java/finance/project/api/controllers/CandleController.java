@@ -5,6 +5,7 @@ package finance.project.api.controllers;
 import finance.project.api.entities.Candle;
 import finance.project.api.entities.Symbol;
 import finance.project.api.entities.TradeCompleted;
+import finance.project.api.enums.MarketType;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.model.CandleFilterDTO;
 import finance.project.api.model.SymbolDTO;
@@ -264,7 +265,7 @@ public class CandleController {
 
         // Agrégation sur toutes les timeframes que tu as défini
         for (String e : TIMEFRAMESVOLCME) {
-            List<CandleDTO> aggregatedCandles = candleAggregationService.aggregateCandles(candles, e);
+            List<CandleDTO> aggregatedCandles = candleAggregationService.aggregateCandles(candles, e, MarketType.CME);
             candleService.saveCandlesToDatabase(aggregatedCandles, symbol, e);
         }
         return new ResponseEntity<>(HttpStatus.OK);
@@ -315,7 +316,7 @@ public class CandleController {
         List<CandleDTO> candles = binanceService.getHistoricalCandlesInRange(symbol, interval, startDate, endDate);
         // Agrégation sur toutes les timeframes que tu as défini
         for (String e : TIMEFRAMESVOLCRYPTO) {
-            List<CandleDTO> aggregatedCandles = candleAggregationService.aggregateCandles(candles, e);
+            List<CandleDTO> aggregatedCandles = candleAggregationService.aggregateCandles(candles, e, MarketType.CRYPTO);
             candleService.saveCandlesToDatabase(aggregatedCandles, symbol, e);
         }
         return new ResponseEntity<>(candles, HttpStatus.OK);
