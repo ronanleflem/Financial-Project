@@ -106,6 +106,10 @@ Création d'une API Java Spring capable de traiter des données financières et 
 4. Intégration avec des Portefeuilles d'Investissement
 5. Optimisation des Performances et Scalabilité
 
+## 📖 Documentation
+
+- [Getting Started — Démarrage rapide sans Java/Angular](docs/getting_started.md)
+
 ## Installation et Configuration
 
 1. **Cloner le projet** : 

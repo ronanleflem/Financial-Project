@@ -1,0 +1,25 @@
+{
+  "data": {
+    "dataset_path": "data/examples/eurusd_m1_synth.csv",
+    "symbols": ["EURUSD"],
+    "timeframe": "M1",
+    "start": "2025-01-01T00:00:00Z",
+    "end": "2025-01-01T03:00:00Z"
+  },
+  "events": [
+    { "name": "two_up_candles", "type": "k_consecutive", "params": { "k": 2, "direction": "up" } },
+    { "name": "atr_shock", "type": "shock_atr", "params": { "mult": 1.8, "window": 14 } },
+    { "name": "breakout_high20", "type": "breakout_hhll", "params": { "lookback": 20, "type": "high" } }
+  ],
+  "conditions": [
+    { "name": "htf_trend", "type": "htf_trend", "params": { "tf_multiplier": 60, "ema_period": 50 } },
+    { "name": "vol_regime", "type": "vol_tertile", "params": { "window": 14 } }
+  ],
+  "targets": [
+    { "name": "next_bar_up", "type": "up_next_bar", "params": {} },
+    { "name": "cont_up_3bars", "type": "continuation_n", "params": { "n": 3, "direction": "up" } }
+  ],
+  "validation": { "scheme": "walk_forward", "folds": 1, "train_months": 0, "test_months": 0, "embargo_days": 0 },
+  "artifacts": { "out_dir": "runs/stats_examples_min" },
+  "persistence": { "store_stats_in_db": false }
+}
