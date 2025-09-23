@@ -1,0 +1,33 @@
+{
+  "data": {
+    "dataset_path": "data/examples/eurusd_m1_synth.csv",
+    "symbols": ["EURUSD"],
+    "timeframe": "M1",
+    "start": "2025-01-01T00:00:00Z",
+    "end": "2025-01-01T03:00:00Z"
+  },
+  "profile": {
+    "by_hour": true,
+    "by_dow": true,
+    "by_month": false,
+    "measure": "direction",
+    "ret_horizon": 1,
+    "min_samples_bin": 30
+  },
+  "signal": {
+    "method": "threshold",
+    "threshold": 0.54,
+    "dims": ["hour","dow"],
+    "combine": "and",
+    "topk": 2
+  },
+  "execution": { "slippage_bps": 0.5, "fee_bps": 0.2 },
+  "risk": { "position_sizing": "fixed_fraction", "risk_per_trade": 0.005 },
+  "tp_sl": {
+    "stop": { "type": "fixed_atr", "atr_mult": 1.5 },
+    "take_profit": { "type": "r_multiple", "r_values": [1,2,3] }
+  },
+  "validation": { "scheme": "walk_forward", "folds": 1, "train_months": 0, "test_months": 0 },
+  "artifacts": { "out_dir": "runs/seasonality_m1_3d_min" },
+  "persistence": { "store_trades_in_db": false, "store_equity_in_db": false }
+}
