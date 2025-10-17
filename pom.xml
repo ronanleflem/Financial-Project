@@ -37,6 +37,24 @@
 			<artifactId>ta4j-core</artifactId>
 			<version>0.17</version>
 		</dependency>
+		<!-- DEPENDANCES DE JAR IBKR -->
+		<dependency>
+			<groupId>com.ib</groupId>
+			<artifactId>tws-api</artifactId>
+			<version>10.40</version>
+		</dependency>
+		<dependency>
+			<groupId>com.ib</groupId>
+			<artifactId>tws-api-proto</artifactId>
+			<version>10.40</version>
+		</dependency>
+		<!-- FIN DEPENDANCES DE JAR IBKR (lié aux commandes maven)-->
+
+		<dependency>
+			<groupId>com.google.protobuf</groupId>
+			<artifactId>protobuf-java</artifactId>
+			<version>4.29.3</version>
+		</dependency>
 
 		<!--
 		<dependency>
@@ -185,10 +203,6 @@
 						</goals>
 						<configuration>
 							<mainClass>com.votrepackage.Main</mainClass>
-							<modules>
-								<module>javafx.controls</module>
-								<module>javafx.fxml</module>
-							</modules>
 						</configuration>
 					</execution>
 				</executions>

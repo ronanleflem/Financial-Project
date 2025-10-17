@@ -96,7 +96,8 @@ public class TrendFollowingStrategy {
                 .confidenceScore(0)
                 .symbol(symbol)
                 .build());
-        tradeFilterService.buildFilterRules(dummy, symbol, timeframe, period, candles, 2);        Strategy strategy = buildTa4jStrategy(series, 20, rrRatio);
+        tradeFilterService.buildFilterRules(dummy, symbol, timeframe, period, candles, 2);
+        Strategy strategy = buildTa4jStrategy(series, 20, rrRatio);
 
         // 3. Backtest via TA4J
         BarSeriesManager manager = new BarSeriesManager(series);

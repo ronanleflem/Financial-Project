@@ -59,10 +59,11 @@ public class BootstrapData implements CommandLineRunner {
 
     @EventListener(ApplicationReadyEvent.class)
     public void sendStartupRequests() {
-        String url1 = "http://localhost:8090/api/finance/charts/binance/historical-range?interval=1m&symbol=BTCUSDT&startDate=2025-07-01T00:00:00&endDate=2025-08-01T00:00:00&limit=1000";
+
+        //String url1 = "http://localhost:8090/api/finance/charts/binance/historical-range?interval=1m&symbol=APTUSDT&startDate=2024-01-01T00:00:00&endDate=2024-01-31T23:59:59&limit=1000";
         //String url2 = "http://localhost:8090/api/finance/charts/load-csv/cme/all-timeframes?symbol=EURUSD&timeframe=1min&data=data_2025-03";
         try {
-            restTemplate.getForObject(url1, String.class);
+            //restTemplate.getForObject(url1, String.class);
             //restTemplate.getForObject(url2, String.class);
             log.info("Startup requests executed");
         } catch (Exception e) {
@@ -123,7 +124,8 @@ public class BootstrapData implements CommandLineRunner {
             Symbol symbol4 = createSymbol("BTCUSDT", "Bitcoin", "Cryptomonnaie");
             Symbol symbol5 = createSymbol("ETHUSDT", "Ethereum", "Cryptomonnaie");
             Symbol symbol6 = createSymbol("SOLUSDT", "Solana", "Cryptomonnaie");
-            symbolRepository.saveAll(Arrays.asList(symbol1, symbol2, symbol3, symbol4, symbol5, symbol6));
+            Symbol symbol7 = createSymbol("APTUSDT", "Aptos", "Cryptomonnaie");
+            symbolRepository.saveAll(Arrays.asList(symbol1, symbol2, symbol3, symbol4, symbol5, symbol6, symbol7));
         }
     }
 

@@ -101,6 +101,10 @@ Création d'une API Java Spring capable de traiter des données financières et 
 
 ## Installation et Configuration
 
+JAR IBKR :
+mvn install:install-file -Dfile=jar\TwsApi.jar -DgroupId=com.ib -DartifactId=tws-api -Dversion=10.40 -Dpackaging=jar
+mvn install:install-file -Dfile=jar\protobuf-java-4.29.3.jar -DgroupId=com.ib -DartifactId=tws-api-proto -Dversion=10.40 -Dpackaging=jar
+
 1. **Cloner le projet** : 
    ```bash
    git clone https://github.com/ronanleflem/Financial-Project.git
