@@ -1,6 +1,8 @@
 package finance.project.api.services;
 
 import com.ib.client.Decimal;
+import finance.project.api.model.PortfolioPositionDTO;
+import finance.project.api.model.PortfolioSnapshotDTO;
 import finance.project.api.model.TradeViewDTO;
 import org.springframework.stereotype.Service;
 
@@ -36,7 +38,7 @@ public class IbkrTradeService implements BrokerTradeService {
         if (!ib.isConnected()) {
             throw new IllegalStateException("IBKR non connecté. Appelle d’abord /ibkr/connect/wait.");
         }
-        long now = java.time.Instant.now().toEpochMilli();
+        long now = Instant.now().toEpochMilli();
 
         // 1) tentative reqPositions()
         var pos = ib.fetchOpenPositions(4000L);
@@ -90,6 +92,62 @@ public class IbkrTradeService implements BrokerTradeService {
                 .toList();
     }
 
+    @Override
+    public PortfolioSnapshotDTO fetchPortfolioSnapshot() throws Exception {
+        if (!ib.isConnected()) {
+            throw new IllegalStateException("IBKR non connecté. Appelle d’abord /ibkr/connect/wait.");
+        }
+        long now = Instant.now().toEpochMilli();
+
+        var snapshot = ib.fetchPortfolioSnapshot(5000L);
+        double totalMarketValue = snapshot.stream()
+                .mapToDouble(IbkrFxService.IbPortfolioLine::marketValue)
+                .sum();
+        double availableLiquidity = snapshot.stream()
+                .filter(IbkrTradeService::isCashLine)
+                .mapToDouble(IbkrFxService.IbPortfolioLine::marketValue)
+                .sum();
+        double investedMarketValue = snapshot.stream()
+                .filter(line -> !isCashLine(line))
+                .mapToDouble(IbkrFxService.IbPortfolioLine::marketValue)
+                .sum();
+
+        List<PortfolioPositionDTO> positions = snapshot.stream()
+                .map(line -> {
+                    var contract = line.contract();
+                    double marketValue = line.marketValue();
+                    double relative = (!isCashLine(line) && Math.abs(investedMarketValue) > 1e-9)
+                            ? marketValue / investedMarketValue
+                            : 0d;
+                    return new PortfolioPositionDTO(
+                            "IBKR",
+                            line.account(),
+                            buildSymbol(contract),
+                            buildDescription(contract),
+                            safe(contract.secType().getApiString()),
+                            safe(contract.currency()),
+                            safe(contract.exchange()),
+                            contract.conid() > 0 ? contract.conid() : null,
+                            toDouble(line.position()),
+                            line.marketPrice(),
+                            marketValue,
+                            line.averageCost(),
+                            line.unrealizedPNL(),
+                            line.realizedPNL(),
+                            relative
+                    );
+                })
+                .toList();
+
+        return new PortfolioSnapshotDTO(
+                "IBKR",
+                totalMarketValue,
+                availableLiquidity,
+                positions,
+                now
+        );
+    }
+
 
     private static String safe(String s) { return (s == null || s.isBlank()) ? null : s; }
 
@@ -111,5 +169,11 @@ public class IbkrTradeService implements BrokerTradeService {
         String base = (safe(c.symbol()) + "." + safe(c.currency()) + " " + safe(c.exchange())
                 + " (" + safe(c.secType().getApiString()) + ")").replace("null", "");
         return base.trim();
+    }
+
+    private static boolean isCashLine(IbkrFxService.IbPortfolioLine line) {
+        var secType = line.contract().secType();
+        String type = secType != null ? secType.getApiString() : null;
+        return type != null && type.equalsIgnoreCase("CASH");
     }
 }
