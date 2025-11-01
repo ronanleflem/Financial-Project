@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class IbkrWrapperAdapter implements EWrapper {
+public abstract class IbkrWrapperAdapter implements EWrapper {
     @Override
     public void tickPrice(int i, int i1, double v, TickAttrib tickAttrib) {
 
@@ -187,6 +187,8 @@ public class IbkrWrapperAdapter implements EWrapper {
     public void position(String s, Contract contract, Decimal decimal, double v) {
 
     }
+
+    public abstract void position(String account, Contract contract, double pos, double avgCost);
 
     @Override
     public void positionEnd() {

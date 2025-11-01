@@ -6,18 +6,12 @@ import finance.project.api.adapter.IbkrWrapperAdapter;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.ib.client.EWrapper;
 import com.ib.client.TickType;
 import com.ib.client.TickAttrib;
-import com.ib.client.TickAttribLast;
-import com.ib.client.TickAttribBidAsk;
 import com.ib.client.CommissionAndFeesReport;
 
 @Service
@@ -28,6 +22,11 @@ public class IbkrFxService extends IbkrWrapperAdapter {
     private EReader reader;
     private ExecutorService readerExec;
     private final Object readerLock = new Object();
+
+    // Promesse unique pour une requête en cours (IB n’a pas de reqId ici)
+    private final Object positionsLock = new Object();
+    private CompletableFuture<List<IbPosition>> positionsFuture;
+    private List<IbPosition> positionsBuffer;
 
     private final EClientSocket client;
     private final EJavaSignal signal;
@@ -44,6 +43,17 @@ public class IbkrFxService extends IbkrWrapperAdapter {
     // Promesses pour les historiques (reqId -> future liste de barres)
     private final ConcurrentHashMap<Integer, CompletableFuture<List<HistBar>>> histFutures = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, List<HistBar>> histBuffers = new ConcurrentHashMap<>();
+
+    private volatile List<String> managedAccts = List.of();
+
+    private final Object portfolioLock = new Object();
+    private CompletableFuture<List<IbPortfolioLine>> portfolioFuture;
+    private final Map<String, IbPortfolioLine> portfolioMap = new HashMap<>();
+    public record IbPortfolioLine(
+            String account, Contract contract,
+            Decimal position, double marketPrice, double marketValue,
+            double averageCost, double unrealizedPNL, double realizedPNL
+    ) {}
 
     private static final java.util.regex.Pattern MULTISPACE = java.util.regex.Pattern.compile("\\s+");
     private static final java.time.format.DateTimeFormatter F_NO_TZ =
@@ -64,6 +74,13 @@ public class IbkrFxService extends IbkrWrapperAdapter {
         this.client = new EClientSocket(this, signal);
     }
 
+    @Override
+    public void managedAccounts(String accountsList) {
+        // ex: "DU1234567,U123456"
+        this.managedAccts = Arrays.stream(accountsList.split(","))
+                .map(String::trim).filter(s -> !s.isEmpty()).toList();
+        System.out.println("Managed accounts: " + this.managedAccts);
+    }
 
     /** Connexion et attente du handshake (bloque jusqu’à timeout) */
     public synchronized boolean connectAndWait(String host, int port, int clientId, long timeoutMs) {
@@ -86,7 +103,10 @@ public class IbkrFxService extends IbkrWrapperAdapter {
 
     @Override public void connectAck() {
         CountDownLatch l = connectLatch;
-        if (l != null) l.countDown();
+        if (l != null) {
+            l.countDown();
+            System.out.println("✅ IBKR connected (connectAck received)");
+        }
     }
 
     @Override public void nextValidId(int orderId) {
@@ -417,5 +437,143 @@ public class IbkrFxService extends IbkrWrapperAdapter {
                 report.execId(),
                 report.commissionAndFees(),
                 report.currency());
+    }
+
+    // ---- DTO interne minimal pour position IB (on le mappera vers TradeView)
+    public record IbPosition(
+            String account,
+            Contract contract,
+            double position,
+            double avgCost
+    ) {}
+
+    // Lance la collecte des positions avec timeout
+    public List<IbPosition> fetchOpenPositions(long timeoutMs) throws Exception {
+        System.out.println("🟢 Fetching open positions...");
+        synchronized (positionsLock) {
+            if (positionsFuture != null) {
+                throw new IllegalStateException("Positions request already in progress");
+            }
+            positionsFuture = new CompletableFuture<>();
+            positionsBuffer = new ArrayList<>();
+            client.reqPositions(); // déclenche callbacks position(...) puis positionEnd()
+        }
+        try {
+            System.out.println("✅ Positions fetch complete, count=" + (positionsFuture.isDone() ? positionsBuffer.size() : 0));
+            return positionsFuture.get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+        } finally {
+            synchronized (positionsLock) {
+                // filet de sécurité
+                positionsFuture = null;
+                positionsBuffer = null;
+            }
+        }
+    }
+
+    // Optionnel : annuler côté IB si tu veux un bouton "cancel"
+    public void cancelPositionsRequest() {
+        client.cancelPositions();
+    }
+
+// ---- EWrapper callbacks (complète tes @Override déjà présents)
+
+    @Override
+    public void position(String account, Contract contract, double pos, double avgCost) {
+        synchronized (positionsLock) {
+            if (positionsBuffer != null) {
+                System.out.printf(
+                        "📊 Position received: account=%s, symbol=%s%s, qty=%s, avgCost=%.5f%n",
+                        account,
+                        contract.symbol(), contract.currency(),
+                        pos, avgCost
+                );
+                positionsBuffer.add(new IbPosition(account, contract, pos, avgCost));
+            }
+        }
+    }
+
+    @Override
+    public void positionEnd() {
+        System.out.println("📦 PositionEnd reached (positions snapshot complete)");
+        synchronized (positionsLock) {
+            if (positionsFuture != null) {
+                positionsFuture.complete(new ArrayList<>(positionsBuffer));
+            }
+            positionsFuture = null;
+            positionsBuffer = null;
+        }
+    }
+
+    public List<IbPortfolioLine> fetchPortfolioSnapshot(long timeoutMs) throws Exception {
+        System.out.println("🟢 Fetching portfolio snapshot...");
+        List<String> accts = this.managedAccts;
+        if (accts.isEmpty()) {
+            // on peut forcer la requête des comptes si jamais pas encore callback
+            client.reqManagedAccts();
+            Thread.sleep(200); // petit wait; ou bien attendre un latch dans managedAccounts()
+            accts = this.managedAccts;
+        }
+        synchronized (portfolioLock) {
+            if (portfolioFuture != null) throw new IllegalStateException("portfolio request already running");
+            portfolioFuture = new CompletableFuture<>();
+            portfolioMap.clear();
+        }
+        // On lance pour CHAQUE compte (IB autorise) :
+        for (String acc : accts) client.reqAccountUpdates(true, acc);
+
+        try {
+            // on attend un snapshot; IB envoie updatePortfolio + accountDownloadEnd par compte
+            // simplif: timeout global; on arrête ensuite
+            var deadline = System.currentTimeMillis() + timeoutMs;
+            while (System.currentTimeMillis() < deadline) {
+                Thread.sleep(100);
+                synchronized (portfolioLock) {
+                    if (portfolioFuture.isDone()) break;
+                }
+            }
+            synchronized (portfolioLock) {
+                if (!portfolioFuture.isDone()) portfolioFuture.complete(new ArrayList<>(portfolioMap.values()));
+                System.out.println("✅ Portfolio snapshot complete, count=" + portfolioMap.size());
+                return portfolioFuture.get();
+            }
+        } finally {
+            for (String acc : accts) client.reqAccountUpdates(false, acc);
+            synchronized (portfolioLock) { portfolioFuture = null; }
+        }
+    }
+
+    @Override
+    public void updatePortfolio(Contract contract,
+                                Decimal position,          // <-- Decimal ici
+                                double marketPrice,
+                                double marketValue,
+                                double averageCost,
+                                double unrealizedPNL,
+                                double realizedPNL,
+                                String accountName) {
+        synchronized (portfolioLock) {
+            if (portfolioFuture == null) return;
+            System.out.printf(
+                    "💰 Portfolio update: acc=%s, sym=%s%s, pos=%s, px=%.5f, val=%.2f, uPnL=%.2f, rPnL=%.2f%n",
+                    accountName,
+                    contract.symbol(), contract.currency(),
+                    position, marketPrice, marketValue, unrealizedPNL, realizedPNL
+            );
+            String key = accountName + "|" + contract.conid();
+            portfolioMap.put(key, new IbPortfolioLine(
+                    accountName, contract, position, marketPrice, marketValue, averageCost, unrealizedPNL, realizedPNL
+            ));
+        }
+    }
+
+    @Override
+    public void accountDownloadEnd(String accountName) {
+        System.out.println("🏁 Account download end for account: " + accountName);
+        synchronized (portfolioLock) {
+            if (portfolioFuture != null) {
+                // On ne sait pas s’il y a plusieurs comptes; on complète quand on reçoit au moins un end.
+                portfolioFuture.complete(new ArrayList<>(portfolioMap.values()));
+            }
+        }
     }
 }
