@@ -9,6 +9,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 
 @RestController
 @RequestMapping("/ibkr")
@@ -177,14 +179,24 @@ public class IbkrController {
             @RequestParam(required = false) String account,
             @RequestParam(defaultValue = "5000") long timeoutMs
     ) {
-        ensureConnected();
         if (!"IBKR".equalsIgnoreCase(broker)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported broker: " + broker);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Broker non supporté: " + broker);
         }
+        ensureConnected();
         try {
-            return ib.fetchPortfolioSnapshot(account, timeoutMs);
-        } catch (RuntimeException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "IBKR portfolio retrieval failed: " + e.getMessage(), e);
+            return ib.getPortfolioSnapshot(account, timeoutMs);
+        } catch (TimeoutException e) {
+            throw new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT, "IBKR portfolio timeout: " + e.getMessage(), e);
+        } catch (ExecutionException e) {
+            Throwable root = e.getCause() != null ? e.getCause() : e;
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "IBKR portfolio error: " + root.getMessage(), root);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Thread interrupted", e);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
+        } catch (IllegalStateException e) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, e.getMessage(), e);
         }
     }
 
