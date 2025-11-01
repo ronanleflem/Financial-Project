@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import com.ib.client.TickType;
 import com.ib.client.TickAttrib;
@@ -16,6 +17,8 @@ import com.ib.client.CommissionAndFeesReport;
 
 @Service
 public class IbkrFxService extends IbkrWrapperAdapter {
+
+    private final AtomicInteger reqId = new AtomicInteger(1);
 
     private CountDownLatch connectLatch;
 
@@ -30,7 +33,6 @@ public class IbkrFxService extends IbkrWrapperAdapter {
 
     private final EClientSocket client;
     private final EJavaSignal signal;
-    private final AtomicInteger reqId = new AtomicInteger(1);
 
     // Buffer live quotes (les derniers N ticks)
     private final int LIVE_BUFFER = 2000;
@@ -68,6 +70,23 @@ public class IbkrFxService extends IbkrWrapperAdapter {
             "1 hour","2 hours","3 hours","4 hours","8 hours",
             "1 day","1W","1M"
     );
+
+    // --- Account Summary snapshot ---
+    public record IbAccountSnapshot(
+            String account,
+            String baseCurrency,
+            double availableFunds,
+            double excessLiquidity,
+            double totalCashValue,
+            double netLiquidation
+    ) {}
+
+    private final Object accountSummaryLock = new Object();
+    private volatile int currentAccountSummaryReqId = -1;
+    private final java.util.concurrent.ConcurrentHashMap<String, String> accountSummaryMap = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.concurrent.atomic.AtomicReference<String> accountSummaryAccount = new java.util.concurrent.atomic.AtomicReference<>("");
+    private final java.util.concurrent.atomic.AtomicReference<String> accountSummaryBaseFlag = new java.util.concurrent.atomic.AtomicReference<>("BASE");
+    private java.util.concurrent.CompletableFuture<Boolean> accountSummaryFuture;
 
     public IbkrFxService() {
         this.signal = new EJavaSignal();
@@ -575,5 +594,76 @@ public class IbkrFxService extends IbkrWrapperAdapter {
                 portfolioFuture.complete(new ArrayList<>(portfolioMap.values()));
             }
         }
+    }
+
+    @Override
+    public void accountSummary(int reqId, String account, String tag, String value, String currency) {
+        if (reqId != currentAccountSummaryReqId) return;
+        accountSummaryAccount.compareAndSet("", account);
+        // On stocke par clé "tag|currency" pour gérer multi-devises; on privilégiera BASE plus tard
+        accountSummaryMap.put(tag + "|" + currency, value);
+        if ("BASE".equals(currency)) accountSummaryBaseFlag.set("BASE");
+    }
+
+    @Override
+    public void accountSummaryEnd(int reqId) {
+        if (reqId != currentAccountSummaryReqId) return;
+        var f = accountSummaryFuture;
+        if (f != null && !f.isDone()) f.complete(true);
+    }
+
+    public IbAccountSnapshot fetchIbAccountSnapshot(long timeoutMs) throws Exception {
+        int id = this.reqId.getAndIncrement(); // réutilise ton générateur reqId existant
+        final String tags = String.join(",",
+                "AvailableFunds","ExcessLiquidity","TotalCashValue","NetLiquidation"
+        );
+
+        synchronized (accountSummaryLock) {
+            if (accountSummaryFuture != null) {
+                throw new IllegalStateException("account summary request already running");
+            }
+            currentAccountSummaryReqId = id;
+            accountSummaryMap.clear();
+            accountSummaryAccount.set("");
+            accountSummaryBaseFlag.set("BASE");
+            accountSummaryFuture = new java.util.concurrent.CompletableFuture<>();
+        }
+
+        client.reqAccountSummary(id, "All", tags);
+
+        try {
+            accountSummaryFuture.get(timeoutMs, TimeUnit.MILLISECONDS);
+        } catch (java.util.concurrent.TimeoutException te) {
+            // on continue quand même avec ce qu'on a reçu
+        } finally {
+            client.cancelAccountSummary(id);
+            synchronized (accountSummaryLock) {
+                accountSummaryFuture = null;
+                currentAccountSummaryReqId = -1;
+            }
+        }
+
+        // helper pour lire une valeur en priorisant "BASE", sinon la première devise rencontrée
+        Function<String, Double> get = (tag) -> {
+            String baseKey = tag + "|BASE";
+            if (accountSummaryMap.containsKey(baseKey)) {
+                try { return Double.parseDouble(accountSummaryMap.get(baseKey)); } catch (Exception ignored) {}
+            }
+            for (var e : accountSummaryMap.entrySet()) {
+                if (e.getKey().startsWith(tag + "|")) {
+                    try { return Double.parseDouble(e.getValue()); } catch (Exception ignored) {}
+                }
+            }
+            return 0.0;
+        };
+
+        return new IbAccountSnapshot(
+                accountSummaryAccount.get(),
+                "BASE",
+                get.apply("AvailableFunds"),
+                get.apply("ExcessLiquidity"),
+                get.apply("TotalCashValue"),
+                get.apply("NetLiquidation")
+        );
     }
 }

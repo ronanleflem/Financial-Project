@@ -103,10 +103,11 @@ public class IbkrTradeService implements BrokerTradeService {
         double totalMarketValue = snapshot.stream()
                 .mapToDouble(IbkrFxService.IbPortfolioLine::marketValue)
                 .sum();
+        /*
         double availableLiquidity = snapshot.stream()
                 .filter(IbkrTradeService::isCashLine)
                 .mapToDouble(IbkrFxService.IbPortfolioLine::marketValue)
-                .sum();
+                .sum();*/
         double investedMarketValue = snapshot.stream()
                 .filter(line -> !isCashLine(line))
                 .mapToDouble(IbkrFxService.IbPortfolioLine::marketValue)
@@ -138,6 +139,10 @@ public class IbkrTradeService implements BrokerTradeService {
                     );
                 })
                 .toList();
+
+        IbkrFxService.IbAccountSnapshot acc = ib.fetchIbAccountSnapshot(3000L);
+
+        double availableLiquidity = acc.availableFunds();
 
         return new PortfolioSnapshotDTO(
                 "IBKR",
