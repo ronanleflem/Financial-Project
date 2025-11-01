@@ -45,6 +45,9 @@ public class IbkrFxService extends IbkrWrapperAdapter {
     private final ConcurrentHashMap<Integer, CompletableFuture<List<HistBar>>> histFutures = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, List<HistBar>> histBuffers = new ConcurrentHashMap<>();
 
+    private final Object portfolioLock = new Object();
+    private volatile PortfolioRequest currentPortfolioRequest;
+
     private static final java.util.regex.Pattern MULTISPACE = java.util.regex.Pattern.compile("\\s+");
     private static final java.time.format.DateTimeFormatter F_NO_TZ =
             java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd HH:mm:ss");
@@ -317,6 +320,27 @@ public class IbkrFxService extends IbkrWrapperAdapter {
 
     public record FxQuote(long tsMillis, double bid, double ask) { }
     public record HistBar(long tsMillis, double open, double high, double low, double close, long volume) { }
+    public record PortfolioSnapshot(
+            String account,
+            String currency,
+            double availableFunds,
+            double netLiquidation,
+            double grossPositionValue,
+            double totalPositionsValue,
+            List<PositionBreakdown> positions
+    ) { }
+
+    public record PositionBreakdown(
+            long conid,
+            String symbol,
+            String localSymbol,
+            String securityType,
+            String currency,
+            double position,
+            double marketPrice,
+            double marketValue,
+            double allocation
+    ) { }
 
     /** ----------- EWrapper (callbacks) ----------- */
 
@@ -380,6 +404,250 @@ public class IbkrFxService extends IbkrWrapperAdapter {
             // Tri chrono si nécessaire (IB envoie souvent déjà trié)
             buf.sort(Comparator.comparingLong(HistBar::tsMillis));
             fut.complete(buf);
+        }
+    }
+
+    /** ----------- ACCOUNT / PORTFOLIO ----------- */
+
+    public PortfolioSnapshot fetchPortfolioSnapshot(String account) {
+        return fetchPortfolioSnapshot(account, 5000);
+    }
+
+    public PortfolioSnapshot fetchPortfolioSnapshot(String account, long timeoutMs) {
+        if (!client.isConnected()) {
+            throw new IllegalStateException("Not connected to TWS/IB Gateway");
+        }
+        long effectiveTimeout = timeoutMs <= 0 ? 5000 : timeoutMs;
+        PortfolioRequest request = new PortfolioRequest(account);
+        synchronized (portfolioLock) {
+            if (currentPortfolioRequest != null) {
+                throw new IllegalStateException("Another portfolio request is already in progress");
+            }
+            currentPortfolioRequest = request;
+        }
+
+        try {
+            client.reqAccountUpdates(true, request.requestedAccount());
+            return request.future().get(effectiveTimeout, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            request.markCompleted();
+            request.future().completeExceptionally(e);
+            throw new RuntimeException("Interrupted while waiting for IBKR portfolio", e);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            request.markCompleted();
+            throw new RuntimeException("Failed to fetch IBKR portfolio: " + cause.getMessage(), cause);
+        } catch (TimeoutException e) {
+            request.markCompleted();
+            request.future().completeExceptionally(e);
+            throw new RuntimeException("Timed out waiting for IBKR portfolio", e);
+        } finally {
+            try {
+                client.reqAccountUpdates(false, request.requestedAccount());
+            } catch (Exception ignored) {
+            }
+            synchronized (portfolioLock) {
+                currentPortfolioRequest = null;
+            }
+        }
+    }
+
+    @Override
+    public void updateAccountValue(String key, String value, String currency, String accountName) {
+        PortfolioRequest request = currentPortfolioRequest;
+        if (request == null || !request.matchesAccount(accountName)) return;
+        if (value == null || value.isBlank()) return;
+        try {
+            double numericValue = Double.parseDouble(value);
+            request.setCurrencyIfAbsent(currency);
+            switch (key) {
+                case "AvailableFunds" -> request.setAvailableFunds(numericValue);
+                case "NetLiquidation" -> request.setNetLiquidation(numericValue);
+                case "GrossPositionValue" -> request.setGrossPositionValue(numericValue);
+                default -> {
+                }
+            }
+        } catch (NumberFormatException ignored) {
+        }
+    }
+
+    @Override
+    public void updatePortfolio(Contract contract, double position, double marketPrice, double marketValue,
+                                double averageCost, double unrealizedPNL, double realizedPNL, String accountName) {
+        PortfolioRequest request = currentPortfolioRequest;
+        if (request == null || !request.matchesAccount(accountName)) return;
+        String key = positionKey(contract);
+        PortfolioPositionAccumulator accumulator = request.positions().computeIfAbsent(key, k -> new PortfolioPositionAccumulator(contract));
+        accumulator.position = position;
+        accumulator.marketPrice = marketPrice;
+        accumulator.marketValue = marketValue;
+        accumulator.averageCost = averageCost;
+        accumulator.unrealizedPnl = unrealizedPNL;
+        accumulator.realizedPnl = realizedPNL;
+    }
+
+    @Override
+    public void accountDownloadEnd(String accountName) {
+        PortfolioRequest request = currentPortfolioRequest;
+        if (request == null || !request.matchesAccount(accountName) || request.future().isDone()) return;
+
+        double totalPositionsValue = request.positions().values().stream()
+                .mapToDouble(p -> Math.abs(p.marketValue))
+                .sum();
+
+        List<PositionBreakdown> positions = request.positions().values().stream()
+                .sorted(Comparator.comparingDouble((PortfolioPositionAccumulator p) -> Math.abs(p.marketValue)).reversed())
+                .map(acc -> toPositionBreakdown(acc, totalPositionsValue))
+                .toList();
+
+        double grossPositionValue = Double.isNaN(request.grossPositionValue()) ? totalPositionsValue : request.grossPositionValue();
+
+        PortfolioSnapshot snapshot = new PortfolioSnapshot(
+                request.effectiveAccount(),
+                request.currency(),
+                sanitizeDouble(request.availableFunds()),
+                sanitizeDouble(request.netLiquidation()),
+                sanitizeDouble(grossPositionValue),
+                totalPositionsValue,
+                positions
+        );
+
+        request.markCompleted();
+        request.future().complete(snapshot);
+    }
+
+    private double sanitizeDouble(double value) {
+        return Double.isFinite(value) ? value : 0.0;
+    }
+
+    private PositionBreakdown toPositionBreakdown(PortfolioPositionAccumulator acc, double totalPositionsValue) {
+        Contract contract = acc.contract;
+        double allocation = totalPositionsValue == 0.0 ? 0.0 : Math.abs(acc.marketValue) / totalPositionsValue;
+        return new PositionBreakdown(
+                contract != null ? contract.conid() : 0,
+                contract != null ? nullToEmpty(contract.symbol()) : "",
+                contract != null ? nullToEmpty(contract.localSymbol()) : "",
+                contract != null ? nullToEmpty(contract.secType()) : "",
+                contract != null ? nullToEmpty(contract.currency()) : "",
+                acc.position,
+                acc.marketPrice,
+                acc.marketValue,
+                allocation
+        );
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String positionKey(Contract contract) {
+        if (contract == null) return "UNKNOWN";
+        int conid = contract.conid();
+        if (conid != 0) {
+            return "CONID:" + conid;
+        }
+        return (nullToEmpty(contract.symbol()) + ':' + nullToEmpty(contract.secType()) + ':' + nullToEmpty(contract.currency()) + ':' + nullToEmpty(contract.exchange())).toUpperCase(Locale.ROOT);
+    }
+
+    private static class PortfolioRequest {
+        private final String requestedAccount;
+        private final CompletableFuture<PortfolioSnapshot> future = new CompletableFuture<>();
+        private final Map<String, PortfolioPositionAccumulator> positions = new LinkedHashMap<>();
+        private volatile double availableFunds = Double.NaN;
+        private volatile double netLiquidation = Double.NaN;
+        private volatile double grossPositionValue = Double.NaN;
+        private volatile String currency;
+        private volatile String effectiveAccount;
+        private volatile boolean completed;
+
+        PortfolioRequest(String requestedAccount) {
+            this.requestedAccount = requestedAccount == null ? "" : requestedAccount.trim();
+        }
+
+        String requestedAccount() {
+            return requestedAccount;
+        }
+
+        CompletableFuture<PortfolioSnapshot> future() {
+            return future;
+        }
+
+        Map<String, PortfolioPositionAccumulator> positions() {
+            return positions;
+        }
+
+        double availableFunds() {
+            return availableFunds;
+        }
+
+        double netLiquidation() {
+            return netLiquidation;
+        }
+
+        double grossPositionValue() {
+            return grossPositionValue;
+        }
+
+        String currency() {
+            return currency;
+        }
+
+        String effectiveAccount() {
+            return effectiveAccount == null ? requestedAccount : effectiveAccount;
+        }
+
+        boolean matchesAccount(String accountName) {
+            if (completed) return false;
+            if (accountName == null || accountName.isBlank()) {
+                return requestedAccount.isBlank() || Objects.equals(effectiveAccount, accountName);
+            }
+            if (!requestedAccount.isBlank() && !requestedAccount.equals(accountName)) {
+                return false;
+            }
+            if (effectiveAccount != null && !effectiveAccount.equals(accountName)) {
+                return false;
+            }
+            if (effectiveAccount == null) {
+                effectiveAccount = accountName;
+            }
+            return true;
+        }
+
+        void setCurrencyIfAbsent(String newCurrency) {
+            if (this.currency == null && newCurrency != null && !newCurrency.isBlank()) {
+                this.currency = newCurrency;
+            }
+        }
+
+        void setAvailableFunds(double value) {
+            this.availableFunds = value;
+        }
+
+        void setNetLiquidation(double value) {
+            this.netLiquidation = value;
+        }
+
+        void setGrossPositionValue(double value) {
+            this.grossPositionValue = value;
+        }
+
+        void markCompleted() {
+            this.completed = true;
+        }
+    }
+
+    private static class PortfolioPositionAccumulator {
+        final Contract contract;
+        double position;
+        double marketPrice;
+        double marketValue;
+        double averageCost;
+        double unrealizedPnl;
+        double realizedPnl;
+
+        PortfolioPositionAccumulator(Contract contract) {
+            this.contract = contract;
         }
     }
 

@@ -171,6 +171,23 @@ public class IbkrController {
         }
     }
 
+    @GetMapping("/portfolio")
+    public IbkrFxService.PortfolioSnapshot getPortfolio(
+            @RequestParam(defaultValue = "IBKR") String broker,
+            @RequestParam(required = false) String account,
+            @RequestParam(defaultValue = "5000") long timeoutMs
+    ) {
+        ensureConnected();
+        if (!"IBKR".equalsIgnoreCase(broker)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported broker: " + broker);
+        }
+        try {
+            return ib.fetchPortfolioSnapshot(account, timeoutMs);
+        } catch (RuntimeException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "IBKR portfolio retrieval failed: " + e.getMessage(), e);
+        }
+    }
+
     // --- Helper ---
     private void ensureConnected() {
         if (!ib.isConnected()) {
