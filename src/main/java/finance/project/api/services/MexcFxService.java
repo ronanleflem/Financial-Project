@@ -84,13 +84,13 @@ public class MexcFxService extends AbstractPollingFxService {
     @Override
     protected String mapBarSizeToInterval(String barSize) {
         ParsedTemporal parsed = parseTemporal(barSize);
-        return switch (parsed.unit) {
+        return switch (parsed.unit()) {
             case SECOND -> throw new IllegalArgumentException("MEXC does not support second-level klines: " + barSize);
-            case MINUTE -> parsed.amount + "m";
-            case HOUR -> parsed.amount + "h";
-            case DAY -> parsed.amount + "d";
-            case WEEK -> parsed.amount + "w";
-            case MONTH -> parsed.amount + "M";
+            case MINUTE -> parsed.amount() + "m";
+            case HOUR -> parsed.amount() + "h";
+            case DAY -> parsed.amount() + "d";
+            case WEEK -> parsed.amount() + "w";
+            case MONTH -> parsed.amount() + "M";
         };
     }
 

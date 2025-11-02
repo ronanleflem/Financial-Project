@@ -2,9 +2,9 @@ package finance.project.api.services;
 
 import finance.project.api.model.fx.FxQuote;
 import finance.project.api.model.fx.HistBar;
+import jakarta.annotation.PreDestroy;
 import org.springframework.web.client.RestTemplate;
 
-import javax.annotation.PreDestroy;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;

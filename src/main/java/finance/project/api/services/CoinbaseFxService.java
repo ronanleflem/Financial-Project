@@ -101,13 +101,13 @@ public class CoinbaseFxService extends AbstractPollingFxService {
     @Override
     protected String mapBarSizeToInterval(String barSize) {
         ParsedTemporal parsed = parseTemporal(barSize);
-        long seconds = switch (parsed.unit) {
-            case SECOND -> parsed.amount;
-            case MINUTE -> parsed.amount * 60L;
-            case HOUR -> parsed.amount * 3_600L;
-            case DAY -> parsed.amount * 86_400L;
-            case WEEK -> parsed.amount * 604_800L;
-            case MONTH -> parsed.amount * 2_592_000L;
+        long seconds = switch (parsed.unit()) {
+            case SECOND -> parsed.amount();
+            case MINUTE -> parsed.amount() * 60L;
+            case HOUR -> parsed.amount() * 3_600L;
+            case DAY -> parsed.amount() * 86_400L;
+            case WEEK -> parsed.amount() * 604_800L;
+            case MONTH -> parsed.amount() * 2_592_000L;
         };
         if (!ALLOWED_GRANULARITIES.contains(seconds)) {
             throw new IllegalArgumentException("Coinbase granularity not supported: " + barSize + " -> " + seconds + " seconds");
