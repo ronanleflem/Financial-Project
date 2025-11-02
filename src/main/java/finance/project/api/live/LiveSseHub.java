@@ -13,6 +13,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -28,6 +30,7 @@ public class LiveSseHub {
   private final Supplier<SseEmitter> emitterSupplier;
   private final ScheduledExecutorService scheduler;
 
+  @Autowired
   public LiveSseHub(LiveProps props, ObjectMapper objectMapper) {
     this(props, objectMapper, () -> new SseEmitter(0L));
   }
