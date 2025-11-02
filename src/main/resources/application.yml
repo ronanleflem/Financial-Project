@@ -1,0 +1,8 @@
+app:
+  live:
+    ingest:
+      hmacEnabled: false
+      hmacHeader: X-Live-Hmac
+      hmacSecretEnv: LIVE_HMAC_SECRET
+    sse:
+      heartbeatMillis: 15000

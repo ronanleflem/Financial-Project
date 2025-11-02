@@ -117,6 +117,18 @@ mvn install:install-file -Dfile=jar\protobuf-java-4.29.3.jar -DgroupId=com.ib -D
    mvn clean install
    mvn spring-boot:run
    ```
+
+## Live ingest + SSE
+
+- **Variables d'environnement** : `LIVE_HMAC_SECRET` (obligatoire uniquement lorsque `app.live.ingest.hmacEnabled=true`).
+- **Endpoints** :
+  - `POST /live/signal` — ingestion d'un signal live avec idempotence basée sur `uniqHash`.
+  - `GET /live/stream` — flux SSE temps réel des signaux acceptés.
+  - `GET /live/recent` — liste des signaux enregistrés sur la période demandée (`lookback`, par défaut `PT6H`).
+- **Idempotence** : les signaux sont identifiés par la valeur SHA-256 `uniqHash` (`strategyId|symbol|timeframe|tsOpenUtc|side|entryPrice|sl|tp`). Un doublon est reconnu et ignoré côté base, mais rediffusé via SSE.
+- **Sécurité** : option HMAC via l'entête configuré (`app.live.ingest.hmacHeader`), calculé sur le JSON canonique du signal.
+- **Documentation** : l'interface OpenAPI/Swagger est disponible sur `/swagger-ui`.
+
 ## Contribution
 
 Les contributions sont les bienvenues ! Si vous souhaitez proposer des améliorations ou corriger des bugs, veuillez ouvrir une issue ou soumettre une pull request.
