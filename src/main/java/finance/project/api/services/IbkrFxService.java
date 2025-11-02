@@ -613,7 +613,7 @@ public class IbkrFxService extends IbkrWrapperAdapter {
     }
 
     public IbAccountSnapshot fetchIbAccountSnapshot(long timeoutMs) throws Exception {
-        int id = this.reqId.getAndIncrement(); // réutilise ton générateur reqId existant
+        int id = this.reqId.get();
         final String tags = String.join(",",
                 "AvailableFunds","ExcessLiquidity","TotalCashValue","NetLiquidation"
         );
@@ -633,8 +633,8 @@ public class IbkrFxService extends IbkrWrapperAdapter {
 
         try {
             accountSummaryFuture.get(timeoutMs, TimeUnit.MILLISECONDS);
-        } catch (java.util.concurrent.TimeoutException te) {
-            // on continue quand même avec ce qu'on a reçu
+        } catch (TimeoutException te) {
+            throw new TimeoutException("Timeout account summary future exception");
         } finally {
             client.cancelAccountSummary(id);
             synchronized (accountSummaryLock) {
