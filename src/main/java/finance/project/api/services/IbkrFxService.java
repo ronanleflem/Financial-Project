@@ -3,6 +3,8 @@ package finance.project.api.services;
 
 import com.ib.client.*;
 import finance.project.api.adapter.IbkrWrapperAdapter;
+import finance.project.api.model.fx.FxQuote;
+import finance.project.api.model.fx.HistBar;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -13,15 +15,8 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.ib.client.EWrapper;
-import com.ib.client.TickType;
-import com.ib.client.TickAttrib;
-import com.ib.client.TickAttribLast;
-import com.ib.client.TickAttribBidAsk;
-import com.ib.client.CommissionAndFeesReport;
-
 @Service
-public class IbkrFxService extends IbkrWrapperAdapter {
+public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataService {
 
     private CountDownLatch connectLatch;
 
@@ -64,8 +59,14 @@ public class IbkrFxService extends IbkrWrapperAdapter {
         this.client = new EClientSocket(this, signal);
     }
 
+    @Override
+    public String getProvider() {
+        return "ibkr";
+    }
+
 
     /** Connexion et attente du handshake (bloque jusqu’à timeout) */
+    @Override
     public synchronized boolean connectAndWait(String host, int port, int clientId, long timeoutMs) {
         if (client.isConnected()) return true;
 
@@ -118,12 +119,14 @@ public class IbkrFxService extends IbkrWrapperAdapter {
         }
     }
     /** Connexion async "fire-and-forget" (ne bloque pas) */
+    @Override
     public synchronized void connect(String host, int port, int clientId) {
         if (client.isConnected()) return;
         client.eConnect(host, port, clientId);
         startReaderIfNeeded();
     }
 
+    @Override
     public synchronized void disconnect() {
         try {
             if (client.isConnected()) client.eDisconnect();
@@ -136,6 +139,7 @@ public class IbkrFxService extends IbkrWrapperAdapter {
         }
     }
 
+    @Override
     public boolean isConnected() {
         return client.isConnected();
     }
@@ -143,6 +147,7 @@ public class IbkrFxService extends IbkrWrapperAdapter {
     /** ----------- LIVE FX EURUSD ----------- */
 
     /** Démarre un flux de bougies 1 minute (EURUSD MIDPOINT) en "keepUpToDate". */
+    @Override
     public int startLiveMinuteBarsEurUsd() {
         int id = reqId.getAndIncrement();
         liveBars.put(id, new ConcurrentSkipListMap<>());
@@ -166,6 +171,7 @@ public class IbkrFxService extends IbkrWrapperAdapter {
     }
 
     /** Démarre un flux de bougies paramétrable (keepUpToDate = true) */
+    @Override
     public int startLiveBars(String pair, String duration, String barSize, String whatToShow,
                              int useRth, int formatDate /*1=string,2=epoch*/) {
         validateBarSize(barSize);
@@ -201,12 +207,14 @@ public class IbkrFxService extends IbkrWrapperAdapter {
 
 
     /** Stoppe un flux live bars. */
+    @Override
     public void stopLiveBars(int barsReqId) {
         client.cancelHistoricalData(barsReqId);
         liveBars.remove(barsReqId);
     }
 
     /** (Optionnel) Récupère seulement la dernière bougie (pratique pour un front) */
+    @Override
     public HistBar getLastLiveBar(int reqId) {
         NavigableMap<Long, HistBar> map = liveBars.get(reqId);
         if (map == null || map.isEmpty()) return null;
@@ -214,6 +222,7 @@ public class IbkrFxService extends IbkrWrapperAdapter {
     }
 
     /** Snapshot des dernières bougies pour un flux donné. */
+    @Override
     public List<HistBar> getRecentLiveBars(int reqId) {
         NavigableMap<Long, HistBar> map = liveBars.get(reqId);
         if (map == null) return List.of();
@@ -239,6 +248,7 @@ public class IbkrFxService extends IbkrWrapperAdapter {
     }
 
     /** Démarre le flux live EURUSD (L1). */
+    @Override
     public int startLiveEurUsd() {
         int id = reqId.getAndIncrement();
         client.reqMktData(id, eurUsdCash(), "", false, false, null);
@@ -250,6 +260,12 @@ public class IbkrFxService extends IbkrWrapperAdapter {
         System.out.println("MDT reqId=" + reqId + " type=" + marketDataType);
     }
 
+    @Override
+    public boolean supportsMarketDataType() {
+        return true;
+    }
+
+    @Override
     public synchronized void setMarketDataType(int type) {
         if (type < 1 || type > 4) {
             throw new IllegalArgumentException("marketDataType must be 1,2,3,4");
@@ -261,11 +277,13 @@ public class IbkrFxService extends IbkrWrapperAdapter {
     }
 
     /** Arrête un flux live. */
+    @Override
     public void stopLive(int liveReqId) {
         client.cancelMktData(liveReqId);
     }
 
     /** Retourne un snapshot des derniers ticks live (thread-safe). */
+    @Override
     public synchronized List<FxQuote> getRecentLiveQuotes() {
         return new ArrayList<>(liveQuotes);
     }
@@ -278,6 +296,7 @@ public class IbkrFxService extends IbkrWrapperAdapter {
      * @param barSize     ex: "1 min", "5 mins", "1 hour"
      * @return            liste ordonnée de barres (chronologique)
      */
+    @Override
     public List<HistBar> getHistoricalEurUsd(String duration, String barSize) throws Exception {
         int id = reqId.getAndIncrement();
         CompletableFuture<List<HistBar>> fut = new CompletableFuture<>();
@@ -312,11 +331,6 @@ public class IbkrFxService extends IbkrWrapperAdapter {
         c.exchange("IDEALPRO");          // venue FX chez IB
         return c;
     }
-
-    /** ----------- DTOs ----------- */
-
-    public record FxQuote(long tsMillis, double bid, double ask) { }
-    public record HistBar(long tsMillis, double open, double high, double low, double close, long volume) { }
 
     /** ----------- EWrapper (callbacks) ----------- */
 
