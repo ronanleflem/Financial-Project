@@ -2,6 +2,7 @@ package finance.project.api.repositories;
 
 import finance.project.api.entities.Candle;
 import finance.project.api.entities.Symbol;
+import finance.project.api.repositories.projections.CandleAvailabilityProjection;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -86,4 +87,19 @@ public interface CandleRepository extends JpaRepository<Candle, Long> {
             @Param("symbol") Optional<Symbol> symbol,
             @Param("timeframe") String timeframe,
             @Param("numberLastestCandles") int numberLastestCandles);
+
+    @Query("""
+            SELECT s.symbol AS symbol,
+                   'DB' AS broker,
+                   c.timeframe AS timeframe,
+                   MIN(c.date) AS start,
+                   MAX(c.date) AS end,
+                   COUNT(c) AS count,
+                   MAX(c.date) AS updatedAt,
+                   s.market AS marketType
+            FROM Candle c
+            JOIN c.symbol s
+            GROUP BY s.symbol, c.timeframe, s.market
+            """)
+    List<CandleAvailabilityProjection> findAvailabilitySummary();
 }
