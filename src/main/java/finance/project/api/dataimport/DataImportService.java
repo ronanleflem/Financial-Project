@@ -22,7 +22,7 @@ public class DataImportService {
         this.jobRunner = jobRunner;
     }
 
-    @Transactional
+
     public DataImportJob createJob(DataImportRequest req) {
         Objects.requireNonNull(req, "DataImportRequest must not be null");
 

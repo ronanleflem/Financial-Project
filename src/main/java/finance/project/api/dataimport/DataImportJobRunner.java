@@ -43,24 +43,47 @@ public class DataImportJobRunner {
     }
 
     @Async("dataImportExecutor")
-    @Transactional
     public void runJobAsync(String jobId) {
-        log.info("Dispatching data import job {}", jobId);
-        Optional<DataImportJob> jobOpt = jobRepository.findById(jobId);
-        if (jobOpt.isEmpty()) {
-            log.warn("Data import job {} not found", jobId);
+        log.info("[DataImport] Dispatching job {}", jobId);
+
+        DataImportJob job = jobRepository.findById(jobId)
+                .orElse(null);
+
+        if (job == null) {
+            log.error("[DataImport] Job {} not found", jobId);
             return;
         }
 
-        DataImportJob job = jobOpt.get();
-
         try {
-            transitionToRunning(job);
+            // Passe en RUNNING
+            job.setStatus(DataImportJob.Status.RUNNING);
+            job.setUpdatedAt(Instant.now());
+            jobRepository.save(job);
+
+            log.info("[DataImport] Job {} RUNNING for {} {} {} {}",
+                    job.getId(), job.getBroker(), job.getSymbol(),
+                    job.getTimeframe(), job.getSourceType());
+
+            // Exécution réelle (switch broker/source)
             executeJob(job);
-            markSuccess(job);
+
+            // Succès
+            job.setStatus(DataImportJob.Status.SUCCESS);
+            job.setUpdatedAt(Instant.now());
+            job.setMessage("Import completed");
+            jobRepository.save(job);
+
+            log.info("[DataImport] Job {} SUCCESS", job.getId());
+
         } catch (Exception e) {
-            log.error("Error while processing data import job {}", jobId, e);
-            markFailure(job, e);
+            log.error("[DataImport] Job {} FAILED: {}", job.getId(), e.getMessage(), e);
+
+            job.setStatus(DataImportJob.Status.FAILED);
+            job.setUpdatedAt(Instant.now());
+            job.setMessage(
+                    Optional.ofNullable(e.getMessage()).orElse("Unexpected error in async import")
+            );
+            jobRepository.save(job);
         }
     }
 
