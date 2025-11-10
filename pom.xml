@@ -31,9 +31,24 @@
 		<org.mapstruct.version>1.5.2.Final</org.mapstruct.version>
 		<javafx.version>23</javafx.version>
 	</properties>
-	<dependencies>
-		<dependency>
-			<groupId>org.ta4j</groupId>
+        <dependencies>
+                <dependency>
+                        <groupId>io.delta</groupId>
+                        <artifactId>delta-standalone_2.12</artifactId>
+                        <version>3.2.0</version>
+                </dependency>
+                <dependency>
+                        <groupId>org.apache.hadoop</groupId>
+                        <artifactId>hadoop-client</artifactId>
+                        <version>3.3.6</version>
+                </dependency>
+                <dependency>
+                        <groupId>org.apache.parquet</groupId>
+                        <artifactId>parquet-avro</artifactId>
+                        <version>1.13.1</version>
+                </dependency>
+                <dependency>
+                        <groupId>org.ta4j</groupId>
 			<artifactId>ta4j-core</artifactId>
 			<version>0.17</version>
 		</dependency>

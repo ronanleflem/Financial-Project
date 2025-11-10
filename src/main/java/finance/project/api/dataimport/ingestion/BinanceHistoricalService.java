@@ -1,10 +1,14 @@
 package finance.project.api.dataimport.ingestion;
 
+import finance.project.api.dataimport.DataImportJob;
+import finance.project.api.dataimport.infrastructure.DeltaLakeExporter;
+import finance.project.api.entities.Candle;
 import finance.project.api.enums.MarketType;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.services.BinanceService;
 import finance.project.api.services.CandleAggregationService;
 import finance.project.api.services.CandleService;
+import finance.project.api.utils.TimeframeUtils;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -26,8 +30,11 @@ public class BinanceHistoricalService {
     private final BinanceService binanceService;
     private final CandleService candleService;
     private final CandleAggregationService candleAggregationService;
+    private final DeltaLakeExporter deltaLakeExporter;
 
-    public void fetchAndSave(String symbol, String timeframe, Instant start, Instant end) {
+    public void fetchAndSave(DataImportJob job, Instant start, Instant end) {
+        String symbol = job.getSymbol();
+        String timeframe = job.getTimeframe();
         LocalDateTime startUtc = LocalDateTime.ofInstant(start, ZoneOffset.UTC);
         LocalDateTime endUtc = LocalDateTime.ofInstant(end, ZoneOffset.UTC);
         log.info("[Binance] Import {} {} from {} to {}", symbol, timeframe, startUtc, endUtc);
@@ -39,6 +46,7 @@ public class BinanceHistoricalService {
         }
 
         candleService.saveCandlesToDatabase(candles, symbol, timeframe);
+        deltaLakeExporter.exportCandlesToDelta(job, mapForDelta(candles, timeframe));
 
         String normalizedSource = normalizeTimeframe(timeframe);
         for (String target : TARGET_TIMEFRAMES) {
@@ -56,6 +64,27 @@ public class BinanceHistoricalService {
                 log.warn("[Binance] Timeframe {} not supported for aggregation: {}", target, ex.getMessage());
             }
         }
+    }
+
+    private List<Candle> mapForDelta(List<CandleDTO> candles, String timeframe) {
+        List<Candle> entities = new java.util.ArrayList<>(candles.size());
+        String normalized = TimeframeUtils.mapToCustomTimeframe(timeframe);
+        for (CandleDTO dto : candles) {
+            if (dto == null) {
+                continue;
+            }
+            Candle candle = new Candle();
+            candle.setTimeframe(normalized);
+            candle.setDate(dto.getDate());
+            candle.setOpen(dto.getOpen());
+            candle.setClose(dto.getClose());
+            candle.setHigh(dto.getHigh());
+            candle.setLow(dto.getLow());
+            candle.setVolume(dto.getVolume());
+            candle.setSymbolFuture(dto.getSymbolFuture());
+            entities.add(candle);
+        }
+        return entities;
     }
 
     private String normalizeTimeframe(String timeframe) {

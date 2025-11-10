@@ -120,15 +120,15 @@ public class DataImportJobRunner {
         Instant end = range.end();
 
         switch (broker) {
-            case "BINANCE" -> binanceHistoricalService.fetchAndSave(job.getSymbol(), job.getTimeframe(), start, end);
-            case "MEXC" -> mexcHistoricalService.fetchAndSave(job.getSymbol(), job.getTimeframe(), start, end);
-            case "IBKR" -> ibkrImportService.fetchAndSave(job.getSymbol(), job.getTimeframe(), start, end);
+            case "BINANCE" -> binanceHistoricalService.fetchAndSave(job, start, end);
+            case "MEXC" -> mexcHistoricalService.fetchAndSave(job, start, end);
+            case "IBKR" -> ibkrImportService.fetchAndSave(job, start, end);
             case "DATABENTO_CSV" -> databentoCsvImportService.importCsv(
-                    job.getSymbol(), job.getTimeframe(), start, end, job.getVenue()
+                    job, start, end, job.getVenue()
             );
             default -> {
                 if ("CSV".equals(sourceType)) {
-                    csvImportService.importGenericFile(broker, job.getSymbol(), job.getTimeframe(), start, end);
+                    csvImportService.importGenericFile(job, start, end);
                 } else {
                     log.warn("No dedicated handler for broker={} sourceType={} -> skipping chunk", broker, sourceType);
                 }
