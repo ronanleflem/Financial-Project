@@ -7,4 +7,5 @@ app:
     sse:
       heartbeatMillis: 15000
 delta:
-  base-uri: ${DELTA_BASE_URI:s3://my-bucket/delta}
+  #base-uri: ${DELTA_BASE_URI:./delta-tables}
+  base-uri: ${DELTA_BASE_URI:s3a://quant-delta-dev/delta}

@@ -68,14 +68,14 @@ class DataImportJobRunnerTest {
 
         doAnswer(invocation -> null)
                 .when(binanceHistoricalService)
-                .fetchAndSave(any(), any(), any(), any());
+                .fetchAndSave(any(), any(), any());
 
         runner.runJobAsync("job-123");
 
         assertThat(job.getStatus()).isEqualTo(DataImportJob.Status.SUCCESS);
         assertThat(job.getProgress()).isEqualTo(100);
         assertThat(job.getMessage()).isEqualTo("Import terminé");
-        verify(binanceHistoricalService).fetchAndSave(any(), any(), any(), any());
+        verify(binanceHistoricalService).fetchAndSave(any(), any(), any());
     }
 
     @Test
@@ -84,7 +84,7 @@ class DataImportJobRunnerTest {
         when(jobRepository.save(any(DataImportJob.class))).thenAnswer(invocation -> invocation.getArgument(0));
         doThrow(new IllegalStateException("network down"))
                 .when(binanceHistoricalService)
-                .fetchAndSave(any(), any(), any(), any());
+                .fetchAndSave(any(), any(), any());
 
         runner.runJobAsync("job-123");
 
@@ -108,6 +108,6 @@ class DataImportJobRunnerTest {
         runner.runJobAsync("job-123");
 
         verify(databentoCsvImportService)
-                .importCsv(any(), any(), any(), any(), any());
+                .importCsv(any(), any(), any(), any());
     }
 }

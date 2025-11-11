@@ -9,6 +9,7 @@ import io.delta.standalone.OptimisticTransaction;
 import io.delta.standalone.actions.AddFile;
 import io.delta.standalone.actions.Action;
 import io.delta.standalone.actions.Metadata;
+import io.delta.storage.LocalLogStore;
 import io.delta.standalone.types.DoubleType;
 import io.delta.standalone.types.LongType;
 import io.delta.standalone.types.StringType;
@@ -92,6 +93,7 @@ public class DeltaLakeExporter {
             return;
         }
 
+
         String assetCategory = resolveAssetCategory(job);
         String tablePath = deltaLakeConfig.resolveTablePath(assetCategory, job.getSymbol());
         String conflictPolicy = Optional.ofNullable(job.getConflictPolicy())
@@ -148,8 +150,8 @@ public class DeltaLakeExporter {
             actions.add(addFile);
 
             Map<String, String> parameters = new HashMap<>();
-            parameters.put("mode", conflictPolicy);
-            parameters.put("assetCategory", assetCategory);
+            parameters.put("mode", "\"" + conflictPolicy + "\"");
+            parameters.put("assetCategory", "\"" + assetCategory + "\"");
             Operation operation = new Operation(Operation.Name.WRITE, parameters, Collections.emptyMap());
 
             txn.commit(actions, operation, job.getId());
@@ -222,10 +224,40 @@ public class DeltaLakeExporter {
 
     private Configuration createHadoopConfiguration() {
         Configuration configuration = new Configuration();
+        // Impl S3A pour tous les chemins s3a://
         configuration.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem");
         configuration.set("fs.s3.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem");
-        configuration.set("fs.s3a.aws.credentials.provider", "com.amazonaws.auth.DefaultAWSCredentialsProviderChain");
+
+        // MinIO est sur localhost:9000
+        configuration.set("fs.s3a.endpoint", "http://localhost:9000");
         configuration.setBoolean("fs.s3a.path.style.access", true);
+        configuration.setBoolean("fs.s3a.connection.ssl.enabled", false);
+
+        // Credentials MinIO (DEV ONLY, à sortir plus tard dans la conf/env)
+        configuration.set("fs.s3a.access.key", "minioadmin");
+        configuration.set("fs.s3a.secret.key", "minioadmin");
+
+        // 🔴 CLÉ : éviter les fichiers temporaires sur disque => pas de NativeIO Windows
+        configuration.set("fs.s3a.fast.upload", "true");
+        configuration.set("fs.s3a.fast.upload.buffer", "array");
+        // (valides: disk, array, bytebuffer — on force array = mémoire pure)
+        // tu peux tuner un peu les tailles pour dev :
+        configuration.set("fs.s3a.block.size", "8m");
+        configuration.set("fs.s3a.multipart.size", "8m");
+        configuration.set("fs.s3a.multipart.threshold", "8m");
+
+        // Optionnel : répertoire tmp propre si jamais quelque chose en a besoin
+        configuration.set("hadoop.tmp.dir", "C:/hadoop-tmp");
+
+        //configuration.set("fs.defaultFS", "file:///");
+        //configuration.setBoolean("fs.permissions.umask-mode.ignore", true);
+        /*configuration.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem");
+        configuration.set("fs.s3.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem");
+        configuration.set("fs.s3a.aws.credentials.provider", "com.amazonaws.auth.DefaultAWSCredentialsProviderChain");
+        configuration.setBoolean("fs.s3a.path.style.access", true);*/
+
+        // 🔐 Forcer l'utilisation de LocalLogStore pour le schéma file:
+        //configuration.set("spark.delta.logStore.file.impl", LocalLogStore.class.getName());
         return configuration;
     }
 

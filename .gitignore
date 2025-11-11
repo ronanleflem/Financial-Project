@@ -37,6 +37,7 @@ build/
 
 # Database Files
 sqlite.db
+local.duckdb
 database/*.db
 *.db
 /database/
