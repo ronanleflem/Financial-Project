@@ -6,3 +6,6 @@ app:
       hmacSecretEnv: LIVE_HMAC_SECRET
     sse:
       heartbeatMillis: 15000
+delta:
+  #base-uri: ${DELTA_BASE_URI:./delta-tables}
+  base-uri: ${DELTA_BASE_URI:s3a://quant-delta-dev/delta}

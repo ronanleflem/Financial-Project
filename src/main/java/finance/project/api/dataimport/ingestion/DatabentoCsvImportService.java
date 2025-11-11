@@ -1,9 +1,13 @@
 package finance.project.api.dataimport.ingestion;
 
+import finance.project.api.dataimport.DataImportJob;
+import finance.project.api.dataimport.infrastructure.DeltaLakeExporter;
+import finance.project.api.entities.Candle;
 import finance.project.api.enums.MarketType;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.services.CandleAggregationService;
 import finance.project.api.services.CandleService;
+import finance.project.api.utils.TimeframeUtils;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -29,8 +33,11 @@ public class DatabentoCsvImportService {
 
     private final CandleService candleService;
     private final CandleAggregationService candleAggregationService;
+    private final DeltaLakeExporter deltaLakeExporter;
 
-    public void importCsv(String symbol, String timeframe, Instant start, Instant end, String datasetHint) {
+    public void importCsv(DataImportJob job, Instant start, Instant end, String datasetHint) {
+        String symbol = job.getSymbol();
+        String timeframe = job.getTimeframe();
         String dataset = resolveDataset(start, datasetHint);
         LocalDateTime startUtc = LocalDateTime.ofInstant(start, ZoneOffset.UTC);
         LocalDateTime endUtc = LocalDateTime.ofInstant(end, ZoneOffset.UTC);
@@ -41,6 +48,9 @@ public class DatabentoCsvImportService {
             log.warn("[Databento CSV] Dataset '{}' returned no candles for {} {}", dataset, symbol, timeframe);
             return;
         }
+
+        candleService.saveCandlesToDatabase(baseCandles, symbol, timeframe);
+        deltaLakeExporter.exportCandlesToDelta(job, mapForDelta(baseCandles, timeframe));
 
         for (String target : TARGET_TIMEFRAMES) {
             if (target.equalsIgnoreCase(timeframe)) {
@@ -57,6 +67,27 @@ public class DatabentoCsvImportService {
                 log.warn("[Databento CSV] Skipping timeframe {}: {}", target, ex.getMessage());
             }
         }
+    }
+
+    private List<Candle> mapForDelta(List<CandleDTO> candles, String timeframe) {
+        List<Candle> entities = new java.util.ArrayList<>(candles.size());
+        String normalized = TimeframeUtils.mapToCustomTimeframe(timeframe);
+        for (CandleDTO dto : candles) {
+            if (dto == null) {
+                continue;
+            }
+            Candle candle = new Candle();
+            candle.setTimeframe(normalized);
+            candle.setDate(dto.getDate());
+            candle.setOpen(dto.getOpen());
+            candle.setClose(dto.getClose());
+            candle.setHigh(dto.getHigh());
+            candle.setLow(dto.getLow());
+            candle.setVolume(dto.getVolume());
+            candle.setSymbolFuture(dto.getSymbolFuture());
+            entities.add(candle);
+        }
+        return entities;
     }
 
     private String resolveDataset(Instant start, String datasetHint) {

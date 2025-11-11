@@ -33,9 +33,65 @@
 	</properties>
 	<dependencies>
 		<dependency>
-			<groupId>org.ta4j</groupId>
-			<artifactId>ta4j-core</artifactId>
-			<version>0.17</version>
+				<groupId>io.delta</groupId>
+				<artifactId>delta-standalone_2.12</artifactId>
+				<version>3.2.0</version>
+		</dependency>
+		<dependency>
+			<groupId>org.duckdb</groupId>
+			<artifactId>duckdb_jdbc</artifactId>
+			<version>1.4.1.0</version>
+		</dependency>
+		<dependency>
+				<groupId>org.apache.hadoop</groupId>
+				<artifactId>hadoop-client</artifactId>
+				<version>3.3.6</version>
+				<exclusions>
+					<!-- Empêche un second binding SLF4J (reload4j) -->
+					<exclusion>
+						<groupId>org.slf4j</groupId>
+						<artifactId>slf4j-reload4j</artifactId>
+					</exclusion>
+					<!-- Évite le vieux système commons-logging -->
+					<exclusion>
+						<groupId>commons-logging</groupId>
+						<artifactId>commons-logging</artifactId>
+					</exclusion>
+					<!-- Sécurité si jamais un impl Log4j-SLF4J arrive par Hadoop -->
+					<exclusion>
+						<groupId>org.apache.logging.log4j</groupId>
+						<artifactId>log4j-slf4j2-impl</artifactId>
+					</exclusion>
+				</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.hadoop</groupId>
+			<artifactId>hadoop-aws</artifactId>
+			<version>3.3.6</version>
+			<exclusions>
+				<exclusion>
+					<groupId>org.slf4j</groupId>
+					<artifactId>slf4j-reload4j</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>commons-logging</groupId>
+					<artifactId>commons-logging</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.apache.logging.log4j</groupId>
+					<artifactId>log4j-slf4j2-impl</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
+				<groupId>org.apache.parquet</groupId>
+				<artifactId>parquet-avro</artifactId>
+				<version>1.13.1</version>
+		</dependency>
+		<dependency>
+				<groupId>org.ta4j</groupId>
+				<artifactId>ta4j-core</artifactId>
+				<version>0.17</version>
 		</dependency>
 		<!-- DEPENDANCES DE JAR IBKR -->
 		<dependency>
@@ -95,20 +151,20 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-devtools</artifactId>
 		</dependency>
-                <dependency>
-                        <groupId>org.springframework.boot</groupId>
-                        <artifactId>spring-boot-starter-data-jpa</artifactId>
-                </dependency>
-                <dependency>
-                        <groupId>org.springdoc</groupId>
-                        <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-                        <version>2.6.0</version>
-                </dependency>
-                <dependency>
-                        <groupId>org.projectlombok</groupId>
-                        <artifactId>lombok</artifactId>
-                        <optional>true</optional>
-                </dependency>
+		<dependency>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-starter-data-jpa</artifactId>
+		</dependency>
+		<dependency>
+				<groupId>org.springdoc</groupId>
+				<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+				<version>2.6.0</version>
+		</dependency>
+		<dependency>
+				<groupId>org.projectlombok</groupId>
+				<artifactId>lombok</artifactId>
+				<optional>true</optional>
+		</dependency>
 		<!--
 		<dependency>
 			<groupId>com.h2database</groupId>
