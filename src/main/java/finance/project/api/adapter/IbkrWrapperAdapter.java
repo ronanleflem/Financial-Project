@@ -188,6 +188,8 @@ public abstract class IbkrWrapperAdapter implements EWrapper {
 
     }
 
+    public abstract void error(int reqId, int errorCode, String errorMsg);
+
     public abstract void position(String account, Contract contract, double pos, double avgCost);
 
     @Override

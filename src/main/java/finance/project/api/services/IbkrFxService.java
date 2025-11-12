@@ -15,9 +15,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -149,6 +146,7 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
     }
 
     /** Ensure the connection is established using configured properties. */
+
     public synchronized boolean ensureConnected() {
         return connectAndWait(properties.getHost(), properties.getPort(), properties.getClientId(), properties.getConnectTimeoutMillis());
     }
@@ -175,6 +173,7 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
         CountDownLatch l = connectLatch;
         if (l != null) {
             l.countDown();
+            log.info("IbkrClient wrapper instance={}", System.identityHashCode(this));
             System.out.println("✅ IBKR connected (connectAck received)");
         }
     }
@@ -240,12 +239,23 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
         }
         waitForPacingSlot();
 
-        int id = reqId.getAndIncrement();
-        CompletableFuture<List<IbkrScannerRow>> future = new CompletableFuture<>();
-        scannerFutures.put(id, future);
-        scannerBuffers.put(id, Collections.synchronizedList(new ArrayList<>()));
+        ScannerSubscription sub = new ScannerSubscription();
+        sub.numberOfRows(10);                 // important
+        sub.instrument("STK");
+        sub.locationCode("STK.US.MAJOR");     // ultra-fiable pour tester
+        sub.scanCode("TOP_PERC_LOSERS");      // ou TOP_PERC_GAINERS
+        sub.stockTypeFilter("ALL");           // évite les surprises
 
-        client.reqScannerSubscription(id, subscription, null, options == null ? List.of() : options);
+        int id = reqId.incrementAndGet();
+        log.debug("REQ SCANNER start id={} code={} loc={} rows={}", id, sub.scanCode(), sub.locationCode(), sub.numberOfRows());
+        CompletableFuture<List<IbkrScannerRow>> future = new CompletableFuture<>();
+        //scannerFutures.put(id, future);
+        //scannerBuffers.put(id, Collections.synchronizedList(new ArrayList<>()));
+
+        //client.reqScannerSubscription(id, subscription, null, options == null ? List.of() : options);
+        log.info("IbkrClient wrapper instance={}", System.identityHashCode(this));
+        client.reqScannerSubscription(id, sub, /*scannerSubscriptionOptions*/ null, /*filterOptions*/ null);
+        log.debug("REQ SCANNER sent id={}", id);
 
         try {
             long timeoutMillis = timeout != null ? timeout.toMillis() : properties.getDefaultRequestTimeoutMillis();
@@ -537,6 +547,8 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
         List<IbkrScannerRow> buffer = scannerBuffers.get(reqId);
         if (buffer != null) {
             buffer.add(new IbkrScannerRow(rank, contractDetails, distance, benchmark, projection, legsStr));
+        } else {
+            log.warn("scannerData for unknown reqId {}", reqId);
         }
     }
 
@@ -546,6 +558,8 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
         List<IbkrScannerRow> buffer = scannerBuffers.remove(reqId);
         if (future != null) {
             future.complete(buffer != null ? List.copyOf(buffer) : List.of());
+        } else {
+            log.warn("scannerDataEnd for unknown reqId {}", reqId);
         }
     }
 
@@ -636,6 +650,8 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
                 report.commissionAndFees(),
                 report.currency());
     }
+    @Override public void error(Exception e) { log.warn("IB error ex", e); }
+    @Override public void error(String str) { log.warn("IB error str={}", str); }
 
     @Override
     public void error(int reqId, int errorCode, String errorMsg) {

@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -80,12 +81,18 @@ public class MarketScannerController {
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException ex) {
-        return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+        String detail = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
+        return ResponseEntity.badRequest().body(Map.of("error", detail != null ? detail : "Null message"));
     }
 
     @ExceptionHandler(IbkrRequestException.class)
-    public ResponseEntity<Map<String, String>> handleIbkr(IbkrRequestException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error", ex.getMessage()));
+    public ResponseEntity<Map<String,Object>> handleIbkr(IbkrRequestException ex) {
+        var body = new LinkedHashMap<String, Object>();
+        body.put("error", "Scanner request failed");
+        if (ex.getMessage() != null) body.put("message", ex.getMessage());
+        var cause = ex.getCause();
+        if (cause != null && cause.getMessage() != null) body.put("detail", cause.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(body);
     }
 
     @ExceptionHandler(DateTimeParseException.class)

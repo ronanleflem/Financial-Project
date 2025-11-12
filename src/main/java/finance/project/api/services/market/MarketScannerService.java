@@ -88,7 +88,7 @@ public class MarketScannerService {
         String locationCode = resolveLocation(region);
         ScannerSubscription subscription = buildBaseSubscription(locationCode, mapAssetClass(assetClass), "TOP_PERC_LOSERS", limit);
         List<TagValue> filters = buildMarketCapFilter(minMarketCap);
-        List<IbkrScannerRow> rows = ibkrService.requestScannerData(subscription, limit, Duration.ofSeconds(6), filters);
+        List<IbkrScannerRow> rows = ibkrService.requestScannerData(subscription, limit, Duration.ofSeconds(60), filters);
         return rows.stream()
                 .map(row -> toMarketScanItem(row, valueToDouble(row.distance()), null, null))
                 .filter(item -> item.changePct() == null || item.changePct() < 0)
@@ -100,7 +100,7 @@ public class MarketScannerService {
         String locationCode = resolveLocation(region);
         ScannerSubscription subscription = buildBaseSubscription(locationCode, mapAssetClass(assetClass), "TOP_PERC_OFF_HIGH", limit);
         List<TagValue> filters = buildMarketCapFilter(minMarketCap);
-        List<IbkrScannerRow> rows = ibkrService.requestScannerData(subscription, limit, Duration.ofSeconds(6), filters);
+        List<IbkrScannerRow> rows = ibkrService.requestScannerData(subscription, limit, Duration.ofSeconds(30), filters);
         return rows.stream()
                 .map(row -> toMarketScanItem(row, null, null, valueToDouble(row.distance())))
                 .limit(limit > 0 ? limit : rows.size())
@@ -171,7 +171,7 @@ public class MarketScannerService {
         if (REGION_LOCATIONS.containsKey(key)) {
             int fetchLimit = limit > 0 ? Math.max(limit * 2, limit) : 50;
             ScannerSubscription subscription = buildBaseSubscription(REGION_LOCATIONS.get(key), "STK", "HOT_BY_VOLUME", fetchLimit);
-            List<IbkrScannerRow> rows = ibkrService.requestScannerData(subscription, fetchLimit, Duration.ofSeconds(6), filters);
+            List<IbkrScannerRow> rows = ibkrService.requestScannerData(subscription, fetchLimit, Duration.ofSeconds(30), filters);
             return rows.stream()
                     .map(row -> toMarketScanItem(row, valueToDouble(row.distance()), null, null))
                     .filter(item -> item.changePct() != null && item.changePct() < 0)
@@ -182,7 +182,7 @@ public class MarketScannerService {
         if (index != null) {
             int fetchLimit = limit > 0 ? Math.max(limit * 3, limit) : 60;
             ScannerSubscription subscription = buildBaseSubscription(index.locationCode(), "STK", "HOT_BY_VOLUME", fetchLimit);
-            List<IbkrScannerRow> rows = ibkrService.requestScannerData(subscription, fetchLimit, Duration.ofSeconds(6), filters);
+            List<IbkrScannerRow> rows = ibkrService.requestScannerData(subscription, fetchLimit, Duration.ofSeconds(30), filters);
             Set<String> tickers = index.tickers().stream().map(this::normaliseKey).collect(Collectors.toSet());
             return rows.stream()
                     .filter(row -> tickers.contains(normaliseKey(row.contractDetails().contract().symbol())))
