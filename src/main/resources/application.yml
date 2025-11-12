@@ -6,3 +6,11 @@ app:
       hmacSecretEnv: LIVE_HMAC_SECRET
     sse:
       heartbeatMillis: 15000
+ibkr:
+  host: 127.0.0.1
+  port: 7497
+  client-id: 101
+  connect-timeout-millis: 10000
+  pacing-min-interval-millis: 1200
+  pacing-violation-backoff-millis: 5000
+  default-request-timeout-millis: 8000
