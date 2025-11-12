@@ -3,12 +3,12 @@ package finance.project.api.services.market;
 import com.ib.client.Contract;
 import com.ib.client.ScannerSubscription;
 import com.ib.client.TagValue;
-import finance.project.api.ibkr.IbkrClient;
-import finance.project.api.ibkr.IbkrClient.IbkrBar;
-import finance.project.api.ibkr.IbkrClient.IbkrClientException;
-import finance.project.api.ibkr.IbkrClient.IbkrScannerRow;
+import finance.project.api.ibkr.IbkrRequestException;
+import finance.project.api.ibkr.model.IbkrBar;
+import finance.project.api.ibkr.model.IbkrScannerRow;
 import finance.project.api.model.market.MarketScanItem;
 import finance.project.api.model.market.ScannerUniversesResponse;
+import finance.project.api.services.IbkrFxService;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,10 +46,10 @@ public class MarketScannerService {
 
     private final Map<String, IndexDefinition> indices = new HashMap<>();
 
-    private final IbkrClient ibkrClient;
+    private final IbkrFxService ibkrService;
 
-    public MarketScannerService(IbkrClient ibkrClient) {
-        this.ibkrClient = ibkrClient;
+    public MarketScannerService(IbkrFxService ibkrService) {
+        this.ibkrService = ibkrService;
     }
 
     @PostConstruct
@@ -88,7 +88,7 @@ public class MarketScannerService {
         String locationCode = resolveLocation(region);
         ScannerSubscription subscription = buildBaseSubscription(locationCode, mapAssetClass(assetClass), "TOP_PERC_LOSERS", limit);
         List<TagValue> filters = buildMarketCapFilter(minMarketCap);
-        List<IbkrScannerRow> rows = ibkrClient.requestScannerData(subscription, limit, Duration.ofSeconds(6), filters);
+        List<IbkrScannerRow> rows = ibkrService.requestScannerData(subscription, limit, Duration.ofSeconds(6), filters);
         return rows.stream()
                 .map(row -> toMarketScanItem(row, valueToDouble(row.distance()), null, null))
                 .filter(item -> item.changePct() == null || item.changePct() < 0)
@@ -100,7 +100,7 @@ public class MarketScannerService {
         String locationCode = resolveLocation(region);
         ScannerSubscription subscription = buildBaseSubscription(locationCode, mapAssetClass(assetClass), "TOP_PERC_OFF_HIGH", limit);
         List<TagValue> filters = buildMarketCapFilter(minMarketCap);
-        List<IbkrScannerRow> rows = ibkrClient.requestScannerData(subscription, limit, Duration.ofSeconds(6), filters);
+        List<IbkrScannerRow> rows = ibkrService.requestScannerData(subscription, limit, Duration.ofSeconds(6), filters);
         return rows.stream()
                 .map(row -> toMarketScanItem(row, null, null, valueToDouble(row.distance())))
                 .limit(limit > 0 ? limit : rows.size())
@@ -121,8 +121,8 @@ public class MarketScannerService {
             Contract contract = buildStockContract(ticker, index.currency(), index.primaryExchange());
             List<IbkrBar> bars;
             try {
-                bars = ibkrClient.requestHistoricalData(contract, "", "2 D", "1 day", "TRADES", true, List.of(), Duration.ofSeconds(8));
-            } catch (IbkrClientException ex) {
+                bars = ibkrService.requestHistoricalData(contract, "", "2 D", "1 day", "TRADES", true, List.of(), Duration.ofSeconds(8));
+            } catch (IbkrRequestException ex) {
                 log.warn("Unable to retrieve historical data for {}: {}", ticker, ex.getMessage());
                 continue;
             }
@@ -171,7 +171,7 @@ public class MarketScannerService {
         if (REGION_LOCATIONS.containsKey(key)) {
             int fetchLimit = limit > 0 ? Math.max(limit * 2, limit) : 50;
             ScannerSubscription subscription = buildBaseSubscription(REGION_LOCATIONS.get(key), "STK", "HOT_BY_VOLUME", fetchLimit);
-            List<IbkrScannerRow> rows = ibkrClient.requestScannerData(subscription, fetchLimit, Duration.ofSeconds(6), filters);
+            List<IbkrScannerRow> rows = ibkrService.requestScannerData(subscription, fetchLimit, Duration.ofSeconds(6), filters);
             return rows.stream()
                     .map(row -> toMarketScanItem(row, valueToDouble(row.distance()), null, null))
                     .filter(item -> item.changePct() != null && item.changePct() < 0)
@@ -182,7 +182,7 @@ public class MarketScannerService {
         if (index != null) {
             int fetchLimit = limit > 0 ? Math.max(limit * 3, limit) : 60;
             ScannerSubscription subscription = buildBaseSubscription(index.locationCode(), "STK", "HOT_BY_VOLUME", fetchLimit);
-            List<IbkrScannerRow> rows = ibkrClient.requestScannerData(subscription, fetchLimit, Duration.ofSeconds(6), filters);
+            List<IbkrScannerRow> rows = ibkrService.requestScannerData(subscription, fetchLimit, Duration.ofSeconds(6), filters);
             Set<String> tickers = index.tickers().stream().map(this::normaliseKey).collect(Collectors.toSet());
             return rows.stream()
                     .filter(row -> tickers.contains(normaliseKey(row.contractDetails().contract().symbol())))

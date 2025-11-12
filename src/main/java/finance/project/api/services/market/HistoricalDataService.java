@@ -1,10 +1,10 @@
 package finance.project.api.services.market;
 
 import com.ib.client.Contract;
-import finance.project.api.ibkr.IbkrClient;
-import finance.project.api.ibkr.IbkrClient.IbkrBar;
+import finance.project.api.ibkr.model.IbkrBar;
 import finance.project.api.model.market.OhlcBar;
 import finance.project.api.services.BinanceService;
+import finance.project.api.services.IbkrFxService;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -22,11 +22,11 @@ public class HistoricalDataService {
 
     private static final DateTimeFormatter IB_END_DATETIME = DateTimeFormatter.ofPattern("yyyyMMdd HH:mm:ss").withZone(ZoneId.of("UTC"));
 
-    private final IbkrClient ibkrClient;
+    private final IbkrFxService ibkrService;
     private final BinanceService binanceService;
 
-    public HistoricalDataService(IbkrClient ibkrClient, BinanceService binanceService) {
-        this.ibkrClient = ibkrClient;
+    public HistoricalDataService(IbkrFxService ibkrService, BinanceService binanceService) {
+        this.ibkrService = ibkrService;
         this.binanceService = binanceService;
     }
 
@@ -90,7 +90,7 @@ public class HistoricalDataService {
         String durationStr = toIbDuration(diff);
         String endDateTime = IB_END_DATETIME.format(end);
 
-        List<IbkrBar> bars = ibkrClient.requestHistoricalData(contract, endDateTime, durationStr, barSize, "TRADES", true, List.of(), Duration.ofSeconds(12));
+        List<IbkrBar> bars = ibkrService.requestHistoricalData(contract, endDateTime, durationStr, barSize, "TRADES", true, List.of(), Duration.ofSeconds(12));
         List<OhlcBar> result = new ArrayList<>(bars.size());
         for (IbkrBar bar : bars) {
             if (bar.time().isBefore(start) || bar.time().isAfter(end)) {

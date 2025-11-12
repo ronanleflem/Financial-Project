@@ -1,6 +1,6 @@
 package finance.project.api.controllers;
 
-import finance.project.api.ibkr.IbkrClient.IbkrClientException;
+import finance.project.api.ibkr.IbkrRequestException;
 import finance.project.api.model.market.MarketScanItem;
 import finance.project.api.model.market.OhlcBar;
 import finance.project.api.model.market.ScannerUniversesResponse;
@@ -83,8 +83,8 @@ public class MarketScannerController {
         return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
     }
 
-    @ExceptionHandler(IbkrClientException.class)
-    public ResponseEntity<Map<String, String>> handleIbkr(IbkrClientException ex) {
+    @ExceptionHandler(IbkrRequestException.class)
+    public ResponseEntity<Map<String, String>> handleIbkr(IbkrRequestException ex) {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error", ex.getMessage()));
     }
 

@@ -3,11 +3,21 @@ package finance.project.api.services;
 
 import com.ib.client.*;
 import finance.project.api.adapter.IbkrWrapperAdapter;
+import finance.project.api.config.IbkrProperties;
+import finance.project.api.ibkr.IbkrRequestException;
+import finance.project.api.ibkr.model.IbkrBar;
+import finance.project.api.ibkr.model.IbkrScannerRow;
 import finance.project.api.model.fx.FxQuote;
 import finance.project.api.model.fx.HistBar;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -20,6 +30,9 @@ import com.ib.client.CommissionAndFeesReport;
 @Service
 public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataService {
 
+    private static final Logger log = LoggerFactory.getLogger(IbkrFxService.class);
+
+    private final IbkrProperties properties;
     private final AtomicInteger reqId = new AtomicInteger(1);
 
     private CountDownLatch connectLatch;
@@ -27,6 +40,8 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
     private EReader reader;
     private ExecutorService readerExec;
     private final Object readerLock = new Object();
+    private final Object pacingLock = new Object();
+    private long lastRequestMillis = 0L;
 
     // Promesse unique pour une requête en cours (IB n’a pas de reqId ici)
     private final Object positionsLock = new Object();
@@ -47,6 +62,10 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
     // Promesses pour les historiques (reqId -> future liste de barres)
     private final ConcurrentHashMap<Integer, CompletableFuture<List<HistBar>>> histFutures = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, List<HistBar>> histBuffers = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, CompletableFuture<List<IbkrScannerRow>>> scannerFutures = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, List<IbkrScannerRow>> scannerBuffers = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, CompletableFuture<List<IbkrBar>>> genericHistFutures = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, List<IbkrBar>> genericHistBuffers = new ConcurrentHashMap<>();
 
     private volatile List<String> managedAccts = List.of();
 
@@ -90,7 +109,8 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
     private final java.util.concurrent.atomic.AtomicReference<String> accountSummaryBaseFlag = new java.util.concurrent.atomic.AtomicReference<>("BASE");
     private java.util.concurrent.CompletableFuture<Boolean> accountSummaryFuture;
 
-    public IbkrFxService() {
+    public IbkrFxService(IbkrProperties properties) {
+        this.properties = properties;
         this.signal = new EJavaSignal();
         this.client = new EClientSocket(this, signal);
     }
@@ -125,6 +145,29 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return false;
+        }
+    }
+
+    /** Ensure the connection is established using configured properties. */
+    public synchronized boolean ensureConnected() {
+        return connectAndWait(properties.getHost(), properties.getPort(), properties.getClientId(), properties.getConnectTimeoutMillis());
+    }
+
+    private void waitForPacingSlot() {
+        long minInterval = properties.getPacingMinIntervalMillis();
+        synchronized (pacingLock) {
+            long now = System.currentTimeMillis();
+            long elapsed = now - lastRequestMillis;
+            if (elapsed < minInterval) {
+                long sleep = minInterval - elapsed;
+                try {
+                    Thread.sleep(sleep);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IbkrRequestException("Interrupted during IBKR pacing wait", e);
+                }
+            }
+            lastRequestMillis = System.currentTimeMillis();
         }
     }
 
@@ -188,6 +231,87 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
     @Override
     public boolean isConnected() {
         return client.isConnected();
+    }
+
+    public List<IbkrScannerRow> requestScannerData(ScannerSubscription subscription, int limit, Duration timeout, List<TagValue> options) {
+        Objects.requireNonNull(subscription, "subscription");
+        if (!ensureConnected()) {
+            throw new IbkrRequestException("Unable to connect to IBKR gateway");
+        }
+        waitForPacingSlot();
+
+        int id = reqId.getAndIncrement();
+        CompletableFuture<List<IbkrScannerRow>> future = new CompletableFuture<>();
+        scannerFutures.put(id, future);
+        scannerBuffers.put(id, Collections.synchronizedList(new ArrayList<>()));
+
+        client.reqScannerSubscription(id, subscription, null, options == null ? List.of() : options);
+
+        try {
+            long timeoutMillis = timeout != null ? timeout.toMillis() : properties.getDefaultRequestTimeoutMillis();
+            List<IbkrScannerRow> rows = future.get(timeoutMillis, TimeUnit.MILLISECONDS);
+            if (limit > 0 && rows.size() > limit) {
+                return rows.stream().sorted(Comparator.comparingInt(IbkrScannerRow::rank)).limit(limit).toList();
+            }
+            return rows;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IbkrRequestException("Interrupted while waiting for scanner data", e);
+        } catch (ExecutionException | TimeoutException e) {
+            client.cancelScannerSubscription(id);
+            throw new IbkrRequestException("Scanner request failed", e);
+        } finally {
+            scannerFutures.remove(id);
+            scannerBuffers.remove(id);
+        }
+    }
+
+    public List<IbkrBar> requestHistoricalData(Contract contract,
+                                               String endDateTime,
+                                               String durationStr,
+                                               String barSize,
+                                               String whatToShow,
+                                               boolean useRth,
+                                               List<TagValue> options,
+                                               Duration timeout) {
+        Objects.requireNonNull(contract, "contract");
+        if (!ensureConnected()) {
+            throw new IbkrRequestException("Unable to connect to IBKR gateway");
+        }
+        waitForPacingSlot();
+
+        int id = reqId.getAndIncrement();
+        CompletableFuture<List<IbkrBar>> future = new CompletableFuture<>();
+        genericHistFutures.put(id, future);
+        genericHistBuffers.put(id, Collections.synchronizedList(new ArrayList<>()));
+
+        client.reqHistoricalData(id,
+                contract,
+                endDateTime != null ? endDateTime : "",
+                durationStr,
+                barSize,
+                whatToShow,
+                useRth ? 1 : 0,
+                1,
+                false,
+                options == null ? List.of() : options);
+
+        try {
+            long timeoutMillis = timeout != null ? timeout.toMillis() : properties.getDefaultRequestTimeoutMillis();
+            List<IbkrBar> bars = future.get(timeoutMillis, TimeUnit.MILLISECONDS);
+            List<IbkrBar> sorted = new ArrayList<>(bars);
+            sorted.sort(Comparator.comparing(IbkrBar::time));
+            return List.copyOf(sorted);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IbkrRequestException("Interrupted while waiting for historical data", e);
+        } catch (ExecutionException | TimeoutException e) {
+            client.cancelHistoricalData(id);
+            throw new IbkrRequestException("Historical data request failed", e);
+        } finally {
+            genericHistFutures.remove(id);
+            genericHistBuffers.remove(id);
+        }
     }
 
     /** ----------- LIVE FX EURUSD ----------- */
@@ -409,6 +533,23 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
     }
 
     @Override
+    public void scannerData(int reqId, int rank, ContractDetails contractDetails, String distance, String benchmark, String projection, String legsStr) {
+        List<IbkrScannerRow> buffer = scannerBuffers.get(reqId);
+        if (buffer != null) {
+            buffer.add(new IbkrScannerRow(rank, contractDetails, distance, benchmark, projection, legsStr));
+        }
+    }
+
+    @Override
+    public void scannerDataEnd(int reqId) {
+        CompletableFuture<List<IbkrScannerRow>> future = scannerFutures.remove(reqId);
+        List<IbkrScannerRow> buffer = scannerBuffers.remove(reqId);
+        if (future != null) {
+            future.complete(buffer != null ? List.copyOf(buffer) : List.of());
+        }
+    }
+
+    @Override
     public void historicalData(int reqId, Bar bar) {
         System.out.println("Historical Data : bar.time=" + bar.time());
 
@@ -424,6 +565,11 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
             long vol = bar.volume().longValue(); if (vol < 0) vol = 0;
             buf.add(new HistBar(ts, bar.open(), bar.high(), bar.low(), bar.close(), vol));
         }
+        List<IbkrBar> genericBuf = genericHistBuffers.get(reqId);
+        if (genericBuf != null) {
+            long volume = bar.volume() != null ? bar.volume().longValue() : 0L;
+            genericBuf.add(new IbkrBar(parseIbInstant(bar.time()), bar.open(), bar.high(), bar.low(), bar.close(), volume));
+        }
     }
 
     @Override
@@ -437,9 +583,17 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
         List<HistBar> buf = histBuffers.remove(reqId);
         CompletableFuture<List<HistBar>> fut = histFutures.remove(reqId);
         if (fut != null) {
-            // Tri chrono si nécessaire (IB envoie souvent déjà trié)
-            buf.sort(Comparator.comparingLong(HistBar::tsMillis));
-            fut.complete(buf);
+            if (buf == null) {
+                fut.complete(List.of());
+            } else {
+                buf.sort(Comparator.comparingLong(HistBar::tsMillis));
+                fut.complete(buf);
+            }
+        }
+        CompletableFuture<List<IbkrBar>> genericFuture = genericHistFutures.remove(reqId);
+        List<IbkrBar> genericBuf = genericHistBuffers.remove(reqId);
+        if (genericFuture != null) {
+            genericFuture.complete(genericBuf != null ? List.copyOf(genericBuf) : List.of());
         }
     }
 
@@ -471,12 +625,40 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
         }
     }
 
+    private Instant parseIbInstant(String ibTime) {
+        return Instant.ofEpochMilli(parseIbDateTime(ibTime));
+    }
+
     @Override
     public void commissionAndFeesReport(CommissionAndFeesReport report) {
         System.out.printf("Commission+Fees execId=%s commission=%.6f currency=%s fees=%.6f%n",
                 report.execId(),
                 report.commissionAndFees(),
                 report.currency());
+    }
+
+    @Override
+    public void error(int reqId, int errorCode, String errorMsg) {
+        CompletableFuture<List<IbkrScannerRow>> scannerFuture = scannerFutures.get(reqId);
+        if (scannerFuture != null && !scannerFuture.isDone()) {
+            scannerFuture.completeExceptionally(new IbkrRequestException("Scanner error %d: %s".formatted(errorCode, errorMsg)));
+        }
+        CompletableFuture<List<IbkrBar>> histFuture = genericHistFutures.get(reqId);
+        if (histFuture != null && !histFuture.isDone()) {
+            histFuture.completeExceptionally(new IbkrRequestException("Historical error %d: %s".formatted(errorCode, errorMsg)));
+        }
+        if (errorCode == 420 || errorCode == 421) {
+            log.warn("IBKR pacing violation reported: {}", errorMsg);
+            try {
+                Thread.sleep(properties.getPacingViolationBackoffMillis());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        } else if (errorCode >= 0) {
+            log.warn("IBKR error {} for request {}: {}", errorCode, reqId, errorMsg);
+        } else {
+            log.info("IBKR message: {}", errorMsg);
+        }
     }
 
     // ---- DTO interne minimal pour position IB (on le mappera vers TradeView)
