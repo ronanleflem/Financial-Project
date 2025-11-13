@@ -73,7 +73,7 @@ public class IbkrImportService {
                     .high(BigDecimal.valueOf(bar.high()))
                     .low(BigDecimal.valueOf(bar.low()))
                     .close(BigDecimal.valueOf(bar.close()))
-                    .volume(bar.volume() != null ? BigDecimal.valueOf(bar.volume()) : null)
+                    .volume(BigDecimal.valueOf(bar.volume()))
                     .build());
         }
 
