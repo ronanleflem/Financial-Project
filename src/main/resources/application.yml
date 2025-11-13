@@ -9,3 +9,11 @@ app:
 delta:
   #base-uri: ${DELTA_BASE_URI:./delta-tables}
   base-uri: ${DELTA_BASE_URI:s3a://quant-delta-dev/delta}
+ibkr:
+  host: 127.0.0.1
+  port: 7497
+  client-id: 101
+  connect-timeout-millis: 10000
+  pacing-min-interval-millis: 1200
+  pacing-violation-backoff-millis: 5000
+  default-request-timeout-millis: 8000

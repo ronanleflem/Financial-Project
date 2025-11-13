@@ -94,10 +94,18 @@
 				<version>0.17</version>
 		</dependency>
 		<!-- DEPENDANCES DE JAR IBKR -->
+		<!--
 		<dependency>
 			<groupId>com.ib</groupId>
 			<artifactId>tws-api</artifactId>
 			<version>10.40</version>
+		</dependency>-->
+		<dependency>
+			<groupId>com.ib</groupId>
+			<artifactId>tws-api-debug</artifactId>
+			<version>10.40</version>
+			<scope>system</scope>
+			<systemPath>${project.basedir}/jar/TwsApi_debug.jar</systemPath>
 		</dependency>
 		<dependency>
 			<groupId>com.ib</groupId>
