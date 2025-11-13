@@ -15,7 +15,8 @@ public record DataImportRequest(
         String venue,
         String timezone,
         String conflictPolicy,
-        String rollover
+        String rollover,
+        String assetClass
 ) {
 
     @AssertTrue(message = "startDate must be before endDate")

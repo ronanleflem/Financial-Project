@@ -44,6 +44,14 @@ public class DataImportJobRunner {
 
     @Async("dataImportExecutor")
     public void runJobAsync(String jobId) {
+        runJob(jobId);
+    }
+
+    public void runJobSync(String jobId) {
+        runJob(jobId);
+    }
+
+    private void runJob(String jobId) {
         log.info("[DataImport] Dispatching job {}", jobId);
 
         DataImportJob job = jobRepository.findById(jobId)
