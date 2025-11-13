@@ -13,9 +13,9 @@ public class AsyncConfig {
     @Bean(name = "dataImportExecutor")
     public Executor dataImportExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(4);
-        executor.setQueueCapacity(50);
+        executor.setCorePoolSize(3);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(500);
         executor.setThreadNamePrefix("data-import-");
         executor.initialize();
         return executor;
