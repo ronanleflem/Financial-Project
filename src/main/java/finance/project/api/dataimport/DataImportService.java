@@ -24,6 +24,10 @@ public class DataImportService {
 
 
     public DataImportJob createJob(DataImportRequest req) {
+        return createJob(req, true);
+    }
+
+    public DataImportJob createJob(DataImportRequest req, boolean startAsync) {
         Objects.requireNonNull(req, "DataImportRequest must not be null");
 
         if (!req.startDate().isBefore(req.endDate())) {
@@ -35,6 +39,7 @@ public class DataImportService {
         job.setBroker(req.broker());
         job.setSymbol(req.symbol());
         job.setTimeframe(req.timeframe());
+        job.setAssetClass(req.assetClass());
         job.setVenue(req.venue());
         job.setTimezone(req.timezone());
         job.setConflictPolicy(req.conflictPolicy());
@@ -49,7 +54,9 @@ public class DataImportService {
         log.info("Creating data import job {} for broker={} symbol={} timeframe={}", job.getId(), job.getBroker(), job.getSymbol(), job.getTimeframe());
         jobRepository.save(job);
 
-        jobRunner.runJobAsync(job.getId());
+        if (startAsync) {
+            jobRunner.runJobAsync(job.getId());
+        }
         return job;
     }
 

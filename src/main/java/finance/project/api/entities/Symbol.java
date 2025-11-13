@@ -1,5 +1,6 @@
 package finance.project.api.entities;
 
+import finance.project.api.universe.Universe;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -7,7 +8,9 @@ import jakarta.validation.constraints.Size;
 import lombok.*;
 import org.hibernate.annotations.GenericGenerator;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 
@@ -46,5 +49,9 @@ public class Symbol {
 
     @OneToMany(mappedBy = "symbol", cascade = CascadeType.ALL)
     private List<Candle> candles;
+
+    @Builder.Default
+    @ManyToMany(mappedBy = "symbols")
+    private Set<Universe> universes = new HashSet<>();
 
 }

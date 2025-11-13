@@ -35,6 +35,9 @@ public class DataImportJob {
     private String timeframe;
 
     @Column(length = 50)
+    private String assetClass;
+
+    @Column(length = 50)
     private String venue;
 
     @Column(length = 50)
@@ -113,6 +116,14 @@ public class DataImportJob {
 
     public void setTimeframe(String timeframe) {
         this.timeframe = timeframe;
+    }
+
+    public String getAssetClass() {
+        return assetClass;
+    }
+
+    public void setAssetClass(String assetClass) {
+        this.assetClass = assetClass;
     }
 
     public String getVenue() {

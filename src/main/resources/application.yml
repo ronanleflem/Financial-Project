@@ -17,3 +17,12 @@ ibkr:
   pacing-min-interval-millis: 1200
   pacing-violation-backoff-millis: 5000
   default-request-timeout-millis: 8000
+
+external:
+  coingecko:
+    base-url: https://pro-api.coingecko.com/api/v3
+    api-key: ${COINGECKO_API_KEY:demo}   # var d'env, ne JAMAIS commiter la vraie clé
+
+  fmp:
+    base-url: https://financialmodelingprep.com/api/v3
+    api-key: ${FMP_API_KEY:demo}
