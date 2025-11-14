@@ -11,13 +11,9 @@ import finance.project.api.universe.dto.UniverseCatalogDTO;
 import finance.project.api.universe.dto.UniverseDetailsDTO;
 import finance.project.api.universe.dto.UniverseImportRequest;
 import finance.project.api.universe.dto.UniverseImportResponse;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
-import java.util.Set;
+
+import java.util.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -27,6 +23,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class UniverseService {
 
     private static final Logger log = LoggerFactory.getLogger(UniverseService.class);
+
+    private static final Map<String, CatalogEntry> CATALOG;
+
+    static {
+        Map<String, CatalogEntry> entries = new LinkedHashMap<>();
+        entries.put("SP500", new CatalogEntry("SP500", "S&P 500","INDEX", "FMB", 500, true, UniverseType.EQUITY));
+        entries.put("NASDAQ100", new CatalogEntry("NASDAQ100", "Nasdaq 100","INDEX", "FMB", 100,true, UniverseType.EQUITY));
+        entries.put("CAC40", new CatalogEntry("CAC40", "CAC 40", "INDEX", "FMB", 40,true, UniverseType.EQUITY));
+        CATALOG = Map.copyOf(entries);
+    }
 
     private record CatalogEntry(
             String code,
@@ -138,13 +144,22 @@ public class UniverseService {
     private Set<String> loadSymbols(CatalogEntry entry, UniverseImportRequest request) {
         List<String> rawSymbols;
         if (entry.universeType() == UniverseType.CRYPTO && "COINGECKO".equalsIgnoreCase(entry.provider())) {
-            int limit = entry.approxSize() != null ? entry.approxSize() : 0;
-            if (limit <= 0) {
-                log.warn("[UniverseImport] No approxSize defined for universe {}", entry.code());
-                rawSymbols = List.of();
+            int limit = (entry.approxSize() != null && entry.approxSize() > 0)
+                    ? entry.approxSize()
+                    : 100; // fallback par défaut
+
+            if (entry.approxSize() == null || entry.approxSize() <= 0) {
+                log.warn("[UniverseImport] No approxSize defined for universe {}, using default {}", entry.code(), limit);
+            }
+
+            // 🔥 Si c'est un univers de type catégorie Coingecko (ex: ai-agents)
+            if ("CRYPTO_CATEGORY".equalsIgnoreCase(entry.catalogType())) {
+                rawSymbols = coingeckoUniverseClient.fetchCategorySymbols(entry.code(), limit);
             } else {
+                // fallback : top du marché global
                 rawSymbols = coingeckoUniverseClient.fetchTopCryptoSymbols(limit);
             }
+
         } else if (entry.universeType() == UniverseType.EQUITY
                 && ("FMP".equalsIgnoreCase(entry.provider()) || "FMB".equalsIgnoreCase(entry.provider()))) {
             rawSymbols = fmbUniverseClient.fetchIndexMembers(entry.code());
@@ -203,6 +218,9 @@ public class UniverseService {
             }
         } catch (Exception e) {
             log.warn("[UniverseCatalog] Failed to load FMP indexes list", e);
+            log.info("[UniverseCatalog] Using static fallback catalog. ");
+            catalog.addAll(CATALOG.values());
+            return catalog;
         }
 
         return catalog;
@@ -260,7 +278,7 @@ public class UniverseService {
     private CatalogEntry buildCryptoCategoryEntry(CoingeckoUniverseClient.CoinCategory cat) {
         String code = cat.category_id();
         String name = (cat.name() != null && !cat.name().isBlank()) ? cat.name() : code;
-        return new CatalogEntry(code, name, "CRYPTO_CATEGORY", "COINGECKO", null, false, UniverseType.CRYPTO);
+        return new CatalogEntry(code, name, "CRYPTO_CATEGORY", "COINGECKO", null, true, UniverseType.CRYPTO);
     }
 
     private CatalogEntry buildEquityIndexEntry(FmbUniverseClient.IndexInfo idx) {

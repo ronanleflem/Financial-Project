@@ -20,7 +20,7 @@ ibkr:
 
 external:
   coingecko:
-    base-url: https://pro-api.coingecko.com/api/v3
+    base-url: https://api.coingecko.com/api/v3
     api-key: ${COINGECKO_API_KEY:demo}   # var d'env, ne JAMAIS commiter la vraie clé
 
   fmp:
