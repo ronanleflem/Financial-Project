@@ -95,10 +95,38 @@ public class CoingeckoUniverseClient {
                 .collect(Collectors.toList());
     }
 
+    public List<CoinCategory> listCategories() {
+        String url = baseUrl + "/coins/categories/list";
+        log.info("[Coingecko] Fetching coin categories from {}", url);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("x-cg-pro-api-key", apiKey);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        ResponseEntity<List<CoinCategory>> resp = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                entity,
+                new ParameterizedTypeReference<List<CoinCategory>>() {}
+        );
+
+        List<CoinCategory> body = resp.getBody();
+        if (body == null || body.isEmpty()) {
+            log.warn("[Coingecko] Empty categories list");
+            return List.of();
+        }
+        return body;
+    }
+
     /**
      * DTO minimal pour mapper /coins/markets
      */
     public record CoinMarket(String id, String symbol, String name) {}
+
+    /**
+     * DTO minimal pour /coins/categories/list
+     */
+    public record CoinCategory(String category_id, String name) {}
 }
 
 
