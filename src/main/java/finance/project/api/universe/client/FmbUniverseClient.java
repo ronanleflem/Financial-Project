@@ -63,8 +63,9 @@ public class FmbUniverseClient {
 
         // Mapping univers -> endpoint FMP
         switch (uc) {
-            case "SP500", "S&P500", "SPX" -> path = "/sp500_constituent";
-            case "NASDAQ100", "NDX" -> path = "/nasdaq_constituent";
+            case "^GSPC", "GSPC", "SP500", "S&P500", "SPX" -> path = "/sp500_constituent";
+            case "^NDX", "^IXIC", "NASDAQ100", "NASDAQ", "NDX" -> path = "/nasdaq_constituent";
+            case "^DJI", "DJI", "DOW", "DOWJONES" -> path = "/dowjones_constituent";
             // FMP ne gère pas CAC40: pour l'instant on garde un fallback statique
             case "CAC40" -> {
                 log.warn("[FMB] CAC40 constituents not available via FMP API, using static fallback");
@@ -99,9 +100,33 @@ public class FmbUniverseClient {
                 .collect(Collectors.toList());
     }
 
+    public List<IndexInfo> listStockIndexes() {
+        String url = baseUrl + "/indexes-list?apikey=" + apiKey;
+        log.info("[FMB] Fetching stock indexes list from {}", url);
+
+        ResponseEntity<List<IndexInfo>> resp = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                null,
+                new ParameterizedTypeReference<List<IndexInfo>>() {}
+        );
+
+        List<IndexInfo> body = resp.getBody();
+        if (body == null || body.isEmpty()) {
+            log.warn("[FMB] Empty indexes list from {}", url);
+            return List.of();
+        }
+        return body;
+    }
+
     /**
      * DTO minimal pour sp500_constituent / nasdaq_constituent
      */
     public record FmpConstituent(String symbol, String name) {}
+
+    /**
+     * DTO minimal pour /indexes-list
+     */
+    public record IndexInfo(String symbol, String name, String exchange, String currency) {}
 }
 

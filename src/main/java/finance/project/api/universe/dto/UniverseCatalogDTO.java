@@ -5,6 +5,7 @@ public record UniverseCatalogDTO(
         String name,
         String type,
         String provider,
-        Integer approxSize
+        Integer approxSize,
+        boolean importable
 ) {
 }
