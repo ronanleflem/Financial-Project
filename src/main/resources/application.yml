@@ -26,3 +26,8 @@ external:
   fmp:
     base-url: https://financialmodelingprep.com/api/v3
     api-key: ${FMP_API_KEY:demo}
+
+  eodhd:
+    base-url: https://eodhd.com/api/eod
+    api-key: ${EODHD_API_KEY:demo}
+

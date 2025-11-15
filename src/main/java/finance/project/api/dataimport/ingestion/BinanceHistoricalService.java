@@ -32,17 +32,26 @@ public class BinanceHistoricalService {
     private final CandleAggregationService candleAggregationService;
     private final DeltaLakeExporter deltaLakeExporter;
 
-    public void fetchAndSave(DataImportJob job, Instant start, Instant end) {
+    public boolean fetchAndSave(DataImportJob job, Instant start, Instant end) {
         String symbol = job.getSymbol();
         String timeframe = job.getTimeframe();
         LocalDateTime startUtc = LocalDateTime.ofInstant(start, ZoneOffset.UTC);
         LocalDateTime endUtc = LocalDateTime.ofInstant(end, ZoneOffset.UTC);
         log.info("[Binance] Import {} {} from {} to {}", symbol, timeframe, startUtc, endUtc);
 
-        List<CandleDTO> candles = binanceService.getHistoricalCandlesInRange(symbol, timeframe, startUtc, endUtc);
-        if (candles.isEmpty()) {
-            log.warn("[Binance] No candles returned for {} {} between {} and {}", symbol, timeframe, startUtc, endUtc);
-            return;
+        List<CandleDTO> candles;
+        try {
+            candles = binanceService.getHistoricalCandlesInRange(
+                    symbol, timeframe, startUtc, endUtc
+            );
+        } catch (Exception e) {
+            log.warn("[Binance] Exception fetching candles: {}", e.getMessage());
+            return false;
+        }
+
+        if (candles == null || candles.isEmpty()) {
+            log.warn("[Binance] No candles for {} {}", symbol, timeframe);
+            return false;
         }
 
         candleService.saveCandlesToDatabase(candles, symbol, timeframe);
@@ -64,6 +73,7 @@ public class BinanceHistoricalService {
                 log.warn("[Binance] Timeframe {} not supported for aggregation: {}", target, ex.getMessage());
             }
         }
+        return true;
     }
 
     private List<Candle> mapForDelta(List<CandleDTO> candles, String timeframe) {

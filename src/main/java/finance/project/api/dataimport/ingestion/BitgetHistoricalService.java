@@ -5,26 +5,24 @@ import finance.project.api.dataimport.infrastructure.DeltaLakeExporter;
 import finance.project.api.entities.Candle;
 import finance.project.api.enums.MarketType;
 import finance.project.api.model.CandleDTO;
+import finance.project.api.services.BitgetService; // à créer / adapter
 import finance.project.api.services.CandleAggregationService;
 import finance.project.api.services.CandleService;
-import finance.project.api.services.MexcService; // adapte le package/nom si besoin
 import finance.project.api.utils.TimeframeUtils;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-public class MexcHistoricalService {
+@Slf4j
+public class BitgetHistoricalService {
 
-    private static final Logger log = LoggerFactory.getLogger(MexcHistoricalService.class);
-
-    private final MexcService mexcService;
+    private final BitgetService bitgetService;
     private final CandleService candleService;
     private final CandleAggregationService candleAggregationService;
     private final DeltaLakeExporter deltaLakeExporter;
@@ -34,27 +32,24 @@ public class MexcHistoricalService {
         String timeframe = job.getTimeframe();
         LocalDateTime startUtc = LocalDateTime.ofInstant(start, ZoneOffset.UTC);
         LocalDateTime endUtc = LocalDateTime.ofInstant(end, ZoneOffset.UTC);
-        log.info("[MEXC] Import {} {} from {} to {}", symbol, timeframe, startUtc, endUtc);
+        log.info("[Bitget] Import {} {} from {} to {}", symbol, timeframe, startUtc, endUtc);
 
         List<CandleDTO> candles;
         try {
-            // À implémenter côté MexcService selon ta signature réelle
-            candles = mexcService.getHistoricalCandlesInRange(symbol, timeframe, startUtc, endUtc);
+            candles = bitgetService.getHistoricalCandlesInRange(symbol, timeframe, startUtc, endUtc);
         } catch (Exception e) {
-            log.warn("[MEXC] Error fetching candles for {} {}: {}", symbol, timeframe, e.getMessage());
+            log.warn("[Bitget] Error fetching candles for {} {}: {}", symbol, timeframe, e.getMessage());
             return false;
         }
 
         if (candles == null || candles.isEmpty()) {
-            log.warn("[MEXC] No candles returned for {} {} between {} and {}", symbol, timeframe, startUtc, endUtc);
+            log.warn("[Bitget] No candles returned for {} {} between {} and {}", symbol, timeframe, startUtc, endUtc);
             return false;
         }
 
         candleService.saveCandlesToDatabase(candles, symbol, timeframe);
         deltaLakeExporter.exportCandlesToDelta(job, mapForDelta(candles, timeframe));
 
-        // Pas obligé de faire toutes les agrégations comme Binance au début,
-        // mais si tu veux rester homogène :
         try {
             List<CandleDTO> aggregated =
                     candleAggregationService.aggregateCandles(candles, timeframe, MarketType.CRYPTO);
@@ -62,7 +57,7 @@ public class MexcHistoricalService {
                 candleService.saveCandlesToDatabase(aggregated, symbol, timeframe);
             }
         } catch (IllegalArgumentException ex) {
-            log.warn("[MEXC] Timeframe {} not supported for aggregation: {}", timeframe, ex.getMessage());
+            log.warn("[Bitget] Timeframe {} not supported for aggregation: {}", timeframe, ex.getMessage());
         }
 
         return true;

@@ -1,10 +1,7 @@
 package finance.project.api.dataimport;
 
-import finance.project.api.dataimport.ingestion.BinanceHistoricalService;
-import finance.project.api.dataimport.ingestion.CsvImportService;
-import finance.project.api.dataimport.ingestion.DatabentoCsvImportService;
-import finance.project.api.dataimport.ingestion.IbkrImportService;
-import finance.project.api.dataimport.ingestion.MexcHistoricalService;
+import finance.project.api.dataimport.ingestion.*;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -27,19 +24,22 @@ public class DataImportJobRunner {
     private final IbkrImportService ibkrImportService;
     private final DatabentoCsvImportService databentoCsvImportService;
     private final CsvImportService csvImportService;
+    private final BitgetHistoricalService bitgetHistoricalService;
 
     public DataImportJobRunner(DataImportJobRepository jobRepository,
                                BinanceHistoricalService binanceHistoricalService,
                                MexcHistoricalService mexcHistoricalService,
                                IbkrImportService ibkrImportService,
                                DatabentoCsvImportService databentoCsvImportService,
-                               CsvImportService csvImportService) {
+                               CsvImportService csvImportService,
+                               BitgetHistoricalService bitgetHistoricalService) {
         this.jobRepository = jobRepository;
         this.binanceHistoricalService = binanceHistoricalService;
         this.mexcHistoricalService = mexcHistoricalService;
         this.ibkrImportService = ibkrImportService;
         this.databentoCsvImportService = databentoCsvImportService;
         this.csvImportService = csvImportService;
+        this.bitgetHistoricalService = bitgetHistoricalService;
     }
 
     @Async("dataImportExecutor")
@@ -121,6 +121,40 @@ public class DataImportJobRunner {
         updateMessage(job, "Insertion en base terminée");
     }
 
+    private void invokeCryptoWithFallback(DataImportJob job, Instant start, Instant end) {
+        // 1) Essai Binance
+        boolean ok = binanceHistoricalService.fetchAndSave(job, start, end);
+        if (ok) {return;}
+
+        log.info("[DataImport] Binance returned no data for job {}. Falling back to Bitget.", job.getId());
+
+        // 2) Fallback Bitget
+        job.setBroker("BITGET");
+        job.setUpdatedAt(Instant.now());
+        jobRepository.save(job);
+
+        ok = bitgetHistoricalService.fetchAndSave(job, start, end);
+        if (ok) {
+            log.info("[DataImport] Job {} successfully imported via Bitget", job.getId());
+            return;
+        }
+
+        log.info("[DataImport] Bitget also returned no data for job {}. Falling back to MEXC.", job.getId());
+
+        // 3) Fallback MEXC
+        job.setBroker("MEXC");
+        job.setUpdatedAt(Instant.now());
+        jobRepository.save(job);
+
+        ok = mexcHistoricalService.fetchAndSave(job, start, end);
+        if (ok) {
+            log.info("[DataImport] Job {} successfully imported via MEXC", job.getId());
+        } else {
+            log.warn("[DataImport] No crypto provider (Binance/Bitget/MEXC) could supply data for job {}", job.getId());
+        }
+    }
+
+
     private void invokeBrokerImport(DataImportJob job, TimeRange range) {
         String broker = job.getBroker().toUpperCase();
         String sourceType = job.getSourceType().toUpperCase();
@@ -128,8 +162,9 @@ public class DataImportJobRunner {
         Instant end = range.end();
 
         switch (broker) {
-            case "BINANCE" -> binanceHistoricalService.fetchAndSave(job, start, end);
+            case "BINANCE" -> invokeCryptoWithFallback(job, start, end);
             case "MEXC" -> mexcHistoricalService.fetchAndSave(job, start, end);
+            case "BITGET" -> bitgetHistoricalService.fetchAndSave(job, start, end);
             case "IBKR" -> ibkrImportService.fetchAndSave(job, start, end);
             case "DATABENTO_CSV" -> databentoCsvImportService.importCsv(
                     job, start, end, job.getVenue()
