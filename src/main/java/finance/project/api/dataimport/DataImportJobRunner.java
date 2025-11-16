@@ -13,6 +13,8 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import finance.project.api.utils.DurationUtils;
+
 @Service
 public class DataImportJobRunner {
 
@@ -101,7 +103,7 @@ public class DataImportJobRunner {
             ranges = new ArrayList<>();
             ranges.add(new TimeRange(job.getStartDate(), job.getEndDate()));
         } else {
-            ranges = splitIntoChunks(job.getStartDate(), job.getEndDate());
+            ranges = splitIntoChunks(job.getStartDate(), job.getEndDate(), job.getTimeframe());
             if (ranges.isEmpty()) {
                 ranges.add(new TimeRange(job.getStartDate(), job.getEndDate()));
             }
@@ -222,26 +224,32 @@ public class DataImportJobRunner {
         return job.getSourceType() != null && "CSV".equalsIgnoreCase(job.getSourceType());
     }
 
-    private List<TimeRange> splitIntoChunks(Instant start, Instant end) {
+    private static final long MAX_CANDLES_PER_CHUNK = 200L;
+
+    private List<TimeRange> splitIntoChunks(Instant start, Instant end, String timeframe) {
         List<TimeRange> ranges = new ArrayList<>();
         if (start == null || end == null || !start.isBefore(end)) {
             return ranges;
         }
 
         Duration total = Duration.between(start, end);
-        Duration step = determineChunkSize(total);
+        Duration candleDuration = DurationUtils.parseTimeframe(timeframe);
+        Duration maxChunkDuration = candleDuration.multipliedBy(MAX_CANDLES_PER_CHUNK);
+
+        if (total.compareTo(maxChunkDuration) <= 0) {
+            ranges.add(new TimeRange(start, end));
+            return ranges;
+        }
+
+        Duration step = maxChunkDuration;
         Instant cursor = start;
         while (cursor.isBefore(end)) {
             Instant next = cursor.plus(step);
-            if (!next.isAfter(end)) {
-                ranges.add(new TimeRange(cursor, next));
-            } else {
-                ranges.add(new TimeRange(cursor, end));
+            if (next.isAfter(end)) {
+                next = end;
             }
+            ranges.add(new TimeRange(cursor, next));
             cursor = next;
-            if (!cursor.isBefore(end)) {
-                break;
-            }
         }
         return ranges;
     }
