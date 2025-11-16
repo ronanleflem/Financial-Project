@@ -73,15 +73,20 @@ public class DataImportJobRunner {
                     job.getTimeframe(), job.getSourceType());
 
             // Exécution réelle (switch broker/source)
-            executeJob(job);
+            boolean anySuccess = executeJob(job);
 
-            // Succès
-            job.setStatus(DataImportJob.Status.SUCCESS);
+            if (anySuccess) {
+                job.setStatus(DataImportJob.Status.SUCCESS);
+                job.setMessage("Import completed");
+                log.info("[DataImport] Job {} SUCCESS", job.getId());
+            } else {
+                job.setStatus(DataImportJob.Status.FAILED);
+                job.setMessage("No data imported from any provider");
+                log.warn("[DataImport] Job {} FAILED - no provider returned data", job.getId());
+            }
+
             job.setUpdatedAt(Instant.now());
-            job.setMessage("Import completed");
             jobRepository.save(job);
-
-            log.info("[DataImport] Job {} SUCCESS", job.getId());
 
         } catch (Exception e) {
             log.error("[DataImport] Job {} FAILED: {}", job.getId(), e.getMessage(), e);
@@ -95,7 +100,7 @@ public class DataImportJobRunner {
         }
     }
 
-    private void executeJob(DataImportJob job) {
+    private boolean executeJob(DataImportJob job) {
         List<TimeRange> ranges;
         if (isCsvJob(job)) {
             ranges = new ArrayList<>();
@@ -111,20 +116,28 @@ public class DataImportJobRunner {
 
         log.info("Executing job {} across {} chunk(s)", job.getId(), totalChunks);
         int processed = 0;
+        boolean anySuccess = false;
         for (TimeRange range : ranges) {
             processed++;
             updateMessage(job, String.format("Téléchargement %d/%d", processed, totalChunks));
-            invokeBrokerImport(job, range);
+            boolean ok = invokeBrokerImport(job, range);
+            anySuccess = anySuccess || ok;
             updateProgress(job, processed, totalChunks);
         }
 
-        updateMessage(job, "Insertion en base terminée");
+        if (anySuccess) {
+            updateMessage(job, "Insertion en base terminée");
+        } else {
+            updateMessage(job, "Aucune donnée disponible pour la période demandée");
+        }
+
+        return anySuccess;
     }
 
-    private void invokeCryptoWithFallback(DataImportJob job, Instant start, Instant end) {
+    private boolean invokeCryptoWithFallback(DataImportJob job, Instant start, Instant end) {
         // 1) Essai Binance
         boolean ok = binanceHistoricalService.fetchAndSave(job, start, end);
-        if (ok) {return;}
+        if (ok) {return true;}
 
         log.info("[DataImport] Binance returned no data for job {}. Falling back to Bitget.", job.getId());
 
@@ -136,7 +149,7 @@ public class DataImportJobRunner {
         ok = bitgetHistoricalService.fetchAndSave(job, start, end);
         if (ok) {
             log.info("[DataImport] Job {} successfully imported via Bitget", job.getId());
-            return;
+            return true;
         }
 
         log.info("[DataImport] Bitget also returned no data for job {}. Falling back to MEXC.", job.getId());
@@ -149,34 +162,42 @@ public class DataImportJobRunner {
         ok = mexcHistoricalService.fetchAndSave(job, start, end);
         if (ok) {
             log.info("[DataImport] Job {} successfully imported via MEXC", job.getId());
-        } else {
-            log.warn("[DataImport] No crypto provider (Binance/Bitget/MEXC) could supply data for job {}", job.getId());
+            return true;
         }
+
+        log.warn("[DataImport] No crypto provider (Binance/Bitget/MEXC) could supply data for job {}", job.getId());
+        return false;
     }
 
 
-    private void invokeBrokerImport(DataImportJob job, TimeRange range) {
-        String broker = job.getBroker().toUpperCase();
-        String sourceType = job.getSourceType().toUpperCase();
+    private boolean invokeBrokerImport(DataImportJob job, TimeRange range) {
+        String broker = job.getBroker() != null ? job.getBroker().toUpperCase() : "";
+        String sourceType = job.getSourceType() != null ? job.getSourceType().toUpperCase() : "";
         Instant start = range.start();
         Instant end = range.end();
 
-        switch (broker) {
+        return switch (broker) {
             case "BINANCE" -> invokeCryptoWithFallback(job, start, end);
             case "MEXC" -> mexcHistoricalService.fetchAndSave(job, start, end);
             case "BITGET" -> bitgetHistoricalService.fetchAndSave(job, start, end);
-            case "IBKR" -> ibkrImportService.fetchAndSave(job, start, end);
-            case "DATABENTO_CSV" -> databentoCsvImportService.importCsv(
-                    job, start, end, job.getVenue()
-            );
+            case "IBKR" -> {
+                ibkrImportService.fetchAndSave(job, start, end);
+                yield true;
+            }
+            case "DATABENTO_CSV" -> {
+                databentoCsvImportService.importCsv(job, start, end, job.getVenue());
+                yield true;
+            }
             default -> {
                 if ("CSV".equals(sourceType)) {
                     csvImportService.importGenericFile(job, start, end);
+                    yield true;
                 } else {
                     log.warn("No dedicated handler for broker={} sourceType={} -> skipping chunk", broker, sourceType);
+                    yield false;
                 }
             }
-        }
+        };
     }
 
     private void transitionToRunning(DataImportJob job) {
