@@ -6,7 +6,7 @@ import finance.project.api.universe.Universe;
 import finance.project.api.universe.UniverseRepository;
 import finance.project.api.universe.UniverseType;
 import finance.project.api.universe.client.CoingeckoUniverseClient;
-import finance.project.api.universe.client.FmbUniverseClient;
+import finance.project.api.universe.client.EodhdUniverseClient;
 import finance.project.api.universe.dto.UniverseCatalogDTO;
 import finance.project.api.universe.dto.UniverseDetailsDTO;
 import finance.project.api.universe.dto.UniverseImportRequest;
@@ -28,9 +28,11 @@ public class UniverseService {
 
     static {
         Map<String, CatalogEntry> entries = new LinkedHashMap<>();
-        entries.put("SP500", new CatalogEntry("SP500", "S&P 500","INDEX", "FMB", 500, true, UniverseType.EQUITY));
-        entries.put("NASDAQ100", new CatalogEntry("NASDAQ100", "Nasdaq 100","INDEX", "FMB", 100,true, UniverseType.EQUITY));
-        entries.put("CAC40", new CatalogEntry("CAC40", "CAC 40", "INDEX", "FMB", 40,true, UniverseType.EQUITY));
+        entries.put("SP500", new CatalogEntry("SP500", "S&P 500 (ETF SPY.US)", "EQUITY_ETF", "EODHD", 500, true, UniverseType.EQUITY, "SPY.US"));
+        entries.put("NASDAQ100", new CatalogEntry("NASDAQ100", "Nasdaq 100 (ETF QQQ.US)", "EQUITY_ETF", "EODHD", 100, true, UniverseType.EQUITY, "QQQ.US"));
+        entries.put("DOWJONES", new CatalogEntry("DOWJONES", "Dow Jones (ETF DIA.US)", "EQUITY_ETF", "EODHD", 30, true, UniverseType.EQUITY, "DIA.US"));
+        entries.put("CAC40", new CatalogEntry("CAC40", "CAC 40 (ETF CAC.PA)", "EQUITY_ETF", "EODHD", 40, true, UniverseType.EQUITY, "CAC.PA"));
+        entries.put("STOXX600", new CatalogEntry("STOXX600", "Stoxx Europe 600 (ETF EXSA.DE)", "EQUITY_ETF", "EODHD", 600, true, UniverseType.EQUITY, "EXSA.DE"));
         CATALOG = Map.copyOf(entries);
     }
 
@@ -41,25 +43,41 @@ public class UniverseService {
             String provider,
             Integer approxSize,
             boolean importable,
-            UniverseType universeType
+            UniverseType universeType,
+            String etfTicker
     ) {
     }
+
+    private static final Set<String> KNOWN_EQUITY_SUFFIXES = Set.of(
+            ".US",
+            ".PA",
+            ".DE",
+            ".L",
+            ".HK",
+            ".SW",
+            ".MI",
+            ".F",
+            ".CA",
+            ".BR",
+            ".SG",
+            ".VX"
+    );
 
     private final UniverseRepository universeRepository;
     private final SymbolRepository symbolRepository;
     private final CoingeckoUniverseClient coingeckoUniverseClient;
-    private final FmbUniverseClient fmbUniverseClient;
+    private final EodhdUniverseClient eodhdUniverseClient;
     private final UniverseImportRunner universeImportRunner;
 
     public UniverseService(UniverseRepository universeRepository,
                            SymbolRepository symbolRepository,
                            CoingeckoUniverseClient coingeckoUniverseClient,
-                           FmbUniverseClient fmbUniverseClient,
+                           EodhdUniverseClient eodhdUniverseClient,
                            UniverseImportRunner universeImportRunner) {
         this.universeRepository = universeRepository;
         this.symbolRepository = symbolRepository;
         this.coingeckoUniverseClient = coingeckoUniverseClient;
-        this.fmbUniverseClient = fmbUniverseClient;
+        this.eodhdUniverseClient = eodhdUniverseClient;
         this.universeImportRunner = universeImportRunner;
     }
 
@@ -161,8 +179,8 @@ public class UniverseService {
             }
 
         } else if (entry.universeType() == UniverseType.EQUITY
-                && ("FMP".equalsIgnoreCase(entry.provider()) || "FMB".equalsIgnoreCase(entry.provider()))) {
-            rawSymbols = fmbUniverseClient.fetchIndexMembers(entry.code());
+                && "EODHD".equalsIgnoreCase(entry.provider())) {
+            rawSymbols = fetchEtfSymbols(entry);
         } else {
             rawSymbols = List.of();
         }
@@ -189,6 +207,8 @@ public class UniverseService {
             if (!symbol.endsWith("USD") && !symbol.endsWith("USDT")) {
                 symbol = symbol + ("BINANCE".equalsIgnoreCase(broker) ? "USDT" : "USD");
             }
+        } else if (type == UniverseType.EQUITY) {
+            symbol = normalizeEquitySymbol(symbol);
         }
         return symbol;
     }
@@ -209,15 +229,15 @@ public class UniverseService {
         }
 
         try {
-            List<FmbUniverseClient.IndexInfo> indexes = fmbUniverseClient.listStockIndexes();
-            for (FmbUniverseClient.IndexInfo idx : indexes) {
-                if (idx == null || idx.symbol() == null || idx.symbol().isBlank()) {
+            List<EodhdUniverseClient.EodhdEtfUniverse> etfUniverses = eodhdUniverseClient.listSupportedEtfUniverses();
+            for (EodhdUniverseClient.EodhdEtfUniverse etf : etfUniverses) {
+                if (etf == null || etf.code() == null || etf.code().isBlank()) {
                     continue;
                 }
-                catalog.add(buildEquityIndexEntry(idx));
+                catalog.add(buildEtfUniverseEntry(etf));
             }
         } catch (Exception e) {
-            log.warn("[UniverseCatalog] Failed to load FMP indexes list", e);
+            log.warn("[UniverseCatalog] Failed to load EODHD ETF universes", e);
             log.info("[UniverseCatalog] Using static fallback catalog. ");
             catalog.addAll(CATALOG.values());
             return catalog;
@@ -255,6 +275,9 @@ public class UniverseService {
         if (requestedUpper.equals(entryCodeUpper)) {
             return true;
         }
+        if (entry.etfTicker() != null && requestedUpper.equals(entry.etfTicker().toUpperCase(Locale.ROOT))) {
+            return true;
+        }
         if (!entry.importable()) {
             return false;
         }
@@ -262,15 +285,17 @@ public class UniverseService {
         String entryNameUpper = entry.name() != null ? entry.name().toUpperCase(Locale.ROOT) : "";
 
         return switch (requestedUpper) {
-            case "SP500", "S&P500", "SPX" -> entryCodeUpper.contains("GSPC")
-                    || entryCodeUpper.contains("SP500")
+            case "SP500", "S&P500", "SPX", "SPY", "SPY.US" -> entryCodeUpper.contains("SP500")
                     || entryNameUpper.contains("S&P 500");
-            case "NASDAQ100", "NASDAQ", "NDX" -> entryCodeUpper.contains("NDX")
-                    || entryCodeUpper.contains("IXIC")
+            case "NASDAQ100", "NASDAQ", "NDX", "QQQ", "QQQ.US" -> entryCodeUpper.contains("NASDAQ100")
                     || entryNameUpper.contains("NASDAQ");
-            case "DOW", "DOWJONES", "DJI" -> entryCodeUpper.contains("DJI")
+            case "DOW", "DOWJONES", "DJI", "DIA", "DIA.US" -> entryCodeUpper.contains("DOWJONES")
                     || entryNameUpper.contains("DOW JONES")
                     || entryNameUpper.contains("DOW");
+            case "CAC40", "CAC", "CAC.PA" -> entryCodeUpper.contains("CAC40")
+                    || entryNameUpper.contains("CAC 40");
+            case "STOXX600", "STOXX", "EXSA", "EXSA.DE" -> entryCodeUpper.contains("STOXX600")
+                    || entryNameUpper.contains("STOXX");
             default -> false;
         };
     }
@@ -278,29 +303,43 @@ public class UniverseService {
     private CatalogEntry buildCryptoCategoryEntry(CoingeckoUniverseClient.CoinCategory cat) {
         String code = cat.category_id();
         String name = (cat.name() != null && !cat.name().isBlank()) ? cat.name() : code;
-        return new CatalogEntry(code, name, "CRYPTO_CATEGORY", "COINGECKO", null, true, UniverseType.CRYPTO);
+        return new CatalogEntry(code, name, "CRYPTO_CATEGORY", "COINGECKO", null, true, UniverseType.CRYPTO, null);
     }
 
-    private CatalogEntry buildEquityIndexEntry(FmbUniverseClient.IndexInfo idx) {
-        String code = idx.symbol();
-        String name = (idx.name() != null && !idx.name().isBlank()) ? idx.name() : code;
-        boolean importable = isImportableIndex(code, name);
-        return new CatalogEntry(code, name, "EQUITY_INDEX", "FMP", null, importable, UniverseType.EQUITY);
+    private CatalogEntry buildEtfUniverseEntry(EodhdUniverseClient.EodhdEtfUniverse etf) {
+        String code = etf.code();
+        String name = (etf.name() != null && !etf.name().isBlank()) ? etf.name() : code;
+        String catalogType = etf.type() != null ? etf.type() : "EQUITY_ETF";
+        String provider = etf.provider() != null ? etf.provider() : "EODHD";
+        return new CatalogEntry(code, name, catalogType, provider, etf.approxSize(), true, UniverseType.EQUITY, etf.etfTicker());
     }
 
-    private boolean isImportableIndex(String code, String name) {
-        String upperSymbol = code != null ? code.toUpperCase(Locale.ROOT) : "";
-        String upperName = name != null ? name.toUpperCase(Locale.ROOT) : "";
+    private List<String> fetchEtfSymbols(CatalogEntry entry) {
+        if (entry.etfTicker() == null || entry.etfTicker().isBlank()) {
+            log.warn("[UniverseImport] No ETF ticker configured for universe {}", entry.code());
+            return List.of();
+        }
+        List<EodhdUniverseClient.EodhdHolding> holdings = eodhdUniverseClient.fetchEtfHoldings(entry.etfTicker());
+        if (holdings.isEmpty()) {
+            log.warn("[UniverseImport] No holdings returned for universe {} (ticker {})", entry.code(), entry.etfTicker());
+            return List.of();
+        }
+        List<String> symbols = new ArrayList<>();
+        for (EodhdUniverseClient.EodhdHolding holding : holdings) {
+            if (holding == null || holding.code() == null || holding.code().isBlank()) {
+                continue;
+            }
+            symbols.add(holding.code());
+        }
+        return symbols;
+    }
 
-        if (upperSymbol.contains("GSPC") || upperSymbol.contains("SP500") || upperName.contains("S&P 500")) {
-            return true;
+    private String normalizeEquitySymbol(String symbol) {
+        for (String suffix : KNOWN_EQUITY_SUFFIXES) {
+            if (symbol.endsWith(suffix)) {
+                return symbol.substring(0, symbol.length() - suffix.length());
+            }
         }
-        if (upperSymbol.contains("NDX") || upperSymbol.contains("NASDAQ") || upperSymbol.contains("IXIC") || upperName.contains("NASDAQ")) {
-            return true;
-        }
-        if (upperSymbol.contains("DJI") || upperSymbol.contains("DJIA") || upperName.contains("DOW JONES") || upperName.contains("DOW")) {
-            return true;
-        }
-        return false;
+        return symbol;
     }
 }
