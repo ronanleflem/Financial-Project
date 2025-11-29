@@ -49,7 +49,21 @@ public class IbkrImportService {
         String symbolCode = job.getSymbol();
         log.info("[IBKR] Fetching candles for symbol={} timeframe={} range={} -> {}", symbolCode, job.getTimeframe(), start, end);
 
-        Optional<Symbol> symbolOpt = symbolRepository.findBySymbol(symbolCode);
+        String baseSymbol = symbolCode;
+        String currencyFromSymbol = null;
+        if (symbolCode != null && symbolCode.contains(":")) {
+            String[] parts = symbolCode.split(":", 2);
+            baseSymbol = parts[0];
+            currencyFromSymbol = parts[1];
+        }
+
+        Optional<Symbol> symbolOpt = Optional.empty();
+        if (currencyFromSymbol != null && !currencyFromSymbol.isBlank()) {
+            symbolOpt = symbolRepository.findBySymbolAndCurrency(baseSymbol, currencyFromSymbol);
+        }
+        if (symbolOpt.isEmpty()) {
+            symbolOpt = symbolRepository.findBySymbol(baseSymbol);
+        }
         if (symbolOpt.isEmpty()) {
             log.warn("[IBKR] Symbol {} not found in repository. Skipping import.", symbolCode);
             return;

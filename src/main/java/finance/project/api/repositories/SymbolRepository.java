@@ -13,4 +13,7 @@ public interface SymbolRepository extends JpaRepository<Symbol, UUID> {
 
     @Transactional(readOnly = true)
     Optional<Symbol> findBySymbol(String symbol);
+
+    @Transactional(readOnly = true)
+    Optional<Symbol> findBySymbolAndCurrency(String symbol, String currency);
 }
