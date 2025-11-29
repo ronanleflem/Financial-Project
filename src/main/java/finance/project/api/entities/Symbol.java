@@ -47,6 +47,14 @@ public class Symbol {
     @Column(length = 255, nullable = false)
     private String market;
 
+    @Size(max = 100)
+    @Column(length = 100)
+    private String exchange;
+
+    @Size(max = 10)
+    @Column(length = 10)
+    private String currency;
+
     @OneToMany(mappedBy = "symbol", cascade = CascadeType.ALL)
     private List<Candle> candles;
 

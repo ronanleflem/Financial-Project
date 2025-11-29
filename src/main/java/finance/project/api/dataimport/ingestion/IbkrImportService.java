@@ -2,6 +2,7 @@ package finance.project.api.dataimport.ingestion;
 
 import com.ib.client.Contract;
 import finance.project.api.dataimport.DataImportJob;
+import finance.project.api.dataimport.infrastructure.DeltaLakeExporter;
 import finance.project.api.entities.Candle;
 import finance.project.api.entities.Symbol;
 import finance.project.api.ibkr.model.IbkrBar;
@@ -9,6 +10,7 @@ import finance.project.api.model.market.OhlcBar;
 import finance.project.api.repositories.CandleRepository;
 import finance.project.api.repositories.SymbolRepository;
 import finance.project.api.services.IbkrFxService;
+import finance.project.api.utils.TimeframeUtils;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
@@ -35,13 +37,16 @@ public class IbkrImportService {
     private final IbkrFxService ibkrService;
     private final CandleRepository candleRepository;
     private final SymbolRepository symbolRepository;
+    private final DeltaLakeExporter deltaLakeExporter;
 
     public IbkrImportService(IbkrFxService ibkrService,
                              CandleRepository candleRepository,
-                             SymbolRepository symbolRepository) {
+                             SymbolRepository symbolRepository,
+                             DeltaLakeExporter deltaLakeExporter) {
         this.ibkrService = ibkrService;
         this.candleRepository = candleRepository;
         this.symbolRepository = symbolRepository;
+        this.deltaLakeExporter = deltaLakeExporter;
     }
 
     @Transactional
@@ -49,7 +54,21 @@ public class IbkrImportService {
         String symbolCode = job.getSymbol();
         log.info("[IBKR] Fetching candles for symbol={} timeframe={} range={} -> {}", symbolCode, job.getTimeframe(), start, end);
 
-        Optional<Symbol> symbolOpt = symbolRepository.findBySymbol(symbolCode);
+        String baseSymbol = symbolCode;
+        String currencyFromSymbol = null;
+        if (symbolCode != null && symbolCode.contains(":")) {
+            String[] parts = symbolCode.split(":", 2);
+            baseSymbol = parts[0];
+            currencyFromSymbol = parts[1];
+        }
+
+        Optional<Symbol> symbolOpt = Optional.empty();
+        if (currencyFromSymbol != null && !currencyFromSymbol.isBlank()) {
+            symbolOpt = symbolRepository.findBySymbolAndCurrency(baseSymbol, currencyFromSymbol);
+        }
+        if (symbolOpt.isEmpty()) {
+            symbolOpt = symbolRepository.findBySymbol(baseSymbol);
+        }
         if (symbolOpt.isEmpty()) {
             log.warn("[IBKR] Symbol {} not found in repository. Skipping import.", symbolCode);
             return;
@@ -79,6 +98,30 @@ public class IbkrImportService {
 
         candleRepository.saveAll(candles);
         log.info("[IBKR] Persisted {} candles for symbol={} timeframe={}", candles.size(), symbolCode, job.getTimeframe());
+        deltaLakeExporter.exportCandlesToDelta(job, mapForDelta(candles, job.getTimeframe()));
+    }
+
+    private List<Candle> mapForDelta(List<Candle> candles, String timeframe) {
+        if (candles == null || candles.isEmpty()) {
+            return candles;
+        }
+        String normalized = TimeframeUtils.mapToCustomTimeframe(timeframe);
+        List<Candle> mapped = new ArrayList<>(candles.size());
+        for (Candle candle : candles) {
+            if (candle == null || candle.getDate() == null) {
+                continue;
+            }
+            Candle deltaCandle = new Candle();
+            deltaCandle.setTimeframe(normalized);
+            deltaCandle.setDate(candle.getDate());
+            deltaCandle.setOpen(candle.getOpen());
+            deltaCandle.setClose(candle.getClose());
+            deltaCandle.setHigh(candle.getHigh());
+            deltaCandle.setLow(candle.getLow());
+            deltaCandle.setVolume(candle.getVolume());
+            mapped.add(deltaCandle);
+        }
+        return mapped;
     }
 
     private List<OhlcBar> fetchIbkrHistory(String symbol,

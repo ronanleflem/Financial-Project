@@ -1,0 +1,11 @@
+symbol,name,exchange,currency,marketType,defaultBroker
+AAPL,Apple Inc.,NASDAQ,USD,STOCK,IBKR
+MSFT,Microsoft Corp.,NASDAQ,USD,STOCK,IBKR
+GS,Goldman Sachs Group Inc.,NYSE,USD,STOCK,IBKR
+BA,Boeing Co.,NYSE,USD,STOCK,IBKR
+JNJ,Johnson & Johnson,NYSE,USD,STOCK,IBKR
+JPM,JPMorgan Chase & Co.,NYSE,USD,STOCK,IBKR
+KO,Coca-Cola Co.,NYSE,USD,STOCK,IBKR
+MCD,McDonald's Corp.,NYSE,USD,STOCK,IBKR
+WMT,Walmart Inc.,NYSE,USD,STOCK,IBKR
+DIS,Walt Disney Co.,NYSE,USD,STOCK,IBKR

@@ -1,0 +1,11 @@
+symbol,name,exchange,currency,marketType,defaultBroker
+SAP,SAP SE,XETRA,EUR,STOCK,IBKR
+NESN,Nestlé SA,SIX,CHF,STOCK,IBKR
+ASML,ASML Holding NV,Euronext Amsterdam,EUR,STOCK,IBKR
+NOVN,Novartis AG,SIX,CHF,STOCK,IBKR
+RDSA,Shell PLC,Euronext Amsterdam,EUR,STOCK,IBKR
+HSBC,HSBC Holdings plc,LSE,GBP,STOCK,IBKR
+SIE,Siemens AG,XETRA,EUR,STOCK,IBKR
+AIR,Airbus SE,Euronext Paris,EUR,STOCK,IBKR
+ROG,Roche Holding AG,SIX,CHF,STOCK,IBKR
+ENEL,Enel SpA,Borsa Italiana,EUR,STOCK,IBKR

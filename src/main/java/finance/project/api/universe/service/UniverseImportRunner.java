@@ -63,6 +63,18 @@ public class UniverseImportRunner {
     }
 
     private DataImportRequest buildJobRequest(UniverseImportRequest request, Universe universe, Symbol symbol) {
+        String venue = (request.venue() != null && !request.venue().isBlank())
+                ? request.venue()
+                : symbol.getExchange();
+
+        String symbolForImport = symbol.getSymbol();
+        if ("IBKR".equalsIgnoreCase(request.broker())
+                && symbol.getCurrency() != null
+                && !symbol.getCurrency().isBlank()
+                && (symbolForImport == null || !symbolForImport.contains(":"))) {
+            symbolForImport = symbol.getSymbol() + ":" + symbol.getCurrency();
+        }
+
         String assetClass = request.assetClass() != null && !request.assetClass().isBlank()
                 ? request.assetClass()
                 : universe.getType().name();
@@ -70,12 +82,12 @@ public class UniverseImportRunner {
         Instant end = request.endDate();
         return new DataImportRequest(
                 request.broker(),
-                symbol.getSymbol(),
+                symbolForImport,
                 request.timeframe(),
                 start,
                 end,
                 "API",
-                request.venue(),
+                venue,
                 null,
                 null,
                 null,

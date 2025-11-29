@@ -6,7 +6,9 @@ import finance.project.api.universe.Universe;
 import finance.project.api.universe.UniverseRepository;
 import finance.project.api.universe.UniverseType;
 import finance.project.api.universe.client.CoingeckoUniverseClient;
-import finance.project.api.universe.client.FmbUniverseClient;
+import finance.project.api.universe.csv.CsvUniverseLoader;
+import finance.project.api.universe.csv.CsvUniverseLoader.CsvUniverseDefinition;
+import finance.project.api.universe.csv.CsvUniverseLoader.CsvUniverseSymbol;
 import finance.project.api.universe.dto.UniverseCatalogDTO;
 import finance.project.api.universe.dto.UniverseDetailsDTO;
 import finance.project.api.universe.dto.UniverseImportRequest;
@@ -24,16 +26,6 @@ public class UniverseService {
 
     private static final Logger log = LoggerFactory.getLogger(UniverseService.class);
 
-    private static final Map<String, CatalogEntry> CATALOG;
-
-    static {
-        Map<String, CatalogEntry> entries = new LinkedHashMap<>();
-        entries.put("SP500", new CatalogEntry("SP500", "S&P 500","INDEX", "FMB", 500, true, UniverseType.EQUITY));
-        entries.put("NASDAQ100", new CatalogEntry("NASDAQ100", "Nasdaq 100","INDEX", "FMB", 100,true, UniverseType.EQUITY));
-        entries.put("CAC40", new CatalogEntry("CAC40", "CAC 40", "INDEX", "FMB", 40,true, UniverseType.EQUITY));
-        CATALOG = Map.copyOf(entries);
-    }
-
     private record CatalogEntry(
             String code,
             String name,
@@ -48,18 +40,18 @@ public class UniverseService {
     private final UniverseRepository universeRepository;
     private final SymbolRepository symbolRepository;
     private final CoingeckoUniverseClient coingeckoUniverseClient;
-    private final FmbUniverseClient fmbUniverseClient;
+    private final CsvUniverseLoader csvUniverseLoader;
     private final UniverseImportRunner universeImportRunner;
 
     public UniverseService(UniverseRepository universeRepository,
                            SymbolRepository symbolRepository,
                            CoingeckoUniverseClient coingeckoUniverseClient,
-                           FmbUniverseClient fmbUniverseClient,
+                           CsvUniverseLoader csvUniverseLoader,
                            UniverseImportRunner universeImportRunner) {
         this.universeRepository = universeRepository;
         this.symbolRepository = symbolRepository;
         this.coingeckoUniverseClient = coingeckoUniverseClient;
-        this.fmbUniverseClient = fmbUniverseClient;
+        this.csvUniverseLoader = csvUniverseLoader;
         this.universeImportRunner = universeImportRunner;
     }
 
@@ -109,8 +101,8 @@ public class UniverseService {
         universe.setType(entry.universeType());
         universe.setProvider(entry.provider());
 
-        Set<String> normalizedSymbols = loadSymbols(entry, request);
-        log.info("[Universe] {} fetched {} symbols", entry.code(), normalizedSymbols.size());
+        Set<Symbol> symbolsToAssociate = loadSymbols(entry, request);
+        log.info("[Universe] {} fetched {} symbols", entry.code(), symbolsToAssociate.size());
 
         // Detach previous associations
         if (universe.getSymbols() != null && !universe.getSymbols().isEmpty()) {
@@ -120,9 +112,7 @@ public class UniverseService {
             universe.getSymbols().clear();
         }
 
-        for (String normalized : normalizedSymbols) {
-            Symbol symbol = symbolRepository.findBySymbol(normalized)
-                    .orElseGet(() -> createSymbol(normalized, entry.universeType()));
+        for (Symbol symbol : symbolsToAssociate) {
             universe.addSymbol(symbol);
             symbol.getUniverses().add(universe);
         }
@@ -141,7 +131,69 @@ public class UniverseService {
         return symbolRepository.save(symbol);
     }
 
-    private Set<String> loadSymbols(CatalogEntry entry, UniverseImportRequest request) {
+    private Symbol createOrUpdateSymbolFromCsv(CsvUniverseSymbol csvSymbol, UniverseType universeType) {
+        if (csvSymbol == null || csvSymbol.symbol() == null || csvSymbol.symbol().isBlank()) {
+            return null;
+        }
+        String normalized = csvSymbol.symbol().trim().toUpperCase(Locale.ROOT);
+        String name = (csvSymbol.name() != null && !csvSymbol.name().isBlank()) ? csvSymbol.name() : normalized;
+        String market = (csvSymbol.marketType() != null && !csvSymbol.marketType().isBlank())
+                ? csvSymbol.marketType()
+                : universeType.name();
+        String exchange = (csvSymbol.exchange() != null && !csvSymbol.exchange().isBlank())
+                ? csvSymbol.exchange().trim()
+                : null;
+        String currency = (csvSymbol.currency() != null && !csvSymbol.currency().isBlank())
+                ? csvSymbol.currency().trim()
+                : null;
+
+        Symbol symbol = symbolRepository.findBySymbol(normalized)
+                .orElseGet(() -> Symbol.builder()
+                        .symbol(normalized)
+                        .name(name)
+                        .market(market)
+                        .exchange(exchange)
+                        .currency(currency)
+                        .build());
+
+        boolean updated = false;
+        if (symbol.getName() == null || !symbol.getName().equals(name)) {
+            symbol.setName(name);
+            updated = true;
+        }
+        if (symbol.getMarket() == null || !symbol.getMarket().equals(market)) {
+            symbol.setMarket(market);
+            updated = true;
+        }
+        if (exchange != null && (symbol.getExchange() == null || !symbol.getExchange().equals(exchange))) {
+            symbol.setExchange(exchange);
+            updated = true;
+        }
+        if (currency != null && (symbol.getCurrency() == null || !symbol.getCurrency().equals(currency))) {
+            symbol.setCurrency(currency);
+            updated = true;
+        }
+
+        if (symbol.getId() == null || updated) {
+            symbol = symbolRepository.save(symbol);
+        }
+
+        return symbol;
+    }
+
+    private Set<Symbol> loadSymbols(CatalogEntry entry, UniverseImportRequest request) {
+        if ("CSV_MANUAL".equalsIgnoreCase(entry.provider())) {
+            List<CsvUniverseSymbol> csvSymbols = csvUniverseLoader.loadUniverseSymbols(entry.code());
+            Set<Symbol> symbols = new LinkedHashSet<>();
+            for (CsvUniverseSymbol csvSymbol : csvSymbols) {
+                Symbol symbol = createOrUpdateSymbolFromCsv(csvSymbol, entry.universeType());
+                if (symbol != null) {
+                    symbols.add(symbol);
+                }
+            }
+            return symbols;
+        }
+
         List<String> rawSymbols;
         if (entry.universeType() == UniverseType.CRYPTO && "COINGECKO".equalsIgnoreCase(entry.provider())) {
             int limit = (entry.approxSize() != null && entry.approxSize() > 0)
@@ -160,18 +212,17 @@ public class UniverseService {
                 rawSymbols = coingeckoUniverseClient.fetchTopCryptoSymbols(limit);
             }
 
-        } else if (entry.universeType() == UniverseType.EQUITY
-                && ("FMP".equalsIgnoreCase(entry.provider()) || "FMB".equalsIgnoreCase(entry.provider()))) {
-            rawSymbols = fmbUniverseClient.fetchIndexMembers(entry.code());
         } else {
             rawSymbols = List.of();
         }
 
-        Set<String> normalized = new LinkedHashSet<>();
+        Set<Symbol> normalized = new LinkedHashSet<>();
         for (String raw : rawSymbols) {
             String norm = normalizeSymbol(raw, entry.universeType(), request.broker());
             if (norm != null && !norm.isBlank()) {
-                normalized.add(norm);
+                Symbol symbol = symbolRepository.findBySymbol(norm)
+                        .orElseGet(() -> createSymbol(norm, entry.universeType()));
+                normalized.add(symbol);
             }
         }
         return normalized;
@@ -208,19 +259,23 @@ public class UniverseService {
             log.warn("[UniverseCatalog] Failed to load CoinGecko categories", e);
         }
 
-        try {
-            List<FmbUniverseClient.IndexInfo> indexes = fmbUniverseClient.listStockIndexes();
-            for (FmbUniverseClient.IndexInfo idx : indexes) {
-                if (idx == null || idx.symbol() == null || idx.symbol().isBlank()) {
-                    continue;
-                }
-                catalog.add(buildEquityIndexEntry(idx));
+        for (CsvUniverseDefinition def : csvUniverseLoader.listDefinitions()) {
+            Integer approxSize = null;
+            try {
+                int count = csvUniverseLoader.countSymbols(def.code());
+                approxSize = count > 0 ? count : null;
+            } catch (Exception e) {
+                log.warn("[UniverseCatalog] Failed to count symbols for CSV universe {}", def.code(), e);
             }
-        } catch (Exception e) {
-            log.warn("[UniverseCatalog] Failed to load FMP indexes list", e);
-            log.info("[UniverseCatalog] Using static fallback catalog. ");
-            catalog.addAll(CATALOG.values());
-            return catalog;
+            catalog.add(new CatalogEntry(
+                    def.code(),
+                    def.name(),
+                    def.catalogType(),
+                    "CSV_MANUAL",
+                    approxSize,
+                    true,
+                    def.universeType()
+            ));
         }
 
         return catalog;
@@ -281,26 +336,4 @@ public class UniverseService {
         return new CatalogEntry(code, name, "CRYPTO_CATEGORY", "COINGECKO", null, true, UniverseType.CRYPTO);
     }
 
-    private CatalogEntry buildEquityIndexEntry(FmbUniverseClient.IndexInfo idx) {
-        String code = idx.symbol();
-        String name = (idx.name() != null && !idx.name().isBlank()) ? idx.name() : code;
-        boolean importable = isImportableIndex(code, name);
-        return new CatalogEntry(code, name, "EQUITY_INDEX", "FMP", null, importable, UniverseType.EQUITY);
-    }
-
-    private boolean isImportableIndex(String code, String name) {
-        String upperSymbol = code != null ? code.toUpperCase(Locale.ROOT) : "";
-        String upperName = name != null ? name.toUpperCase(Locale.ROOT) : "";
-
-        if (upperSymbol.contains("GSPC") || upperSymbol.contains("SP500") || upperName.contains("S&P 500")) {
-            return true;
-        }
-        if (upperSymbol.contains("NDX") || upperSymbol.contains("NASDAQ") || upperSymbol.contains("IXIC") || upperName.contains("NASDAQ")) {
-            return true;
-        }
-        if (upperSymbol.contains("DJI") || upperSymbol.contains("DJIA") || upperName.contains("DOW JONES") || upperName.contains("DOW")) {
-            return true;
-        }
-        return false;
-    }
 }
