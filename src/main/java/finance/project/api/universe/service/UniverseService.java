@@ -140,12 +140,20 @@ public class UniverseService {
         String market = (csvSymbol.marketType() != null && !csvSymbol.marketType().isBlank())
                 ? csvSymbol.marketType()
                 : universeType.name();
+        String exchange = (csvSymbol.exchange() != null && !csvSymbol.exchange().isBlank())
+                ? csvSymbol.exchange().trim()
+                : null;
+        String currency = (csvSymbol.currency() != null && !csvSymbol.currency().isBlank())
+                ? csvSymbol.currency().trim()
+                : null;
 
         Symbol symbol = symbolRepository.findBySymbol(normalized)
                 .orElseGet(() -> Symbol.builder()
                         .symbol(normalized)
                         .name(name)
                         .market(market)
+                        .exchange(exchange)
+                        .currency(currency)
                         .build());
 
         boolean updated = false;
@@ -155,6 +163,14 @@ public class UniverseService {
         }
         if (symbol.getMarket() == null || !symbol.getMarket().equals(market)) {
             symbol.setMarket(market);
+            updated = true;
+        }
+        if (exchange != null && (symbol.getExchange() == null || !symbol.getExchange().equals(exchange))) {
+            symbol.setExchange(exchange);
+            updated = true;
+        }
+        if (currency != null && (symbol.getCurrency() == null || !symbol.getCurrency().equals(currency))) {
+            symbol.setCurrency(currency);
             updated = true;
         }
 
