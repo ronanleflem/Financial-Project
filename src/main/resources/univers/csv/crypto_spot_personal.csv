@@ -1,0 +1,3 @@
+symbol,name,exchange,currency,marketType,defaultBroker
+SOLUSDT,Solana,BINANCE,USDT,CRYPTO_SPOT,BINANCE
+TAOUSDT,TAO,BITGET,USDT,CRYPTO_SPOT,BITGET

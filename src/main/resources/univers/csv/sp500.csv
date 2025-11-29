@@ -1,0 +1,11 @@
+symbol,name,exchange,currency,marketType,defaultBroker
+AAPL,Apple Inc.,NASDAQ,USD,STOCK,IBKR
+MSFT,Microsoft Corp.,NASDAQ,USD,STOCK,IBKR
+AMZN,Amazon.com Inc.,NASDAQ,USD,STOCK,IBKR
+NVDA,NVIDIA Corp.,NASDAQ,USD,STOCK,IBKR
+GOOG,Alphabet Inc. Class C,NASDAQ,USD,STOCK,IBKR
+META,Meta Platforms Inc.,NASDAQ,USD,STOCK,IBKR
+BRK.B,Berkshire Hathaway Inc. Class B,NYSE,USD,STOCK,IBKR
+JNJ,Johnson & Johnson,NYSE,USD,STOCK,IBKR
+JPM,JPMorgan Chase & Co.,NYSE,USD,STOCK,IBKR
+XOM,Exxon Mobil Corp.,NYSE,USD,STOCK,IBKR

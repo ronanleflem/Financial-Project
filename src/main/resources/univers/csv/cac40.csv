@@ -1,0 +1,11 @@
+symbol,name,exchange,currency,marketType,defaultBroker
+MC.PA,LVMH,Euronext Paris,EUR,STOCK,IBKR
+OR.PA,L'Oréal,Euronext Paris,EUR,STOCK,IBKR
+BNP.PA,BNP Paribas,Euronext Paris,EUR,STOCK,IBKR
+GLE.PA,Société Générale,Euronext Paris,EUR,STOCK,IBKR
+AI.PA,Air Liquide,Euronext Paris,EUR,STOCK,IBKR
+ACA.PA,Crédit Agricole,Euronext Paris,EUR,STOCK,IBKR
+SAN.PA,Sanofi,Euronext Paris,EUR,STOCK,IBKR
+TTE.PA,TotalEnergies,Euronext Paris,EUR,STOCK,IBKR
+DSY.PA,Dassault Systèmes,Euronext Paris,EUR,STOCK,IBKR
+RI.PA,Pernod Ricard,Euronext Paris,EUR,STOCK,IBKR
