@@ -7,10 +7,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -19,74 +17,69 @@ public class PerformanceService {
     private final PerformanceRepository performanceRepository;
 
     public void savePerformance(String strategyName, String runId, Map<String, Double> performance, String symbol, String comparedSymbol, String timeframe) {
-        List<Performance> performances = performance.entrySet().stream()
-            .map(entry -> Performance.builder()
-                        .strategyName(strategyName)
-                        .runId(runId)
-                        .symbol(symbol)
-                        .comparedSymbol(comparedSymbol)
-                        .metric(entry.getKey())
-                        .value(entry.getValue())
-                        .timeframe(timeframe)
-                        .build())
-                .toList();
-        performanceRepository.saveAll(performances);
+        Performance perf = Performance.builder()
+                .strategyName(strategyName)
+                .runId(runId)
+                .symbol(symbol)
+                .comparedSymbol(comparedSymbol)
+                .timeframe(timeframe)
+                .metric(null)
+                .value(0.0)
+                .winCount(toBigDecimal(performance.get("winCount")))
+                .lossCount(toBigDecimal(performance.get("lossCount")))
+                .totalReturn(toBigDecimal(performance.get("totalReturn")))
+                .maxDrawdown(toBigDecimal(performance.get("maxDrawdown")))
+                .averageTrade(toBigDecimal(performance.get("averageTrade")))
+                .averageSL(toBigDecimal(performance.get("averageSL")))
+                .averageTP(toBigDecimal(performance.get("averageTP")))
+                .rrMoyen(toBigDecimal(performance.get("RRmoyen")))
+                .totalNetReturn(toBigDecimal(performance.get("totalNetReturn")))
+                .netWinCount(toBigDecimal(performance.get("netWinCount")))
+                .netLossCount(toBigDecimal(performance.get("netLossCount")))
+                .averageNetTrade(toBigDecimal(performance.get("averageNetTrade")))
+                .build();
+
+        performanceRepository.save(perf);
     }
 
     public List<PerfsStratsDTO> getAllStrategyPerformances() {
         List<Performance> performances = performanceRepository.findAll();
 
-        List<PerfsStratsDTO> result = new ArrayList<>();
+        return performances.stream()
+                .filter(perf -> perf.getMetric() == null)
+                .map(this::mapPerformanceToPerfsStratsDTO)
+                .toList();
+    }
 
-        Map<String, List<Performance>> grouped = performances.stream()
-                .collect(Collectors.groupingBy(Performance::getRunId));
-
-        for (var entry : grouped.entrySet()) {
-            String runId = entry.getKey();
-            List<Performance> metrics = entry.getValue();
-            if (metrics.isEmpty()) {
-                continue;
-            }
-            Performance sample = metrics.get(0);
-            Map<String, Double> metricMap = new LinkedHashMap<>();
-            for (Performance perf : metrics) {
-                metricMap.put(perf.getMetric(), perf.getValue());
-            }
-            PerfsStratsDTO dto = PerfsStratsDTO.builder()
-                    .name(sample.getStrategyName())
-                    .runId(runId)
-                    .symbol(sample.getSymbol())
-                    .comparedSymbol(sample.getComparedSymbol())
-                    .winCount(toBigDecimal(metricMap.get("winCount")))
-                    .lossCount(toBigDecimal(metricMap.get("lossCount")))
-                    .totalReturn(toBigDecimal(metricMap.get("totalReturn")))
-                    .maxDrawdown(toBigDecimal(metricMap.get("maxDrawdown")))
-                    .averageTrade(toBigDecimal(metricMap.get("averageTrade")))
-                    .averageSL(toBigDecimal(metricMap.get("averageSL")))
-                    .averageTP(toBigDecimal(metricMap.get("averageTP")))
-                    .rrMoyen(toBigDecimal(metricMap.get("RRmoyen")))
-                    .startStrategy(toLocalDateTime(metricMap.get("startStrategy")))
-                    .endStrategy(toLocalDateTime(metricMap.get("endStrategy")))
-                    .totalNetReturn(toBigDecimal(metricMap.get("totalNetReturn")))
-                    .netWinCount(toBigDecimal(metricMap.get("netWinCount")))
-                    .netLossCount(toBigDecimal(metricMap.get("netLossCount")))
-                    .averageNetTrade(toBigDecimal(metricMap.get("averageNetTrade")))
-                    .timeframe(sample.getTimeframe())
-                    .build();
-            result.add(dto);
-        }
-
-        return result;
+    private PerfsStratsDTO mapPerformanceToPerfsStratsDTO(Performance p) {
+        return PerfsStratsDTO.builder()
+                .name(p.getStrategyName())
+                .runId(p.getRunId())
+                .winCount(toBigDecimal(p.getWinCount()))
+                .lossCount(toBigDecimal(p.getLossCount()))
+                .totalReturn(toBigDecimal(p.getTotalReturn()))
+                .maxDrawdown(toBigDecimal(p.getMaxDrawdown()))
+                .averageTrade(toBigDecimal(p.getAverageTrade()))
+                .averageSL(toBigDecimal(p.getAverageSL()))
+                .averageTP(toBigDecimal(p.getAverageTP()))
+                .symbol(p.getSymbol())
+                .comparedSymbol(p.getComparedSymbol())
+                .startStrategy(p.getStartStrategy())
+                .endStrategy(p.getEndStrategy())
+                .rrMoyen(toBigDecimal(p.getRrMoyen()))
+                .totalNetReturn(toBigDecimal(p.getTotalNetReturn()))
+                .netWinCount(toBigDecimal(p.getNetWinCount()))
+                .netLossCount(toBigDecimal(p.getNetLossCount()))
+                .averageNetTrade(toBigDecimal(p.getAverageNetTrade()))
+                .timeframe(p.getTimeframe())
+                .build();
     }
 
     private BigDecimal toBigDecimal(Double value) {
         return value != null ? BigDecimal.valueOf(value) : BigDecimal.ZERO;
     }
-    private LocalDateTime toLocalDateTime(Double value) {
-        if (value == null) {
-            return null;
-        }
-        long seconds = value.longValue();
-        return LocalDateTime.ofEpochSecond(seconds, 0, ZoneOffset.UTC);
+
+    private BigDecimal toBigDecimal(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
     }
 }

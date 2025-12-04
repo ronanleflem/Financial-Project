@@ -1,88 +1,48 @@
-package finance.project.api.entities;
+package finance.project.api.performance.dto;
 
-import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.util.Map;
 
-@Entity
-@Table(name = "performance")
-@Getter
-@Setter
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class Performance {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    private String strategyName;
-
-    private String metric; // Ex: "winRate", "profitFactor"
-    private double value;
-
-    /**
-     * Identifier to group all metrics of the same strategy run. This allows
-     * distinguishing multiple executions of the same strategy.
-     */
+public class PythonStrategyRunDTO {
+    private String strategyId;
     private String runId;
-
-    private String symbol;
-
-    private String comparedSymbol;
-
-    private String timeframe;
-
     private String assetClass;
-
     private String universe;
-
-    private LocalDateTime startStrategy;
-
-    private LocalDateTime endStrategy;
+    private String timeframe;
+    private String symbol;
+    private String comparedSymbol;
+    private OffsetDateTime startTsUtc;
+    private OffsetDateTime endTsUtc;
 
     private BigDecimal winCount;
-
     private BigDecimal lossCount;
-
     private BigDecimal totalReturn;
-
     private BigDecimal maxDrawdown;
-
     private BigDecimal averageTrade;
-
     private BigDecimal averageSL;
-
     private BigDecimal averageTP;
-
     private BigDecimal rrMoyen;
-
     private BigDecimal totalNetReturn;
-
     private BigDecimal netWinCount;
-
     private BigDecimal netLossCount;
-
     private BigDecimal averageNetTrade;
 
     private BigDecimal initialCapital;
-
     private BigDecimal finalCapital;
-
     private BigDecimal returnPct;
-
     private BigDecimal maxDrawdownPct;
-
     private BigDecimal volatilityPct;
-
     private BigDecimal sharpe;
-
     private BigDecimal sortino;
-
     private BigDecimal winratePct;
 
-    @Lob
-    private String extraJson;
+    private Map<String, Object> extra;
 }
