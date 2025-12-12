@@ -84,5 +84,6 @@ public class Performance {
     private BigDecimal winratePct;
 
     @Lob
+    @Column(columnDefinition = "LONGTEXT")
     private String extraJson;
 }

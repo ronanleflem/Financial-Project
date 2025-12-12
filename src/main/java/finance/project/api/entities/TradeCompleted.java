@@ -51,5 +51,6 @@ public class TradeCompleted {
     private String symbol;
 
     @Lob
+    @Column(columnDefinition = "LONGTEXT")
     private String metaJson;
 }
