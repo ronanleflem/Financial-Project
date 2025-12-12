@@ -4,6 +4,7 @@ import finance.project.api.model.TradeSignalDTO;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -26,6 +27,8 @@ public class TradeCompleted {
     @Enumerated(EnumType.STRING)
     private TradeSignalDTO.TradeType tradeType;
 
+    private String assetClass;
+
     private double entryPrice;
     private double stopLoss;
     private double takeProfit;
@@ -33,9 +36,21 @@ public class TradeCompleted {
 
     private double profitOrLoss; // par exemple en points ou en valeur monétaire
 
+    private BigDecimal pnlPct;
+
+    private BigDecimal maxDrawdownPct;
+
+    private BigDecimal quantity;
+
+    private Integer cycleId;
+
     private double confidenceScore;
 
     private LocalDateTime entryTimestamp;
     private LocalDateTime exitTimestamp;
     private String symbol;
+
+    @Lob
+    @Column(columnDefinition = "LONGTEXT")
+    private String metaJson;
 }

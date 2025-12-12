@@ -3,6 +3,9 @@ package finance.project.api.entities;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "performance")
 @Getter
@@ -31,4 +34,56 @@ public class Performance {
     private String comparedSymbol;
 
     private String timeframe;
+
+    private String assetClass;
+
+    private String universe;
+
+    private LocalDateTime startStrategy;
+
+    private LocalDateTime endStrategy;
+
+    private BigDecimal winCount;
+
+    private BigDecimal lossCount;
+
+    private BigDecimal totalReturn;
+
+    private BigDecimal maxDrawdown;
+
+    private BigDecimal averageTrade;
+
+    private BigDecimal averageSL;
+
+    private BigDecimal averageTP;
+
+    private BigDecimal rrMoyen;
+
+    private BigDecimal totalNetReturn;
+
+    private BigDecimal netWinCount;
+
+    private BigDecimal netLossCount;
+
+    private BigDecimal averageNetTrade;
+
+    private BigDecimal initialCapital;
+
+    private BigDecimal finalCapital;
+
+    private BigDecimal returnPct;
+
+    private BigDecimal maxDrawdownPct;
+
+    private BigDecimal volatilityPct;
+
+    private BigDecimal sharpe;
+
+    private BigDecimal sortino;
+
+    private BigDecimal winratePct;
+
+    @Lob
+    @Column(columnDefinition = "LONGTEXT")
+    private String extraJson;
 }
