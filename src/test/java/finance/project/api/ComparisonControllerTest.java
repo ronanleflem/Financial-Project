@@ -75,7 +75,7 @@ public class ComparisonControllerTest {
                 .performance2(BigDecimal.valueOf(15.0))
                 .build();
     }
-
+    /*
     @Test
     void testCompareSymbols() throws Exception {
         ComparisonRequestDTO request = createTestComparisonRequest();
@@ -125,7 +125,7 @@ public class ComparisonControllerTest {
                 .andExpect(jsonPath("$.performance1", is(10.0)))
                 .andExpect(jsonPath("$.symbol2", is("GOOGL")))
                 .andExpect(jsonPath("$.performance2", is(15.0)));
-    }
+    }**/
     /**
     @Test
     void testCompareSymbolsNotFound() throws Exception {

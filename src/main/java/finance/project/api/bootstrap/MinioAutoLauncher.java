@@ -13,16 +13,31 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class MinioAutoLauncher {
 
-    private static final String MINIO_PATH = "C:\\minio\\minio.exe";
-    private static final String DATA_PATH = "C:\\minio\\data";
     private static final int MINIO_PORT = 9000;
+    private static final int CONSOLE_PORT = 9090;
+
+    // Windows
+    private static final String MINIO_PATH_WIN = "C:\\minio\\minio.exe";
+    private static final String DATA_PATH_WIN  = "C:\\minio\\data";
+    private static final String WORKDIR_WIN    = "C:\\minio";
+
+    // Linux
+    private static final String MINIO_PATH_LINUX = "/usr/local/bin/minio";
+    private static final String DATA_PATH_LINUX  = "/home/ronan/minio/data"; // ajuste si tu veux ailleurs
+    private static final String WORKDIR_LINUX    = "/usr/local/minio";
 
     private Process minioProcess;
 
     @PostConstruct
     public void startMinioIfNotRunning() {
-        if (!new File(MINIO_PATH).exists()) {
-            System.out.println("[MinIO] Skipping auto-start: " + MINIO_PATH + " not found");
+        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+
+        String minioPath = isWindows ? MINIO_PATH_WIN : MINIO_PATH_LINUX;
+        String dataPath  = isWindows ? DATA_PATH_WIN  : DATA_PATH_LINUX;
+        String workDir   = isWindows ? WORKDIR_WIN    : WORKDIR_LINUX;
+
+        if (!new File(minioPath).exists()) {
+            System.out.println("[MinIO] Skipping auto-start: " + minioPath + " not found");
             return;
         }
 
@@ -31,36 +46,34 @@ public class MinioAutoLauncher {
             return;
         }
 
+        // crée le dossier data si besoin
+        File dataDir = new File(dataPath);
+        if (!dataDir.exists() && !dataDir.mkdirs()) {
+            System.out.println("[MinIO] Skipping auto-start: cannot create data dir: " + dataDir.getAbsolutePath());
+            return;
+        }
+
         System.out.println("[MinIO] Starting MinIO server...");
         try {
             ProcessBuilder pb = new ProcessBuilder(
-                    MINIO_PATH,
-                    "server", DATA_PATH,
-                    "--console-address", ":9090"
+                    minioPath,
+                    "server", dataPath,
+                    "--address", ":" + MINIO_PORT,
+                    "--console-address", ":" + CONSOLE_PORT
             );
-            pb.directory(new File("C:\\minio"));
-            pb.inheritIO(); // affiche la sortie dans la console Spring Boot
+
+            File wd = new File(workDir);
+            if (wd.exists()) pb.directory(wd);
+
+            pb.inheritIO();
             minioProcess = pb.start();
-            Thread.sleep(4000); // petit délai pour qu'il démarre avant l'import
+
+            Thread.sleep(3000);
             System.out.println("[MinIO] Launched successfully.");
         } catch (IOException | InterruptedException e) {
             System.err.println("[MinIO] Failed to start: " + e.getMessage());
         }
     }
-    /*
-    @PreDestroy
-    public void stopMinioOnExit() {
-        if (minioProcess != null && minioProcess.isAlive()) {
-            System.out.println("[MinIO] Stopping MinIO...");
-            minioProcess.destroy();
-            try {
-                if (!minioProcess.waitFor(3, TimeUnit.SECONDS)) {
-                    minioProcess.destroyForcibly();
-                }
-                System.out.println("[MinIO] Stopped.");
-            } catch (InterruptedException ignored) {}
-        }
-    }*/
 
     private boolean isPortOpen(String host, int port) {
         try (Socket socket = new Socket()) {
