@@ -7,6 +7,7 @@ import finance.project.api.config.IbkrProperties;
 import finance.project.api.ibkr.IbkrRequestException;
 import finance.project.api.ibkr.model.IbkrBar;
 import finance.project.api.ibkr.model.IbkrScannerRow;
+import finance.project.api.ibkr.model.ResolvedInstrument;
 import finance.project.api.model.fx.FxQuote;
 import finance.project.api.model.fx.HistBar;
 import org.slf4j.Logger;
@@ -63,6 +64,7 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
     private final ConcurrentHashMap<Integer, List<IbkrScannerRow>> scannerBuffers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, CompletableFuture<List<IbkrBar>>> genericHistFutures = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, List<IbkrBar>> genericHistBuffers = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, CompletableFuture<ContractDetails>> contractDetailsFutures = new ConcurrentHashMap<>();
 
     private volatile List<String> managedAccts = List.of();
 
@@ -87,6 +89,21 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
             "1 min","2 mins","3 mins","5 mins","10 mins","15 mins","20 mins","30 mins",
             "1 hour","2 hours","3 hours","4 hours","8 hours",
             "1 day","1W","1M"
+    );
+
+    private static final Map<String, String> EXCHANGE_NORMALIZATION = Map.ofEntries(
+            Map.entry("NASDAQ", "NASDAQ"),
+            Map.entry("NYSE", "NYSE"),
+            Map.entry("ARCA", "ARCA"),
+            Map.entry("IBIS", "XETRA"),
+            Map.entry("IBIS2", "XETRA"),
+            Map.entry("BVME", "BORSA_ITALIANA"),
+            Map.entry("SBF", "EURONEXT_PARIS"),
+            Map.entry("AEB", "EURONEXT_AMSTERDAM"),
+            Map.entry("LSE", "LSE"),
+            Map.entry("EBS", "IDEALPRO"),
+            Map.entry("IDEALPRO", "IDEALPRO"),
+            Map.entry("SMART", "SMART")
     );
 
     // --- Account Summary snapshot ---
@@ -336,6 +353,52 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
         }
     }
 
+    public ResolvedInstrument resolveContractMetadata(String symbol,
+                                                      String secTypeHint,
+                                                      String exchangeHint,
+                                                      String currencyHint,
+                                                      Duration timeout) {
+        Objects.requireNonNull(symbol, "symbol");
+        if (!ensureConnected()) {
+            throw new IbkrRequestException("Unable to connect to IBKR gateway");
+        }
+        waitForPacingSlot();
+
+        int id = reqId.getAndIncrement();
+        CompletableFuture<ContractDetails> future = new CompletableFuture<>();
+        contractDetailsFutures.put(id, future);
+
+        Contract probe = new Contract();
+        probe.symbol(symbol);
+        probe.secType(defaultSecType(secTypeHint));
+        probe.exchange("SMART");
+        if (currencyHint != null && !currencyHint.isBlank()) {
+            probe.currency(currencyHint);
+        }
+        if (exchangeHint != null && !exchangeHint.isBlank()) {
+            probe.primaryExch(exchangeHint);
+        }
+
+        client.reqContractDetails(id, probe);
+
+        try {
+            long timeoutMillis = timeout != null ? timeout.toMillis() : 5000L;
+            ContractDetails details = future.get(timeoutMillis, TimeUnit.MILLISECONDS);
+            ResolvedInstrument resolved = toResolvedInstrument(details, secTypeHint, exchangeHint, currencyHint);
+            log.info("Resolved {} -> conid={} secType={} currency={} primaryExch={} (normalized={}) marketType={} pathSegment={}/{}", symbol,
+                    resolved.conid(), resolved.secType(), resolved.currency(), resolved.ibPrimaryExch(),
+                    resolved.normalizedExchange(), resolved.marketTypeNormalized(), resolved.normalizedExchange(), resolved.symbol());
+            return resolved;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IbkrRequestException("Interrupted while waiting for contract details", e);
+        } catch (ExecutionException | TimeoutException e) {
+            throw new IbkrRequestException("Unable to resolve contract details for %s".formatted(symbol), e);
+        } finally {
+            contractDetailsFutures.remove(id);
+        }
+    }
+
     /** ----------- LIVE FX EURUSD ----------- */
 
     /** Démarre un flux de bougies 1 minute (EURUSD MIDPOINT) en "keepUpToDate". */
@@ -555,6 +618,22 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
     }
 
     @Override
+    public void contractDetails(int reqId, ContractDetails contractDetails) {
+        CompletableFuture<ContractDetails> future = contractDetailsFutures.get(reqId);
+        if (future != null && !future.isDone()) {
+            future.complete(contractDetails);
+        }
+    }
+
+    @Override
+    public void contractDetailsEnd(int reqId) {
+        CompletableFuture<ContractDetails> future = contractDetailsFutures.remove(reqId);
+        if (future != null && !future.isDone()) {
+            future.completeExceptionally(new IbkrRequestException("No contract details returned for reqId " + reqId));
+        }
+    }
+
+    @Override
     public void scannerData(int reqId, int rank, ContractDetails contractDetails, String distance, String benchmark, String projection, String legsStr) {
         List<IbkrScannerRow> buffer = scannerBuffers.get(reqId);
         if (buffer != null) {
@@ -623,6 +702,77 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
         }
     }
 
+    private ResolvedInstrument toResolvedInstrument(ContractDetails details,
+                                                    String secTypeHint,
+                                                    String exchangeHint,
+                                                    String currencyHint) {
+        Contract c = details.contract();
+        String secType = safeUpper(firstNonBlank(c.secType(), secTypeHint, Types.SecType.STK.name()));
+        String currency = firstNonBlank(c.currency(), currencyHint, "USD");
+        String ibPrimary = firstNonBlank(c.primaryExch(), exchangeHint, c.exchange());
+        String normalizedExchange = normalizeExchange(ibPrimary);
+        String marketType = normalizeMarketType(secType, details);
+        return new ResolvedInstrument(
+                c.conid(),
+                c.symbol(),
+                c.localSymbol(),
+                c.tradingClass(),
+                secType,
+                currency,
+                ibPrimary,
+                normalizedExchange,
+                marketType
+        );
+    }
+
+    private String normalizeMarketType(String secType, ContractDetails details) {
+        return switch (safeUpper(secType)) {
+            case "STK" -> isEtf(details) ? "ETF" : "STOCK";
+            case "CASH" -> "FOREX";
+            case "FUT" -> "FUTURE";
+            case "IND" -> "INDEX";
+            case "CRYPTO" -> "CRYPTO";
+            default -> safeUpper(secType);
+        };
+    }
+
+    private boolean isEtf(ContractDetails details) {
+        String stockType = safeUpper(details.stockType());
+        if (stockType.contains("ETF")) {
+            return true;
+        }
+        String name = safeUpper(details.longName());
+        return name.contains("ETF");
+    }
+
+    private String normalizeExchange(String exchange) {
+        String upper = safeUpper(exchange);
+        if (upper.isEmpty()) {
+            return "UNKNOWN";
+        }
+        return EXCHANGE_NORMALIZATION.getOrDefault(upper, upper.replace(' ', '_'));
+    }
+
+    private String defaultSecType(String secTypeHint) {
+        if (secTypeHint == null || secTypeHint.isBlank()) {
+            return Types.SecType.STK.name();
+        }
+        return secTypeHint.toUpperCase(Locale.ROOT);
+    }
+
+    private String safeUpper(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String v : values) {
+            if (v != null && !v.isBlank()) {
+                return v;
+            }
+        }
+        return "";
+    }
+
     /** Conversion IB time → epoch millis (IB renvoie "yyyyMMdd  HH:mm:ss" ou epoch) */
     private long parseIbDateTime(String ibTime) {
         if (ibTime == null || ibTime.isEmpty()) throw new IllegalArgumentException("empty ibTime");
@@ -683,6 +833,10 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
         CompletableFuture<List<IbkrBar>> histFuture = genericHistFutures.get(reqId);
         if (histFuture != null && !histFuture.isDone()) {
             histFuture.completeExceptionally(new IbkrRequestException("Historical error %d: %s".formatted(errorCode, errorMsg)));
+        }
+        CompletableFuture<ContractDetails> contractFuture = contractDetailsFutures.get(reqId);
+        if (contractFuture != null && !contractFuture.isDone()) {
+            contractFuture.completeExceptionally(new IbkrRequestException("Contract details error %d: %s".formatted(errorCode, errorMsg)));
         }
         if (errorCode == 420 || errorCode == 421) {
             log.warn("IBKR pacing violation reported: {}", errorMsg);

@@ -84,6 +84,10 @@ public class DeltaLakeExporter {
     }
 
     public void exportCandlesToDelta(DataImportJob job, List<Candle> candles) {
+        exportCandlesToDelta(job, candles, null, Collections.emptyMap());
+    }
+
+    public void exportCandlesToDelta(DataImportJob job, List<Candle> candles, String tablePath, Map<String, String> metadata) {
         if (job == null) {
             log.warn("[Delta] DataImportJob is null, skipping export");
             return;
@@ -93,31 +97,32 @@ public class DeltaLakeExporter {
             return;
         }
 
-
         String assetCategory = resolveAssetCategory(job);
-        String tablePath = deltaLakeConfig.resolveTablePath(assetCategory, job.getSymbol());
+        String effectiveTablePath = (tablePath == null || tablePath.isBlank())
+                ? deltaLakeConfig.resolveTablePath(assetCategory, job.getSymbol())
+                : stripTrailingSlash(tablePath);
         String conflictPolicy = Optional.ofNullable(job.getConflictPolicy())
                 .map(policy -> policy.toUpperCase(Locale.ROOT))
                 .orElse("MERGE");
 
         Configuration conf = createHadoopConfiguration();
         try {
-            DeltaLog deltaLog = DeltaLog.forTable(conf, tablePath);
+            DeltaLog deltaLog = DeltaLog.forTable(conf, effectiveTablePath);
 
             if ("SKIP".equals(conflictPolicy) && deltaLog.tableExists()) {
-                log.info("[Delta] Conflict policy=SKIP and table already exists at {}. Skipping export.", tablePath);
+                log.info("[Delta] Conflict policy=SKIP and table already exists at {}. Skipping export.", effectiveTablePath);
                 return;
             }
 
             OptimisticTransaction txn = deltaLog.startTransaction();
 
             if (!deltaLog.tableExists()) {
-                Metadata metadata = Metadata.builder()
+                Metadata metadataAction = Metadata.builder()
                         .schema(CANDLE_SCHEMA)
                         .name(job.getSymbol())
                         .description("Candles for " + job.getSymbol())
                         .build();
-                txn.updateMetadata(metadata);
+                txn.updateMetadata(metadataAction);
             }
 
             List<Action> actions = new ArrayList<>();
@@ -127,7 +132,7 @@ public class DeltaLakeExporter {
                         .forEach(actions::add);
             }
 
-            Path tableRoot = new Path(tablePath);
+            Path tableRoot = new Path(effectiveTablePath);
             Path dataDir = new Path(tableRoot, "data");
             Path dataFile = new Path(dataDir, "part-" + UUID.randomUUID() + ".parquet");
 
@@ -152,10 +157,13 @@ public class DeltaLakeExporter {
             Map<String, String> parameters = new HashMap<>();
             parameters.put("mode", "\"" + conflictPolicy + "\"");
             parameters.put("assetCategory", "\"" + assetCategory + "\"");
+            if (metadata != null) {
+                metadata.forEach((k, v) -> parameters.put(k, "\"" + defaultString(v) + "\""));
+            }
             Operation operation = new Operation(Operation.Name.WRITE, parameters, Collections.emptyMap());
 
             txn.commit(actions, operation, job.getId());
-            log.info("[Delta] Exported {} candles for job {} to {}", candles.size(), job.getId(), tablePath);
+            log.info("[Delta] Exported {} candles for job {} to {}", candles.size(), job.getId(), effectiveTablePath);
         } catch (Exception e) {
             log.error("[Delta] Failed to export candles for job {}: {}", job.getId(), e.getMessage(), e);
         }
