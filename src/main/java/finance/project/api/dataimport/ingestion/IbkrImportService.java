@@ -5,11 +5,14 @@ import finance.project.api.dataimport.DataImportJob;
 import finance.project.api.dataimport.infrastructure.DeltaLakeExporter;
 import finance.project.api.entities.Candle;
 import finance.project.api.entities.Symbol;
+import finance.project.api.ibkr.IbkrRequestException;
 import finance.project.api.ibkr.model.IbkrBar;
+import finance.project.api.ibkr.model.ResolvedInstrument;
 import finance.project.api.model.market.OhlcBar;
 import finance.project.api.repositories.CandleRepository;
 import finance.project.api.repositories.SymbolRepository;
 import finance.project.api.services.IbkrFxService;
+import finance.project.api.utils.DeltaPathBuilder;
 import finance.project.api.utils.TimeframeUtils;
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -19,8 +22,10 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,15 +43,18 @@ public class IbkrImportService {
     private final CandleRepository candleRepository;
     private final SymbolRepository symbolRepository;
     private final DeltaLakeExporter deltaLakeExporter;
+    private final DeltaPathBuilder deltaPathBuilder;
 
     public IbkrImportService(IbkrFxService ibkrService,
                              CandleRepository candleRepository,
                              SymbolRepository symbolRepository,
-                             DeltaLakeExporter deltaLakeExporter) {
+                             DeltaLakeExporter deltaLakeExporter,
+                             DeltaPathBuilder deltaPathBuilder) {
         this.ibkrService = ibkrService;
         this.candleRepository = candleRepository;
         this.symbolRepository = symbolRepository;
         this.deltaLakeExporter = deltaLakeExporter;
+        this.deltaPathBuilder = deltaPathBuilder;
     }
 
     @Transactional
@@ -74,7 +82,8 @@ public class IbkrImportService {
             return;
         }
 
-        List<OhlcBar> bars = fetchIbkrHistory(symbolCode, job.getAssetClass(), start, end, job.getTimeframe());
+        FetchResult fetchResult = fetchIbkrHistory(symbolCode, job.getAssetClass(), start, end, job.getTimeframe(), symbolOpt.orElse(null));
+        List<OhlcBar> bars = fetchResult.bars();
         if (bars.isEmpty()) {
             log.info("[IBKR] No bars returned for symbol={} timeframe={}", symbolCode, job.getTimeframe());
             return;
@@ -98,7 +107,10 @@ public class IbkrImportService {
 
         candleRepository.saveAll(candles);
         log.info("[IBKR] Persisted {} candles for symbol={} timeframe={}", candles.size(), symbolCode, job.getTimeframe());
-        deltaLakeExporter.exportCandlesToDelta(job, mapForDelta(candles, job.getTimeframe()));
+        ResolvedInstrument resolved = fetchResult.resolvedInstrument();
+        Map<String, String> metadata = buildMetadata(resolved);
+        String deltaPath = deltaPathBuilder.buildPath(resolved);
+        deltaLakeExporter.exportCandlesToDelta(job, mapForDelta(candles, job.getTimeframe()), deltaPath, metadata);
     }
 
     private List<Candle> mapForDelta(List<Candle> candles, String timeframe) {
@@ -124,11 +136,31 @@ public class IbkrImportService {
         return mapped;
     }
 
-    private List<OhlcBar> fetchIbkrHistory(String symbol,
-                                           String assetClass,
-                                           Instant start,
-                                           Instant end,
-                                           String timeframe) {
+    private Map<String, String> buildMetadata(ResolvedInstrument resolved) {
+        Map<String, String> metadata = new HashMap<>();
+        if (resolved == null) {
+            metadata.put("resolveStatus", "fallback");
+            return metadata;
+        }
+        metadata.put("conid", String.valueOf(resolved.conid()));
+        metadata.put("symbol", resolved.symbol());
+        metadata.put("localSymbol", resolved.localSymbol());
+        metadata.put("tradingClass", resolved.tradingClass());
+        metadata.put("secType", resolved.secType());
+        metadata.put("currency", resolved.currency());
+        metadata.put("ibPrimaryExch", resolved.ibPrimaryExch());
+        metadata.put("normalizedExchange", resolved.normalizedExchange());
+        metadata.put("marketType", resolved.marketTypeNormalized());
+        metadata.put("resolveStatus", "resolved");
+        return metadata;
+    }
+
+    private FetchResult fetchIbkrHistory(String symbol,
+                                         String assetClass,
+                                         Instant start,
+                                         Instant end,
+                                         String timeframe,
+                                         Symbol symbolEntity) {
         String resolvedSymbol = symbol;
         String currency = "USD";
         if (symbol.contains(":")) {
@@ -137,11 +169,27 @@ public class IbkrImportService {
             currency = parts[1];
         }
         String secType = mapAssetClass(assetClass);
+
+        ResolvedInstrument resolvedInstrument = null;
+        try {
+            resolvedInstrument = ibkrService.resolveContractMetadata(resolvedSymbol,
+                    secType,
+                    symbolEntity != null ? symbolEntity.getExchange() : null,
+                    symbolEntity != null ? symbolEntity.getCurrency() : currency,
+                    Duration.ofSeconds(5));
+        } catch (IbkrRequestException ex) {
+            log.warn("[IBKR] Unable to resolve contract metadata for {}: {}. Using fallback contract.", symbol, ex.getMessage());
+        }
+
         Contract contract = new Contract();
-        contract.symbol(resolvedSymbol);
-        contract.secType(secType);
-        contract.currency(currency);
+        contract.symbol(resolvedInstrument != null ? resolvedInstrument.symbol() : resolvedSymbol);
+        contract.secType(resolvedInstrument != null ? resolvedInstrument.secType() : secType);
+        contract.currency(resolvedInstrument != null ? resolvedInstrument.currency() : currency);
         contract.exchange("SMART");
+        if (resolvedInstrument != null) {
+            contract.conid(resolvedInstrument.conid());
+            contract.primaryExch(resolvedInstrument.ibPrimaryExch());
+        }
 
         String barSize = toIbBarSize(timeframe);
         Duration diff = Duration.between(start, end);
@@ -162,8 +210,10 @@ public class IbkrImportService {
             }
             result.add(new OhlcBar(bar.time(), bar.open(), bar.high(), bar.low(), bar.close(), bar.volume()));
         }
-        return result;
+        return new FetchResult(result, resolvedInstrument);
     }
+
+    private record FetchResult(List<OhlcBar> bars, ResolvedInstrument resolvedInstrument) {}
 
     private String mapAssetClass(String assetClass) {
         if (assetClass == null || assetClass.isBlank()) {
