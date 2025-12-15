@@ -55,6 +55,13 @@ public class CsvUniverseLoader {
                 UniverseType.EQUITY,
                 "nasdaq100.csv"
         ));
+        defs.put("AAPLMSFT", new CsvUniverseDefinition(
+                "AAPLMSFT",
+                "AAPLMSFT (CSV)",
+                "EQUITY_INDEX_CSV",
+                UniverseType.EQUITY,
+                "aaplmsft.csv"
+        ));
         defs.put("DOWJONES", new CsvUniverseDefinition(
                 "DOWJONES",
                 "Dow Jones (CSV)",
