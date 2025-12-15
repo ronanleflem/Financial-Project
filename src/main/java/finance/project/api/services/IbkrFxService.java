@@ -707,7 +707,7 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
                                                     String exchangeHint,
                                                     String currencyHint) {
         Contract c = details.contract();
-        String secType = safeUpper(firstNonBlank(c.secType(), secTypeHint, Types.SecType.STK.name()));
+        String secType = safeUpper(firstNonBlank(String.valueOf(c.secType()), secTypeHint, Types.SecType.STK.name()));
         String currency = firstNonBlank(c.currency(), currencyHint, "USD");
         String ibPrimary = firstNonBlank(c.primaryExch(), exchangeHint, c.exchange());
         String normalizedExchange = normalizeExchange(ibPrimary);
