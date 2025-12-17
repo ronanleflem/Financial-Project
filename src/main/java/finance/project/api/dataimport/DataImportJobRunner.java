@@ -70,9 +70,9 @@ public class DataImportJobRunner {
             job.setUpdatedAt(Instant.now());
             jobRepository.save(job);
 
-            log.info("[DataImport] Job {} RUNNING for {} {} {} {}",
+            log.info("[DataImport] Job {} RUNNING for {} {} {} {} {}",
                     job.getId(), job.getBroker(), job.getSymbol(),
-                    job.getTimeframe(), job.getSourceType());
+                    job.getTimeframe(), job.getSourceType(), job.getAssetClass());
 
             // Exécution réelle (switch broker/source)
             boolean anySuccess = executeJob(job);

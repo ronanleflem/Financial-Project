@@ -324,6 +324,10 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
         genericHistFutures.put(id, future);
         genericHistBuffers.put(id, Collections.synchronizedList(new ArrayList<>()));
 
+        log.info("[IBKR][REQ][{}] endDateTime='{}' duration='{}' barSize='{}' whatToShow='{}' useRth={} conid={} symbol={} secType={} cur={} exch={} primExch={}",
+                id, endDateTime, durationStr, barSize, whatToShow, useRth,
+                contract.conid(), contract.symbol(), contract.secType(), contract.currency(), contract.exchange(), contract.primaryExch());
+        long t0 = System.nanoTime();
         client.reqHistoricalData(id,
                 contract,
                 endDateTime != null ? endDateTime : "",
@@ -338,6 +342,9 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
         try {
             long timeoutMillis = timeout != null ? timeout.toMillis() : properties.getDefaultRequestTimeoutMillis();
             List<IbkrBar> bars = future.get(timeoutMillis, TimeUnit.MILLISECONDS);
+            long ms = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - t0);
+            log.info("[IBKR][REQ][{}] completed in {} ms, bars={}",
+                    id, ms, bars.size());
             List<IbkrBar> sorted = new ArrayList<>(bars);
             sorted.sort(Comparator.comparing(IbkrBar::time));
             return List.copyOf(sorted);

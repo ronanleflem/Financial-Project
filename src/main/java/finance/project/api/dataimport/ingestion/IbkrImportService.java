@@ -21,14 +21,11 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,58 +56,72 @@ public class IbkrImportService {
 
     @Transactional
     public void fetchAndSave(DataImportJob job, Instant start, Instant end) {
-        String symbolCode = job.getSymbol();
-        log.info("[IBKR] Fetching candles for symbol={} timeframe={} range={} -> {}", symbolCode, job.getTimeframe(), start, end);
+        String runId = UUID.randomUUID().toString().substring(0, 8);
+        MDC.put("runId", runId);
 
-        String baseSymbol = symbolCode;
-        String currencyFromSymbol = null;
-        if (symbolCode != null && symbolCode.contains(":")) {
-            String[] parts = symbolCode.split(":", 2);
-            baseSymbol = parts[0];
-            currencyFromSymbol = parts[1];
-        }
+        try {
+            String symbolCode = job.getSymbol();
+            log.info("[IBKR] Fetching candles for symbol={} timeframe={} range={} -> {}", symbolCode, job.getTimeframe(), start, end);
 
-        Optional<Symbol> symbolOpt = Optional.empty();
-        if (currencyFromSymbol != null && !currencyFromSymbol.isBlank()) {
-            symbolOpt = symbolRepository.findBySymbolAndCurrency(baseSymbol, currencyFromSymbol);
-        }
-        if (symbolOpt.isEmpty()) {
-            symbolOpt = symbolRepository.findBySymbol(baseSymbol);
-        }
-        if (symbolOpt.isEmpty()) {
-            log.warn("[IBKR] Symbol {} not found in repository. Skipping import.", symbolCode);
-            return;
-        }
+            String baseSymbol = symbolCode;
+            String currencyFromSymbol = null;
+            if (symbolCode != null && symbolCode.contains(":")) {
+                String[] parts = symbolCode.split(":", 2);
+                baseSymbol = parts[0];
+                currencyFromSymbol = parts[1];
+            }
 
-        FetchResult fetchResult = fetchIbkrHistory(symbolCode, job.getAssetClass(), start, end, job.getTimeframe(), symbolOpt.orElse(null));
-        List<OhlcBar> bars = fetchResult.bars();
-        if (bars.isEmpty()) {
-            log.info("[IBKR] No bars returned for symbol={} timeframe={}", symbolCode, job.getTimeframe());
-            return;
-        }
+            Optional<Symbol> symbolOpt = Optional.empty();
+            if (currencyFromSymbol != null && !currencyFromSymbol.isBlank()) {
+                symbolOpt = symbolRepository.findBySymbolAndCurrency(baseSymbol, currencyFromSymbol);
+            }
+            if (symbolOpt.isEmpty()) {
+                symbolOpt = symbolRepository.findBySymbol(baseSymbol);
+            }
+            if (symbolOpt.isEmpty()) {
+                log.warn("[IBKR] Symbol {} not found in repository. Skipping import.", symbolCode);
+                return;
+            }
 
-        Symbol symbol = symbolOpt.get();
-        List<Candle> candles = new ArrayList<>(bars.size());
-        for (OhlcBar bar : bars) {
-            LocalDateTime barTime = LocalDateTime.ofInstant(bar.time(), ZoneOffset.UTC);
-            candles.add(Candle.builder()
-                    .symbol(symbol)
-                    .timeframe(job.getTimeframe())
-                    .date(barTime)
-                    .open(BigDecimal.valueOf(bar.open()))
-                    .high(BigDecimal.valueOf(bar.high()))
-                    .low(BigDecimal.valueOf(bar.low()))
-                    .close(BigDecimal.valueOf(bar.close()))
-                    .volume(BigDecimal.valueOf(bar.volume()))
-                    .build());
-        }
+            FetchResult fetchResult = fetchIbkrHistory(symbolCode, job.getAssetClass(), start, end, job.getTimeframe(), symbolOpt.orElse(null),runId);
+            List<OhlcBar> bars = fetchResult.bars();
+            if (bars.isEmpty()) {
+                log.info("[IBKR] No bars returned for symbol={} timeframe={}", symbolCode, job.getTimeframe());
+                return;
+            }
 
-        candleRepository.saveAll(candles);
-        log.info("[IBKR] Persisted {} candles for symbol={} timeframe={}", candles.size(), symbolCode, job.getTimeframe());
-        ResolvedInstrument resolved = fetchResult.resolvedInstrument();
-        Map<String, String> metadata = buildMetadata(resolved);
-        String deltaPath = deltaPathBuilder.buildPath(resolved);
-        deltaLakeExporter.exportCandlesToDelta(job, mapForDelta(candles, job.getTimeframe()), deltaPath, metadata);
+            Symbol symbol = symbolOpt.get();
+            List<Candle> candles = new ArrayList<>(bars.size());
+            for (OhlcBar bar : bars) {
+                LocalDateTime barTime = LocalDateTime.ofInstant(bar.time(), ZoneOffset.UTC);
+                candles.add(Candle.builder()
+                        .symbol(symbol)
+                        .timeframe(job.getTimeframe())
+                        .date(barTime)
+                        .open(BigDecimal.valueOf(bar.open()))
+                        .high(BigDecimal.valueOf(bar.high()))
+                        .low(BigDecimal.valueOf(bar.low()))
+                        .close(BigDecimal.valueOf(bar.close()))
+                        .volume(BigDecimal.valueOf(bar.volume()))
+                        .build());
+            }
+
+            LocalDateTime min = candles.stream().map(Candle::getDate).min(LocalDateTime::compareTo).orElse(null);
+            LocalDateTime max = candles.stream().map(Candle::getDate).max(LocalDateTime::compareTo).orElse(null);
+            log.info("[IBKR][SAVE][{}] candles built={} minDate={} maxDate={}", runId, candles.size(), min, max);
+
+            candleRepository.saveAll(candles);
+            log.info("[IBKR][SAVE][{}] saved={} (symbol={}, tf={})", runId, candles.size(), symbolCode, job.getTimeframe());
+            log.info("[IBKR] Persisted {} candles for symbol={} timeframe={}", candles.size(), symbolCode, job.getTimeframe());
+            ResolvedInstrument resolved = fetchResult.resolvedInstrument();
+            Map<String, String> metadata = buildMetadata(resolved);
+            String deltaPath = deltaPathBuilder.buildPath(resolved);
+            log.info("[IBKR][DELTA][{}] exporting {} candles to path={} metadata={}",
+                    runId, candles.size(), deltaPath, metadata);
+            deltaLakeExporter.exportCandlesToDelta(job, mapForDelta(candles, job.getTimeframe()), deltaPath, metadata);
+        } finally {
+            MDC.remove("runId");
+        }
     }
 
     private List<Candle> mapForDelta(List<Candle> candles, String timeframe) {
@@ -160,7 +171,8 @@ public class IbkrImportService {
                                          Instant start,
                                          Instant end,
                                          String timeframe,
-                                         Symbol symbolEntity) {
+                                         Symbol symbolEntity, String runId) {
+
         String resolvedSymbol = symbol;
         String currency = "USD";
         if (symbol.contains(":")) {
@@ -176,7 +188,7 @@ public class IbkrImportService {
                     secType,
                     symbolEntity != null ? symbolEntity.getExchange() : null,
                     symbolEntity != null ? symbolEntity.getCurrency() : currency,
-                    Duration.ofSeconds(5));
+                    Duration.ofSeconds(15));
         } catch (IbkrRequestException ex) {
             log.warn("[IBKR] Unable to resolve contract metadata for {}: {}. Using fallback contract.", symbol, ex.getMessage());
         }
@@ -202,14 +214,73 @@ public class IbkrImportService {
         String durationStr = toIbDuration(diff);
         String endDateTime = IB_END_DATETIME.format(end);
 
+        log.info("[IBKR][HIST][{}] symbol={} secType={} tf={} start={} end={} diff={} endDateTime='{}' durationStr='{}' barSize='{}' whatToShow={} useRth={}",
+                runId,
+                symbol,
+                secType,
+                timeframe,
+                start, end,
+                diff,
+                endDateTime, durationStr, barSize,
+                "TRADES", true);
+        log.info("[IBKR][HIST][{}] contract conid={} symbol={} localSymbol={} secType={} currency={} exchange={} primaryExch={} tradingClass={}",
+                runId,
+                contract.conid(),
+                contract.symbol(),
+                contract.localSymbol(),
+                contract.secType(),
+                contract.currency(),
+                contract.exchange(),
+                contract.primaryExch(),
+                contract.tradingClass());
+
         List<IbkrBar> bars = ibkrService.requestHistoricalData(contract, endDateTime, durationStr, barSize, "TRADES", true, List.of(), Duration.ofSeconds(12));
-        List<OhlcBar> result = new ArrayList<>(bars.size());
-        for (IbkrBar bar : bars) {
-            if (bar.time().isBefore(start) || bar.time().isAfter(end)) {
-                continue;
+
+        var dates = bars.stream()
+                .map(b -> b.time().atZone(ZoneOffset.UTC).toLocalDate())
+                .sorted()
+                .toList();
+
+        log.info("[IBKR][CHK] returnedDays={} first={} last={} contains_2025_01_09={}",
+                dates.size(),
+                dates.isEmpty() ? null : dates.getFirst(),
+                dates.isEmpty() ? null : dates.getLast(),
+                dates.contains(java.time.LocalDate.of(2025,1,9))
+        );
+        if (bars.isEmpty()) {
+            log.warn("[IBKR][HIST][{}] IB returned 0 bars (symbol={}, endDateTime={}, duration={}, barSize={})",
+                    runId, symbol, endDateTime, durationStr, barSize);
+        } else {
+            var first = bars.get(0);
+            var last  = bars.get(bars.size() - 1);
+            log.info("[IBKR][HIST][{}] IB returned {} bars. first={} last={}",
+                    runId, bars.size(), first.time(), last.time());
+
+            // Vérif espacements (daily => 1 jour ouvré)
+            int gaps = 0;
+            for (int i = 1; i < bars.size(); i++) {
+                long deltaSec = Duration.between(bars.get(i-1).time(), bars.get(i).time()).getSeconds();
+                if (deltaSec > 60L * 60L * 36L) { // > 36h => trou potentiel (weekend/holiday ou bug)
+                    gaps++;
+                    log.warn("[IBKR][HIST][{}] Gap detected between {} and {} ({} sec)",
+                            runId, bars.get(i-1).time(), bars.get(i).time(), deltaSec);
+                }
             }
+            if (gaps == 0) {
+                log.info("[IBKR][HIST][{}] No internal gaps detected in returned series.", runId);
+            }
+        }
+
+        List<OhlcBar> result = new ArrayList<>(bars.size());
+        int kept = 0, dropped = 0;
+        for (IbkrBar bar : bars) {
+            boolean out = bar.time().isBefore(start) || bar.time().isAfter(end);
+            if (out) { dropped++; continue; }
+            kept++;
             result.add(new OhlcBar(bar.time(), bar.open(), bar.high(), bar.low(), bar.close(), bar.volume()));
         }
+        log.info("[IBKR][HIST][{}] After range filter: kept={} dropped={} (start={} end={})",
+                runId, kept, dropped, start, end);
         return new FetchResult(result, resolvedInstrument);
     }
 
