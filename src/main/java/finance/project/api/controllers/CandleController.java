@@ -62,7 +62,6 @@ public class CandleController {
     private final TradeCompletedService tradeCompletedService;
     private final TradeCompletedMapper tradeCompletedMapper;
     private final DeltaLakeCandleReader deltaLakeCandleReader;
-    private final TradeCompletedMapper tradeCompletedMapper;
 
     private final BinanceService binanceService;
 
