@@ -3,7 +3,6 @@ package finance.project.api.controllers;
 import finance.project.api.entities.MarketData;
 import finance.project.api.entities.Performance;
 import finance.project.api.entities.Trade;
-import finance.project.api.entities.TradeCompleted;
 import finance.project.api.model.*;
 import finance.project.api.services.*;
 import finance.project.api.strategies.StrategyManager;
@@ -39,12 +38,13 @@ public class BacktestController {
     private final PerformanceService performanceService;
     private final TradeService tradeService;
     private final TradeCompletedService tradeCompletedService;
+    private final TradeCompletedMapper tradeCompletedMapper;
 
     @Autowired
     private CandleCacheManager candleCacheManager;
 
     @Autowired
-    public BacktestController(TA4JService ta4JService, VolumeBasedRolloverService volumeBasedRolloverService, EmaVolumeStrategy emaVolumeStrategy, SymbolService symbolService, CandleService candleService, StrategyManager strategyManager, MarketDataService marketDataService, PerformanceService performanceService, TradeService tradeService, TradeCompletedService tradeCompletedService) {
+    public BacktestController(TA4JService ta4JService, VolumeBasedRolloverService volumeBasedRolloverService, EmaVolumeStrategy emaVolumeStrategy, SymbolService symbolService, CandleService candleService, StrategyManager strategyManager, MarketDataService marketDataService, PerformanceService performanceService, TradeService tradeService, TradeCompletedService tradeCompletedService, TradeCompletedMapper tradeCompletedMapper) {
         this.ta4JService = ta4JService;
         this.volumeBasedRolloverService = volumeBasedRolloverService;
         this.emaVolumeStrategy = emaVolumeStrategy;
@@ -54,6 +54,7 @@ public class BacktestController {
         this.performanceService = performanceService;
         this.tradeService = tradeService;
         this.tradeCompletedService = tradeCompletedService;
+        this.tradeCompletedMapper = tradeCompletedMapper;
     }
     @GetMapping("/run-strategy")
     public ResponseEntity<String> runStrategy(@RequestParam String symbol,
@@ -164,8 +165,10 @@ public class BacktestController {
     }
 
     @GetMapping("/get-trades-strategy")
-    public ResponseEntity<List<TradeCompleted>> getTradesByStrategy(@RequestParam String strategyName, @RequestParam String runId) {
-        List<TradeCompleted> trades = tradeCompletedService.getTradesByStrategyAndRunId(strategyName, runId);
+    public ResponseEntity<List<TradeCompletedDTO>> getTradesByStrategy(@RequestParam String strategyName, @RequestParam String runId) {
+        List<TradeCompletedDTO> trades = tradeCompletedService.getTradesByStrategyAndRunId(strategyName, runId).stream()
+                .map(tradeCompletedMapper::toDto)
+                .toList();
         if (trades.isEmpty()) {
             return ResponseEntity.noContent().build();
         }
