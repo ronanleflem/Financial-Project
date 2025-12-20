@@ -9,6 +9,7 @@ import finance.project.api.enums.MarketType;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.model.CandleFilterDTO;
 import finance.project.api.model.SymbolDTO;
+import finance.project.api.model.TradeCompletedDTO;
 import finance.project.api.services.*;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -59,6 +60,9 @@ public class CandleController {
     private final VolumeBasedRolloverService volumeBasedRolloverService;
 
     private final TradeCompletedService tradeCompletedService;
+    private final TradeCompletedMapper tradeCompletedMapper;
+    private final DeltaLakeCandleReader deltaLakeCandleReader;
+    private final TradeCompletedMapper tradeCompletedMapper;
 
     private final BinanceService binanceService;
 
@@ -282,15 +286,20 @@ public class CandleController {
 
         TradeCompleted trade = tradeCompletedService.getTradeById(tradeId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Trade not found"));
+        TradeCompletedDTO tradeDto = tradeCompletedMapper.toDto(trade);
+        String tradeSymbol = trade.getSymbol();
 
         // A ajouter trade.getSymbol() au lieu de EURUSD en dur
-        List<CandleDTO> candles = candleService.getCandlesForTrade(trade, symbol, timeframe, beforeCandles, afterCandles);
+        List<CandleDTO> candles = candleService.getCandlesForTrade(trade, tradeSymbol, timeframe, beforeCandles, afterCandles);
+        if (candles.isEmpty()) {
+            candles = deltaLakeCandleReader.getCandlesForTrade(trade, timeframe, beforeCandles, afterCandles);
+        }
         List<CandleDTO> candlesComparedSymbol = candleService.getCandlesForTrade(trade, comparedSymbol, timeframe, beforeCandles, afterCandles);
 
         Map<String, Object> response = new HashMap<>();
         response.put("candles", candles);
         response.put("comparedCandles", candlesComparedSymbol);
-        response.put("trade", trade);
+        response.put("trade", tradeDto);
 
         return response;
     }
