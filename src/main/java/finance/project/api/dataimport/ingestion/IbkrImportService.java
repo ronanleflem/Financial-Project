@@ -115,7 +115,7 @@ public class IbkrImportService {
             log.info("[IBKR] Persisted {} candles for symbol={} timeframe={}", candles.size(), symbolCode, job.getTimeframe());
             ResolvedInstrument resolved = fetchResult.resolvedInstrument();
             Map<String, String> metadata = buildMetadata(resolved);
-            String deltaPath = deltaPathBuilder.buildPath(resolved);
+            String deltaPath = deltaPathBuilder.buildPath(resolved, job.getBroker());
             log.info("[IBKR][DELTA][{}] exporting {} candles to path={} metadata={}",
                     runId, candles.size(), deltaPath, metadata);
             deltaLakeExporter.exportCandlesToDelta(job, mapForDelta(candles, job.getTimeframe()), deltaPath, metadata);

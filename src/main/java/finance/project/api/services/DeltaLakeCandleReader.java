@@ -115,10 +115,11 @@ public class DeltaLakeCandleReader {
 
     private String buildDeltaPath(TradeCompleted trade) {
         String market = resolveMarket(trade.getAssetClass());
+        String broker = "UNKNOWN";
         String exchange = "NASDAQ";
         String currency = "USD";
         String symbol = Optional.ofNullable(trade.getSymbol()).orElse("UNKNOWN");
-        return "%s/%s/%s/%s/%s".formatted(deltaLakeConfig.getBaseUri(), market, exchange, currency, symbol);
+        return "%s/%s/%s/%s/%s/%s".formatted(deltaLakeConfig.getBaseUri(), market, broker, exchange, currency, symbol);
     }
 
     private String resolveMarket(String assetClass) {

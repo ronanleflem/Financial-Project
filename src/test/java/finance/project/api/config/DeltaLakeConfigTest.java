@@ -9,24 +9,24 @@ class DeltaLakeConfigTest {
 
     @Test
     void resolvesPathWithCurrencySuffixForCryptoPairs() {
-        String path = config.resolveTablePath("CRYPTO", "ATOMUSDT");
+        String path = config.resolveTablePath("CRYPTO", "BINANCE", "SPOT", "ATOMUSDT");
 
-        assertThat(path).isEqualTo("s3://datalake/CRYPTO/USDT/ATOM/");
+        assertThat(path).isEqualTo("s3://datalake/CRYPTO/BINANCE/SPOT/USDT/ATOM/");
     }
 
     @Test
     void resolvesPathWithSeparatorBasedCurrency() {
-        String pathUnderscore = config.resolveTablePath("ACTION", "AAPL_EUR");
-        String pathColon = config.resolveTablePath("ACTION", "AAPL:USD");
+        String pathUnderscore = config.resolveTablePath("ACTION", "IBKR", "NYSE", "AAPL_EUR");
+        String pathColon = config.resolveTablePath("ACTION", "IBKR", "NYSE", "AAPL:USD");
 
-        assertThat(pathUnderscore).isEqualTo("s3://datalake/ACTION/EUR/AAPL/");
-        assertThat(pathColon).isEqualTo("s3://datalake/ACTION/USD/AAPL/");
+        assertThat(pathUnderscore).isEqualTo("s3://datalake/ACTION/IBKR/NYSE/EUR/AAPL/");
+        assertThat(pathColon).isEqualTo("s3://datalake/ACTION/IBKR/NYSE/USD/AAPL/");
     }
 
     @Test
     void sanitizesSegmentsAndFallsBackToUnknownCurrencyWhenMissing() {
-        String path = config.resolveTablePath(" Action  ", "  T TE @#  ");
+        String path = config.resolveTablePath(" Action  ", "  ", "  ", "  T TE @#  ");
 
-        assertThat(path).isEqualTo("s3://datalake/ACTION/UNKNOWN/T_TE___/");
+        assertThat(path).isEqualTo("s3://datalake/ACTION/UNKNOWN/UNKNOWN/UNKNOWN/T_TE___/");
     }
 }

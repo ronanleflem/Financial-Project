@@ -24,14 +24,17 @@ public class DeltaLakeConfig {
         return baseUri;
     }
 
-    public String resolveTablePath(String assetCategory, String symbol) {
+    public String resolveTablePath(String assetCategory, String broker, String venue, String symbol) {
         Assert.hasText(assetCategory, "assetCategory must not be blank");
         Assert.hasText(symbol, "symbol must not be blank");
 
         String sanitizedCategory = sanitizeSegment(assetCategory);
+        String sanitizedBroker = sanitizeSegment(broker);
+        String sanitizedVenue = sanitizeSegment(venue);
         SymbolPathSegments segments = parseSymbolSegments(symbol);
 
-        return baseUri + "/" + sanitizedCategory + "/" + segments.currency() + "/" + segments.baseSymbol() + "/";
+        return baseUri + "/" + sanitizedCategory + "/" + sanitizedBroker + "/" + sanitizedVenue + "/"
+                + segments.currency() + "/" + segments.baseSymbol() + "/";
     }
 
     private SymbolPathSegments parseSymbolSegments(String symbol) {
@@ -59,6 +62,9 @@ public class DeltaLakeConfig {
     }
 
     private String sanitizeSegment(String value) {
+        if (value == null) {
+            return "UNKNOWN";
+        }
         String sanitized = StringUtils.trimAllWhitespace(value).replaceAll("[^a-zA-Z0-9_-]", "_");
         return sanitized.isEmpty() ? "UNKNOWN" : sanitized.toUpperCase();
     }
