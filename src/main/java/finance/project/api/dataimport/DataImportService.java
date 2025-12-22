@@ -41,6 +41,7 @@ public class DataImportService {
         job.setTimeframe(req.timeframe());
         job.setAssetClass(req.assetClass());
         job.setVenue(req.venue());
+        job.setCurrency(req.currency());
         job.setTimezone(req.timezone());
         job.setConflictPolicy(req.conflictPolicy());
         job.setRollover(req.rollover());

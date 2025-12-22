@@ -64,11 +64,13 @@ public class IbkrImportService {
             log.info("[IBKR] Fetching candles for symbol={} timeframe={} range={} -> {}", symbolCode, job.getTimeframe(), start, end);
 
             String baseSymbol = symbolCode;
-            String currencyFromSymbol = null;
+            String currencyFromSymbol = job.getCurrency();
             if (symbolCode != null && symbolCode.contains(":")) {
                 String[] parts = symbolCode.split(":", 2);
                 baseSymbol = parts[0];
-                currencyFromSymbol = parts[1];
+                if (currencyFromSymbol == null || currencyFromSymbol.isBlank()) {
+                    currencyFromSymbol = parts[1];
+                }
             }
 
             Optional<Symbol> symbolOpt = Optional.empty();
@@ -181,14 +183,22 @@ public class IbkrImportService {
             currency = parts[1];
         }
         String secType = mapAssetClass(assetClass);
+        boolean isEtf = assetClass != null && assetClass.equalsIgnoreCase("ETF");
 
         ResolvedInstrument resolvedInstrument = null;
         try {
-            resolvedInstrument = ibkrService.resolveContractMetadata(resolvedSymbol,
-                    secType,
-                    symbolEntity != null ? symbolEntity.getExchange() : null,
-                    symbolEntity != null ? symbolEntity.getCurrency() : currency,
-                    Duration.ofSeconds(15));
+            if (isEtf && isIsin(resolvedSymbol)) {
+                resolvedInstrument = ibkrService.resolveEtfByIsin(
+                        resolvedSymbol,
+                        symbolEntity != null ? symbolEntity.getCurrency() : currency,
+                        Duration.ofSeconds(15));
+            } else {
+                resolvedInstrument = ibkrService.resolveContractMetadata(resolvedSymbol,
+                        secType,
+                        symbolEntity != null ? symbolEntity.getExchange() : null,
+                        symbolEntity != null ? symbolEntity.getCurrency() : currency,
+                        Duration.ofSeconds(15));
+            }
         } catch (IbkrRequestException ex) {
             log.warn("[IBKR] Unable to resolve contract metadata for {}: {}. Using fallback contract.", symbol, ex.getMessage());
         }
@@ -285,6 +295,13 @@ public class IbkrImportService {
     }
 
     private record FetchResult(List<OhlcBar> bars, ResolvedInstrument resolvedInstrument) {}
+
+    private boolean isIsin(String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        return value.trim().toUpperCase(Locale.ROOT).matches("^[A-Z0-9]{12}$");
+    }
 
     private String mapAssetClass(String assetClass) {
         if (assetClass == null || assetClass.isBlank()) {
