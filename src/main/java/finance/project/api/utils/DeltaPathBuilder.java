@@ -16,12 +16,13 @@ public class DeltaPathBuilder {
         this.deltaLakeConfig = deltaLakeConfig;
     }
 
-    public String buildPath(ResolvedInstrument instrument) {
+    public String buildPath(ResolvedInstrument instrument, String broker) {
         String market = sanitize(instrument != null ? instrument.marketTypeNormalized() : "UNKNOWN");
+        String brokerSegment = sanitize(broker);
         String exchange = sanitize(instrument != null ? instrument.normalizedExchange() : "UNKNOWN");
         String currency = sanitize(instrument != null ? instrument.currency() : "UNKNOWN");
         String symbol = sanitize(instrument != null ? instrument.symbol() : "UNKNOWN");
-        return "%s/%s/%s/%s/%s".formatted(deltaLakeConfig.getBaseUri(), market, exchange, currency, symbol);
+        return "%s/%s/%s/%s/%s/%s".formatted(deltaLakeConfig.getBaseUri(), market, brokerSegment, exchange, currency, symbol);
     }
 
     private String sanitize(String value) {

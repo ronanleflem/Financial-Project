@@ -99,7 +99,7 @@ public class DeltaLakeExporter {
 
         String assetCategory = resolveAssetCategory(job);
         String effectiveTablePath = (tablePath == null || tablePath.isBlank())
-                ? deltaLakeConfig.resolveTablePath(assetCategory, job.getSymbol())
+                ? deltaLakeConfig.resolveTablePath(assetCategory, job.getBroker(), job.getVenue(), job.getSymbol())
                 : stripTrailingSlash(tablePath);
         String conflictPolicy = Optional.ofNullable(job.getConflictPolicy())
                 .map(policy -> policy.toUpperCase(Locale.ROOT))
