@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -103,6 +104,36 @@ class DataImportServiceTest {
         assertThatThrownBy(() -> service.createJob(request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("startDate must be before endDate");
+    }
+
+    @Test
+    void createJobWithNullRequestThrows() {
+        assertThatThrownBy(() -> service.createJob(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("DataImportRequest must not be null");
+    }
+
+    @Test
+    void createJobSkipsAsyncWhenDisabled() {
+        DataImportRequest request = new DataImportRequest(
+                "BINANCE",
+                "BTCUSDT",
+                "1h",
+                Instant.parse("2024-01-01T00:00:00Z"),
+                Instant.parse("2024-01-02T00:00:00Z"),
+                "API",
+                null,
+                null,
+                null,
+                null
+        );
+
+        when(jobRepository.save(any(DataImportJob.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DataImportJob job = service.createJob(request, false);
+
+        assertThat(job.getId()).isNotBlank();
+        verify(jobRunner, never()).runJobAsync(any());
     }
 
     @Test
