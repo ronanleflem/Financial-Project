@@ -68,12 +68,7 @@ public class UniverseImportRunner {
                 : symbol.getExchange();
 
         String symbolForImport = symbol.getSymbol();
-        if ("IBKR".equalsIgnoreCase(request.broker())
-                && symbol.getCurrency() != null
-                && !symbol.getCurrency().isBlank()
-                && (symbolForImport == null || !symbolForImport.contains(":"))) {
-            symbolForImport = symbol.getSymbol() + ":" + symbol.getCurrency();
-        }
+        String currency = symbol.getCurrency();
 
         String assetClass = request.assetClass() != null && !request.assetClass().isBlank()
                 ? request.assetClass()
@@ -88,6 +83,7 @@ public class UniverseImportRunner {
                 end,
                 "API",
                 venue,
+                currency,
                 null,
                 null,
                 null,

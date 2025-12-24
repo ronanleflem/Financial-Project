@@ -83,6 +83,13 @@ public class CsvUniverseLoader {
                 UniverseType.EQUITY,
                 "stoxx600.csv"
         ));
+        defs.put("ETF_UNIVERSE", new CsvUniverseDefinition(
+                "ETF_UNIVERSE",
+                "ETF Universe (CSV)",
+                "ETF_UNIVERSE_CSV",
+                UniverseType.ETF,
+                "universe_etf.csv"
+        ));
         DEFINITIONS = Map.copyOf(defs);
     }
 
@@ -141,33 +148,65 @@ public class CsvUniverseLoader {
         List<CsvUniverseSymbol> symbols = new ArrayList<>();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
-            boolean headerSkipped = false;
+            boolean headerParsed = false;
+            Map<String, Integer> headerIndex = new LinkedHashMap<>();
             while ((line = reader.readLine()) != null) {
-                if (!headerSkipped) {
-                    headerSkipped = true;
-                    continue;
-                }
                 String trimmed = line.trim();
                 if (trimmed.isEmpty() || trimmed.startsWith("#")) {
                     continue;
                 }
                 String[] parts = trimmed.split(",", -1);
-                if (parts.length < 1 || parts[0].isBlank()) {
+                if (!headerParsed) {
+                    headerParsed = true;
+                    for (int i = 0; i < parts.length; i++) {
+                        String header = parts[i].trim().toLowerCase(Locale.ROOT);
+                        if (!header.isEmpty()) {
+                            headerIndex.put(header, i);
+                        }
+                    }
+                    continue;
+                }
+                String symbol = safeColumn(parts, headerIndex, "symbol");
+                String isin = safeColumn(parts, headerIndex, "isin");
+                String name = safeColumn(parts, headerIndex, "name");
+                String label = safeColumn(parts, headerIndex, "label");
+                if (name.isBlank() && !label.isBlank()) {
+                    name = label;
+                }
+                String exchange = safeColumn(parts, headerIndex, "exchange");
+                String currency = safeColumn(parts, headerIndex, "currency");
+                String marketType = safeColumn(parts, headerIndex, "markettype");
+                String assetClass = safeColumn(parts, headerIndex, "assetclass");
+                String defaultBroker = safeColumn(parts, headerIndex, "defaultbroker");
+                if (defaultBroker.isBlank()) {
+                    defaultBroker = safeColumn(parts, headerIndex, "broker");
+                }
+                if (symbol.isBlank() && isin.isBlank()) {
                     continue;
                 }
                 symbols.add(new CsvUniverseSymbol(
-                        safePart(parts, 0),
-                        safePart(parts, 1),
-                        safePart(parts, 2),
-                        safePart(parts, 3),
-                        safePart(parts, 4),
-                        safePart(parts, 5)
+                        symbol,
+                        name,
+                        exchange,
+                        currency,
+                        marketType,
+                        defaultBroker,
+                        assetClass,
+                        isin
                 ));
             }
         } catch (IOException e) {
             log.warn("[CSV Universe] Failed to read {}", fileName, e);
         }
         return symbols;
+    }
+
+    private String safeColumn(String[] parts, Map<String, Integer> headerIndex, String column) {
+        Integer idx = headerIndex.get(column);
+        if (idx == null) {
+            return "";
+        }
+        return safePart(parts, idx);
     }
 
     private String safePart(String[] parts, int idx) {
@@ -180,7 +219,9 @@ public class CsvUniverseLoader {
             String exchange,
             String currency,
             String marketType,
-            String defaultBroker
+            String defaultBroker,
+            String assetClass,
+            String isin
     ) {
     }
 

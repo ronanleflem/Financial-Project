@@ -95,15 +95,23 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
             Map.entry("NASDAQ", "NASDAQ"),
             Map.entry("NYSE", "NYSE"),
             Map.entry("ARCA", "ARCA"),
-            Map.entry("IBIS", "XETRA"),
-            Map.entry("IBIS2", "XETRA"),
+            Map.entry("IBIS", "IBIS"),
+            Map.entry("IBIS2", "IBIS2"),
             Map.entry("BVME", "BORSA_ITALIANA"),
-            Map.entry("SBF", "EURONEXT_PARIS"),
-            Map.entry("AEB", "EURONEXT_AMSTERDAM"),
+            Map.entry("SBF", "SBF"),
+            Map.entry("AEB", "AEB"),
             Map.entry("LSE", "LSE"),
             Map.entry("EBS", "IDEALPRO"),
             Map.entry("IDEALPRO", "IDEALPRO"),
             Map.entry("SMART", "SMART")
+    );
+
+    private static final List<String> ETF_EXCHANGE_FALLBACK = List.of(
+            "IBIS2",
+            "SBF",
+            "LSEETF",
+            "AEB",
+            "GETTEX"
     );
 
     // --- Account Summary snapshot ---
@@ -401,6 +409,77 @@ public class IbkrFxService extends IbkrWrapperAdapter implements FxMarketDataSer
             throw new IbkrRequestException("Interrupted while waiting for contract details", e);
         } catch (ExecutionException | TimeoutException e) {
             throw new IbkrRequestException("Unable to resolve contract details for %s".formatted(symbol), e);
+        } finally {
+            contractDetailsFutures.remove(id);
+        }
+    }
+
+    public ResolvedInstrument resolveEtfByIsin(String isin,
+                                               String currencyHint,
+                                               Duration timeout) {
+        Objects.requireNonNull(isin, "isin");
+        if (!ensureConnected()) {
+            throw new IbkrRequestException("Unable to connect to IBKR gateway");
+        }
+        String normalizedIsin = isin.trim().toUpperCase(Locale.ROOT);
+        IbkrRequestException lastError = null;
+        for (String exchange : ETF_EXCHANGE_FALLBACK) {
+            try {
+                ResolvedInstrument resolved = resolveContractMetadataByIsin(
+                        normalizedIsin,
+                        Types.SecType.STK.name(),
+                        exchange,
+                        currencyHint,
+                        timeout
+                );
+                log.info("ETF contract resolved: ISIN={} currency={} exchange={} conId={}",
+                        normalizedIsin,
+                        resolved.currency(),
+                        resolved.ibPrimaryExch(),
+                        resolved.conid());
+                return resolved;
+            } catch (IbkrRequestException ex) {
+                lastError = ex;
+                log.debug("[IBKR][ETF] Contract not found on exchange {} for ISIN {}", exchange, normalizedIsin);
+            }
+        }
+        throw new IbkrRequestException("Unable to resolve ETF contract for ISIN %s".formatted(normalizedIsin), lastError);
+    }
+
+    private ResolvedInstrument resolveContractMetadataByIsin(String isin,
+                                                             String secTypeHint,
+                                                             String exchangeHint,
+                                                             String currencyHint,
+                                                             Duration timeout) {
+        waitForPacingSlot();
+
+        int id = reqId.getAndIncrement();
+        CompletableFuture<ContractDetails> future = new CompletableFuture<>();
+        contractDetailsFutures.put(id, future);
+
+        Contract probe = new Contract();
+        probe.secType(defaultSecType(secTypeHint));
+        probe.secIdType("ISIN");
+        probe.secId(isin);
+        if (currencyHint != null && !currencyHint.isBlank()) {
+            probe.currency(currencyHint);
+        }
+        if (exchangeHint != null && !exchangeHint.isBlank()) {
+            probe.exchange(exchangeHint);
+            probe.primaryExch(exchangeHint);
+        }
+
+        client.reqContractDetails(id, probe);
+
+        try {
+            long timeoutMillis = timeout != null ? timeout.toMillis() : 5000L;
+            ContractDetails details = future.get(timeoutMillis, TimeUnit.MILLISECONDS);
+            return toResolvedInstrument(details, secTypeHint, exchangeHint, currencyHint);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IbkrRequestException("Interrupted while waiting for contract details", e);
+        } catch (ExecutionException | TimeoutException e) {
+            throw new IbkrRequestException("Unable to resolve contract details for ISIN %s".formatted(isin), e);
         } finally {
             contractDetailsFutures.remove(id);
         }

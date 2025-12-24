@@ -132,20 +132,36 @@ public class UniverseService {
     }
 
     private Symbol createOrUpdateSymbolFromCsv(CsvUniverseSymbol csvSymbol, UniverseType universeType) {
-        if (csvSymbol == null || csvSymbol.symbol() == null || csvSymbol.symbol().isBlank()) {
+        if (csvSymbol == null) {
             return null;
         }
-        String normalized = csvSymbol.symbol().trim().toUpperCase(Locale.ROOT);
+        String rawSymbol = csvSymbol.symbol();
+        if ((rawSymbol == null || rawSymbol.isBlank()) && csvSymbol.isin() != null && !csvSymbol.isin().isBlank()) {
+            rawSymbol = csvSymbol.isin();
+        }
+        if (rawSymbol == null || rawSymbol.isBlank()) {
+            return null;
+        }
+        String normalized = rawSymbol.trim().toUpperCase(Locale.ROOT);
         String name = (csvSymbol.name() != null && !csvSymbol.name().isBlank()) ? csvSymbol.name() : normalized;
-        String market = (csvSymbol.marketType() != null && !csvSymbol.marketType().isBlank())
-                ? csvSymbol.marketType()
-                : universeType.name();
+        String market = firstNonBlank(csvSymbol.marketType(), csvSymbol.assetClass(), universeType.name());
         String exchange = (csvSymbol.exchange() != null && !csvSymbol.exchange().isBlank())
                 ? csvSymbol.exchange().trim()
                 : null;
         String currency = (csvSymbol.currency() != null && !csvSymbol.currency().isBlank())
-                ? csvSymbol.currency().trim()
+                ? csvSymbol.currency().trim().toUpperCase(Locale.ROOT)
                 : null;
+
+        if (isEtfMarket(market)) {
+            if (!isValidIsin(normalized)) {
+                log.warn("[UniverseImport] Invalid ISIN for ETF CSV entry: {}", normalized);
+                return null;
+            }
+            if (!isValidCurrency(currency)) {
+                log.warn("[UniverseImport] Invalid currency for ETF CSV entry: ISIN={} currency={}", normalized, currency);
+                return null;
+            }
+        }
 
         Symbol symbol = symbolRepository.findBySymbol(normalized)
                 .orElseGet(() -> Symbol.builder()
@@ -179,6 +195,38 @@ public class UniverseService {
         }
 
         return symbol;
+    }
+
+    private boolean isValidIsin(String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        return value.matches("^[A-Z0-9]{12}$");
+    }
+
+    private boolean isValidCurrency(String currency) {
+        if (currency == null || currency.isBlank()) {
+            return false;
+        }
+        try {
+            Currency.getInstance(currency);
+            return true;
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
+    }
+
+    private boolean isEtfMarket(String market) {
+        return market != null && market.equalsIgnoreCase("ETF");
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private Set<Symbol> loadSymbols(CatalogEntry entry, UniverseImportRequest request) {

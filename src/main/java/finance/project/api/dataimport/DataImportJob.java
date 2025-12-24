@@ -40,6 +40,9 @@ public class DataImportJob {
     @Column(length = 50)
     private String venue;
 
+    @Column(length = 10)
+    private String currency;
+
     @Column(length = 50)
     private String timezone;
 
@@ -132,6 +135,14 @@ public class DataImportJob {
 
     public void setVenue(String venue) {
         this.venue = venue;
+    }
+
+    public String getCurrency() {
+        return currency;
+    }
+
+    public void setCurrency(String currency) {
+        this.currency = currency;
     }
 
     public String getTimezone() {

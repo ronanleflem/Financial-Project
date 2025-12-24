@@ -13,6 +13,7 @@ public record DataImportRequest(
         @NotNull Instant endDate,
         @NotBlank String sourceType,
         String venue,
+        String currency,
         String timezone,
         String conflictPolicy,
         String rollover,
