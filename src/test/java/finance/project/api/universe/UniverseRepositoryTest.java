@@ -1,0 +1,36 @@
+package finance.project.api.universe;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.time.Instant;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+
+@DataJpaTest
+class UniverseRepositoryTest {
+
+    @Autowired
+    private UniverseRepository universeRepository;
+
+    @Test
+    void findByCodeReturnsMatchingUniverse() {
+        Universe universe = Universe.builder()
+                .code("core-equities")
+                .name("Core Equities")
+                .type(UniverseType.EQUITY)
+                .provider("internal")
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+
+        universeRepository.save(universe);
+
+        Optional<Universe> result = universeRepository.findByCode("core-equities");
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getName()).isEqualTo("Core Equities");
+        assertThat(result.get().getProvider()).isEqualTo("internal");
+    }
+}
