@@ -26,7 +26,7 @@ public class UniverseService {
 
     private static final Logger log = LoggerFactory.getLogger(UniverseService.class);
 
-    private record CatalogEntry(
+    record CatalogEntry(
             String code,
             String name,
             String catalogType,
@@ -244,7 +244,7 @@ public class UniverseService {
         return symbol;
     }
 
-    private List<CatalogEntry> buildCatalogEntries() {
+    protected List<CatalogEntry> buildCatalogEntries() {
         List<CatalogEntry> catalog = new ArrayList<>();
 
         try {
