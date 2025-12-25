@@ -54,8 +54,14 @@ public class BinanceHistoricalService {
             return false;
         }
 
-        candleService.saveCandlesToDatabase(candles, symbol, timeframe);
-        deltaLakeExporter.exportCandlesToDelta(job, mapForDelta(candles, timeframe));
+        List<CandleDTO> validCandles = filterValidCandles(candles);
+        if (validCandles.isEmpty()) {
+            log.warn("[Binance] No valid candles for {} {}", symbol, timeframe);
+            return false;
+        }
+
+        candleService.saveCandlesToDatabase(validCandles, symbol, timeframe);
+        deltaLakeExporter.exportCandlesToDelta(job, mapForDelta(validCandles, timeframe));
 
         String normalizedSource = normalizeTimeframe(timeframe);
         for (String target : TARGET_TIMEFRAMES) {
@@ -63,7 +69,7 @@ public class BinanceHistoricalService {
                 continue;
             }
             try {
-                List<CandleDTO> aggregated = candleAggregationService.aggregateCandles(candles, target, MarketType.CRYPTO);
+                List<CandleDTO> aggregated = candleAggregationService.aggregateCandles(validCandles, target, MarketType.CRYPTO);
                 if (aggregated.isEmpty()) {
                     log.debug("[Binance] No aggregated candles produced for timeframe {}", target);
                     continue;
@@ -80,7 +86,7 @@ public class BinanceHistoricalService {
         List<Candle> entities = new java.util.ArrayList<>(candles.size());
         String normalized = TimeframeUtils.mapToCustomTimeframe(timeframe);
         for (CandleDTO dto : candles) {
-            if (dto == null) {
+            if (!isCandleComplete(dto)) {
                 continue;
             }
             Candle candle = new Candle();
@@ -95,6 +101,23 @@ public class BinanceHistoricalService {
             entities.add(candle);
         }
         return entities;
+    }
+
+    private List<CandleDTO> filterValidCandles(List<CandleDTO> candles) {
+        List<CandleDTO> validCandles = new java.util.ArrayList<>(candles.size());
+        for (CandleDTO candle : candles) {
+            if (isCandleComplete(candle)) {
+                validCandles.add(candle);
+            }
+        }
+        return validCandles;
+    }
+
+    private boolean isCandleComplete(CandleDTO dto) {
+        return dto != null
+                && dto.getDate() != null
+                && dto.getOpen() != null
+                && dto.getClose() != null;
     }
 
     private String normalizeTimeframe(String timeframe) {
