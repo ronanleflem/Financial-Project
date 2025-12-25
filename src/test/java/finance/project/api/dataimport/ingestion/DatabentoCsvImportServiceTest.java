@@ -1,6 +1,7 @@
 package finance.project.api.dataimport.ingestion;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
@@ -97,6 +98,23 @@ class DatabentoCsvImportServiceTest {
         when(candleService.loadCsvCME("ES", "1min", "data_2024-02")).thenReturn(List.of());
 
         service.importCsv(job, start, end, null);
+
+        verify(candleService, never()).saveCandlesToDatabase(anyList(), eq("ES"), eq("1min"));
+        verify(deltaLakeExporter, never()).exportCandlesToDelta(eq(job), anyList());
+        verify(candleAggregationService, never()).aggregateCandles(anyList(), any(), any());
+    }
+
+    @Test
+    void importCsvStopsWhenLoadThrows() {
+        DataImportJob job = job("ES", "1min");
+        Instant start = Instant.parse("2024-02-01T00:00:00Z");
+        Instant end = Instant.parse("2024-02-02T00:00:00Z");
+
+        when(candleService.loadCsvCME("ES", "1min", "data_2024-02"))
+                .thenThrow(new RuntimeException("boom"));
+
+        assertThatThrownBy(() -> service.importCsv(job, start, end, null))
+                .isInstanceOf(RuntimeException.class);
 
         verify(candleService, never()).saveCandlesToDatabase(anyList(), eq("ES"), eq("1min"));
         verify(deltaLakeExporter, never()).exportCandlesToDelta(eq(job), anyList());
