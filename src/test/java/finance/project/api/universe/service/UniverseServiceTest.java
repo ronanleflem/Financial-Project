@@ -195,8 +195,8 @@ class UniverseServiceTest {
                 )
         ));
         List<CsvUniverseSymbol> csvSymbols = List.of(
-                new CsvUniverseSymbol("AAPL", "Apple Inc", "NASDAQ", "USD", "EQUITY", "IBKR"),
-                new CsvUniverseSymbol("msft", "Microsoft", "", "", "", "")
+                new CsvUniverseSymbol("AAPL", "Apple Inc", "NASDAQ", "USD", "EQUITY", "IBKR", "EQUITY", ""),
+                new CsvUniverseSymbol("msft", "Microsoft", "", "", "", "", "", "")
         );
         when(csvUniverseLoader.loadUniverseSymbols("CSV_UNIVERSE")).thenReturn(csvSymbols);
 

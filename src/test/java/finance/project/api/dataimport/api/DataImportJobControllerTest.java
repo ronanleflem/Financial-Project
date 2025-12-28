@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.core.Is.is;
@@ -22,6 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(DataImportJobController.class)
+@ActiveProfiles("test")
 class DataImportJobControllerTest {
 
     @Autowired
@@ -43,6 +45,7 @@ class DataImportJobControllerTest {
                 Instant.parse("2024-01-10T00:00:00Z"),
                 "HISTORICAL",
                 "NYSE",
+                "USD",
                 "UTC",
                 "IGNORE",
                 "NONE",
@@ -72,6 +75,7 @@ class DataImportJobControllerTest {
                 Instant.parse("2024-02-01T00:00:00Z"),
                 Instant.parse("2024-01-01T00:00:00Z"),
                 "HISTORICAL",
+                null,
                 null,
                 null,
                 null,

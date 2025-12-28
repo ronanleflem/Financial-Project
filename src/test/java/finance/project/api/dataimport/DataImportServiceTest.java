@@ -43,6 +43,8 @@ class DataImportServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null
         );
 
@@ -71,9 +73,11 @@ class DataImportServiceTest {
                 Instant.parse("2024-03-31T23:59:59Z"),
                 "CSV",
                 "data_2024-03",
+                "USD",
                 "UTC",
                 "merge",
-                "volume"
+                "volume",
+                "FX"
         );
 
         when(jobRepository.save(any(DataImportJob.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -95,6 +99,8 @@ class DataImportServiceTest {
                 Instant.parse("2024-01-02T00:00:00Z"),
                 Instant.parse("2024-01-01T00:00:00Z"),
                 "API",
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -122,6 +128,8 @@ class DataImportServiceTest {
                 Instant.parse("2024-01-01T00:00:00Z"),
                 Instant.parse("2024-01-02T00:00:00Z"),
                 "API",
+                null,
+                null,
                 null,
                 null,
                 null,
