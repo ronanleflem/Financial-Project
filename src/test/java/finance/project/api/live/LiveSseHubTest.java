@@ -76,8 +76,16 @@ class LiveSseHubTest {
 
     @Override
     public synchronized void send(SseEventBuilder builder) throws IOException {
-      events.add((String) readField(builder, "name"));
-      data.add(readField(builder, "data"));
+      Object eventName = readField(builder, "name");
+      if (eventName == null) {
+        eventName = readField(builder, "event");
+      }
+      events.add((String) eventName);
+      Object payload = readField(builder, "data");
+      if (payload == null) {
+        payload = readField(builder, "dataToSend");
+      }
+      data.add(payload);
     }
 
     private Object readField(Object target, String fieldName) throws IOException {
@@ -105,7 +113,7 @@ class LiveSseHubTest {
           throw new IOException("Cannot access field " + fieldName, e);
         }
       }
-      throw new IOException("Field " + fieldName + " not found");
+      return null;
     }
   }
 }

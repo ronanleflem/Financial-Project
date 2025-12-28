@@ -10,6 +10,7 @@ import finance.project.api.services.TradeCompletedService;
 import finance.project.api.services.TradeService;
 import finance.project.api.services.VolumeBasedRolloverService;
 import finance.project.api.services.SymbolService;
+import finance.project.api.services.MarketDataService;
 import finance.project.api.strategies.volume.EmaVolumeStrategy;
 import finance.project.api.utils.StrategyResult;
 import java.util.Collections;
@@ -20,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.core.Is.is;
@@ -36,6 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(BacktestController.class)
+@ActiveProfiles("test")
 class BacktestControllerTest {
 
     @Autowired
@@ -58,6 +61,9 @@ class BacktestControllerTest {
 
     @MockBean
     private StrategyManager strategyManager;
+
+    @MockBean
+    private MarketDataService marketDataService;
 
     @MockBean
     private PerformanceService performanceService;

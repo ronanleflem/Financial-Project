@@ -3,6 +3,7 @@ package finance.project.api.dataimport.ingestion;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -77,7 +78,7 @@ class MexcHistoricalServiceTest {
         boolean result = service.fetchAndSave(job, start, end);
 
         assertThat(result).isFalse();
-        verify(candleService, never()).saveCandlesToDatabase(anyList(), any(), any());
+        verify(candleService, never()).saveCandlesToDatabase(anyList(), anyString(), anyString());
         verify(deltaLakeExporter, never()).exportCandlesToDelta(any(), anyList());
         verify(candleAggregationService, never()).aggregateCandles(anyList(), any(), any());
     }
@@ -94,7 +95,7 @@ class MexcHistoricalServiceTest {
         boolean result = service.fetchAndSave(job, start, end);
 
         assertThat(result).isFalse();
-        verify(candleService, never()).saveCandlesToDatabase(anyList(), any(), any());
+        verify(candleService, never()).saveCandlesToDatabase(anyList(), anyString(), anyString());
         verify(deltaLakeExporter, never()).exportCandlesToDelta(any(), anyList());
         verify(candleAggregationService, never()).aggregateCandles(anyList(), any(), any());
     }

@@ -65,7 +65,7 @@ public class DeltaLakeConfig {
         if (value == null) {
             return "UNKNOWN";
         }
-        String sanitized = StringUtils.trimAllWhitespace(value).replaceAll("[^a-zA-Z0-9_-]", "_");
+        String sanitized = StringUtils.trimWhitespace(value).replaceAll("[^a-zA-Z0-9_-]", "_");
         return sanitized.isEmpty() ? "UNKNOWN" : sanitized.toUpperCase();
     }
 

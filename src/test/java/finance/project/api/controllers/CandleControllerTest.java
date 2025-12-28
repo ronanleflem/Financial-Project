@@ -1,14 +1,23 @@
 package finance.project.api.controllers;
 
 import finance.project.api.model.CandleDTO;
+import finance.project.api.services.BinanceService;
+import finance.project.api.services.CandleAggregationService;
 import finance.project.api.services.CandleService;
+import finance.project.api.services.CurrencyLayerService;
+import finance.project.api.services.DeltaLakeCandleReader;
+import finance.project.api.services.MarketstackService;
 import finance.project.api.services.SymbolService;
+import finance.project.api.services.TradeCompletedMapper;
+import finance.project.api.services.TradeCompletedService;
+import finance.project.api.services.VolumeBasedRolloverService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 
 import finance.project.api.model.SymbolDTO;
 import org.springframework.test.web.servlet.MvcResult;
@@ -24,12 +33,37 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(CandleController.class)
+@ActiveProfiles("test")
 public class CandleControllerTest {
     @Autowired
     MockMvc mockMvc;
 
     @MockBean
     CandleService candleService;
+
+    @MockBean
+    MarketstackService marketstackService;
+
+    @MockBean
+    CurrencyLayerService currencyLayerService;
+
+    @MockBean
+    CandleAggregationService candleAggregationService;
+
+    @MockBean
+    VolumeBasedRolloverService volumeBasedRolloverService;
+
+    @MockBean
+    TradeCompletedService tradeCompletedService;
+
+    @MockBean
+    TradeCompletedMapper tradeCompletedMapper;
+
+    @MockBean
+    DeltaLakeCandleReader deltaLakeCandleReader;
+
+    @MockBean
+    BinanceService binanceService;
 
     @MockBean
     SymbolService symbolService;

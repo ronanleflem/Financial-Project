@@ -65,10 +65,7 @@ public class DataImportJobRunner {
         }
 
         try {
-            // Passe en RUNNING
-            job.setStatus(DataImportJob.Status.RUNNING);
-            job.setUpdatedAt(Instant.now());
-            jobRepository.save(job);
+            transitionToRunning(job);
 
             log.info("[DataImport] Job {} RUNNING for {} {} {} {} {}",
                     job.getId(), job.getBroker(), job.getSymbol(),
@@ -78,27 +75,20 @@ public class DataImportJobRunner {
             boolean anySuccess = executeJob(job);
 
             if (anySuccess) {
-                job.setStatus(DataImportJob.Status.SUCCESS);
-                job.setMessage("Import completed");
+                markSuccess(job);
                 log.info("[DataImport] Job {} SUCCESS", job.getId());
             } else {
                 job.setStatus(DataImportJob.Status.FAILED);
-                job.setMessage("No data imported from any provider");
+                job.setProgress(Math.min(job.getProgress(), 99));
+                job.setMessage("Aucune donnée disponible pour la période demandée");
+                job.setUpdatedAt(Instant.now());
+                jobRepository.save(job);
                 log.warn("[DataImport] Job {} FAILED - no provider returned data", job.getId());
             }
 
-            job.setUpdatedAt(Instant.now());
-            jobRepository.save(job);
-
         } catch (Exception e) {
             log.error("[DataImport] Job {} FAILED: {}", job.getId(), e.getMessage(), e);
-
-            job.setStatus(DataImportJob.Status.FAILED);
-            job.setUpdatedAt(Instant.now());
-            job.setMessage(
-                    Optional.ofNullable(e.getMessage()).orElse("Unexpected error in async import")
-            );
-            jobRepository.save(job);
+            markFailure(job, e);
         }
     }
 

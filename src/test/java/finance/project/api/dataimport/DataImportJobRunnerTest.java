@@ -66,9 +66,8 @@ class DataImportJobRunnerTest {
         when(jobRepository.findById("job-123")).thenReturn(Optional.of(job));
         when(jobRepository.save(any(DataImportJob.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        doAnswer(invocation -> null)
-                .when(binanceHistoricalService)
-                .fetchAndSave(any(), any(), any());
+        when(binanceHistoricalService.fetchAndSave(any(), any(), any()))
+                .thenReturn(true);
 
         runner.runJobAsync("job-123");
 

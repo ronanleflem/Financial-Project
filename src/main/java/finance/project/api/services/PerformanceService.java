@@ -24,7 +24,7 @@ public class PerformanceService {
                 .comparedSymbol(comparedSymbol)
                 .timeframe(timeframe)
                 .metric(null)
-                .value(0.0)
+                .metricValue(0.0)
                 .winCount(toBigDecimal(performance.get("winCount")))
                 .lossCount(toBigDecimal(performance.get("lossCount")))
                 .totalReturn(toBigDecimal(performance.get("totalReturn")))
