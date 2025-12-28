@@ -3,7 +3,7 @@ package finance.project.api.controllers;
 import finance.project.api.services.CandleCacheManager;
 import finance.project.api.services.CandleService;
 import finance.project.api.services.PerformanceService;
-import finance.project.api.services.StrategyManager;
+import finance.project.api.strategies.StrategyManager;
 import finance.project.api.services.TA4JService;
 import finance.project.api.services.TradeCompletedMapper;
 import finance.project.api.services.TradeCompletedService;
