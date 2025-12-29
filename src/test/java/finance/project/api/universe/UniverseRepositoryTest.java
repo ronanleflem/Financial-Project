@@ -2,6 +2,7 @@ package finance.project.api.universe;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import finance.project.api.support.AbstractMySqlIntegrationTest;
 import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -13,7 +14,7 @@ import org.springframework.test.context.ActiveProfiles;
 @DataJpaTest
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class UniverseRepositoryTest {
+class UniverseRepositoryTest extends AbstractMySqlIntegrationTest {
 
     @Autowired
     private UniverseRepository universeRepository;
