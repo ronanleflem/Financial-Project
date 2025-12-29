@@ -2,6 +2,7 @@ package finance.project.api.dataimport.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import finance.project.api.AbstractMySqlIntegrationTest;
 import finance.project.api.dataimport.DataImportJob;
 import finance.project.api.dataimport.DataImportJobRepository;
 import finance.project.api.dataimport.DataImportJobRunner;
@@ -14,7 +15,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -29,8 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("test")
-class DataImportJobControllerIntegrationTest {
+class DataImportJobControllerIntegrationTest extends AbstractMySqlIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -78,7 +77,11 @@ class DataImportJobControllerIntegrationTest {
         JsonNode payload = objectMapper.readTree(result.getResponse().getContentAsString());
         String jobId = payload.get("id").asText();
 
-        assertThat(dataImportJobRepository.findById(jobId)).isPresent();
+        DataImportJob persistedJob = dataImportJobRepository.findById(jobId).orElseThrow();
+        assertThat(persistedJob.getBroker()).isEqualTo("IBKR");
+        assertThat(persistedJob.getSymbol()).isEqualTo("AAPL");
+        assertThat(persistedJob.getTimeframe()).isEqualTo("1d");
+        assertThat(persistedJob.getStatus()).isEqualTo(DataImportJob.Status.PENDING);
         verify(dataImportJobRunner).runJobAsync(jobId);
     }
 
