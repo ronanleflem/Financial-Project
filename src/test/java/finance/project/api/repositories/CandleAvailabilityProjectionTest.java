@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import finance.project.api.entities.Candle;
 import finance.project.api.entities.Symbol;
 import finance.project.api.repositories.projections.CandleAvailabilityProjection;
+import finance.project.api.support.AbstractMySqlIntegrationTest;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -17,7 +18,7 @@ import org.springframework.test.context.ActiveProfiles;
 @DataJpaTest
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class CandleAvailabilityProjectionTest {
+class CandleAvailabilityProjectionTest extends AbstractMySqlIntegrationTest {
 
     @Autowired
     private CandleRepository candleRepository;
