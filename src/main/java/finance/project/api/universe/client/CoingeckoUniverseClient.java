@@ -119,24 +119,29 @@ public class CoingeckoUniverseClient {
         headers.set("x-cg-demo-api-key", apiKey);
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
-        ResponseEntity<List<CoinMarket>> response = restTemplate.exchange(
-                url,
-                HttpMethod.GET,
-                entity,
-                new ParameterizedTypeReference<List<CoinMarket>>() {}
-        );
+        try {
+            ResponseEntity<List<CoinMarket>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    entity,
+                    new ParameterizedTypeReference<List<CoinMarket>>() {}
+            );
 
-        List<CoinMarket> markets = response.getBody();
-        if (markets == null || markets.isEmpty()) {
-            log.warn("[Coingecko] Empty response from coins/markets");
+            List<CoinMarket> markets = response.getBody();
+            if (markets == null || markets.isEmpty()) {
+                log.warn("[Coingecko] Empty response from coins/markets");
+                return List.of();
+            }
+
+            return markets.stream()
+                    .map(CoinMarket::symbol)
+                    .filter(sym -> sym != null && !sym.isBlank())
+                    .map(sym -> sym.toUpperCase(Locale.ROOT))
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.warn("[Coingecko] Failed to fetch top crypto symbols (limit={})", limit, e);
             return List.of();
         }
-
-        return markets.stream()
-                .map(CoinMarket::symbol)
-                .filter(sym -> sym != null && !sym.isBlank())
-                .map(sym -> sym.toUpperCase(Locale.ROOT))
-                .collect(Collectors.toList());
     }
 
     public List<CoinCategory> listCategories() {
@@ -147,19 +152,24 @@ public class CoingeckoUniverseClient {
         headers.set("x-cg-demo-api-key", apiKey);
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
-        ResponseEntity<List<CoinCategory>> resp = restTemplate.exchange(
-                url,
-                HttpMethod.GET,
-                entity,
-                new ParameterizedTypeReference<List<CoinCategory>>() {}
-        );
+        try {
+            ResponseEntity<List<CoinCategory>> resp = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    entity,
+                    new ParameterizedTypeReference<List<CoinCategory>>() {}
+            );
 
-        List<CoinCategory> body = resp.getBody();
-        if (body == null || body.isEmpty()) {
-            log.warn("[Coingecko] Empty categories list");
+            List<CoinCategory> body = resp.getBody();
+            if (body == null || body.isEmpty()) {
+                log.warn("[Coingecko] Empty categories list");
+                return List.of();
+            }
+            return body;
+        } catch (Exception e) {
+            log.warn("[Coingecko] Failed to fetch coin categories", e);
             return List.of();
         }
-        return body;
     }
 
     /**
@@ -172,5 +182,4 @@ public class CoingeckoUniverseClient {
      */
     public record CoinCategory(String category_id, String name) {}
 }
-
 
