@@ -22,6 +22,8 @@ public class DataImportJobRunner {
 
     private final DataImportJobRepository jobRepository;
     private final BinanceHistoricalService binanceHistoricalService;
+    private final OkxHistoricalService okxHistoricalService;
+    private final BybitHistoricalService bybitHistoricalService;
     private final MexcHistoricalService mexcHistoricalService;
     private final IbkrImportService ibkrImportService;
     private final DatabentoCsvImportService databentoCsvImportService;
@@ -30,6 +32,8 @@ public class DataImportJobRunner {
 
     public DataImportJobRunner(DataImportJobRepository jobRepository,
                                BinanceHistoricalService binanceHistoricalService,
+                               OkxHistoricalService okxHistoricalService,
+                               BybitHistoricalService bybitHistoricalService,
                                MexcHistoricalService mexcHistoricalService,
                                IbkrImportService ibkrImportService,
                                DatabentoCsvImportService databentoCsvImportService,
@@ -37,6 +41,8 @@ public class DataImportJobRunner {
                                BitgetHistoricalService bitgetHistoricalService) {
         this.jobRepository = jobRepository;
         this.binanceHistoricalService = binanceHistoricalService;
+        this.okxHistoricalService = okxHistoricalService;
+        this.bybitHistoricalService = bybitHistoricalService;
         this.mexcHistoricalService = mexcHistoricalService;
         this.ibkrImportService = ibkrImportService;
         this.databentoCsvImportService = databentoCsvImportService;
@@ -131,9 +137,35 @@ public class DataImportJobRunner {
         boolean ok = binanceHistoricalService.fetchAndSave(job, start, end);
         if (ok) {return true;}
 
-        log.info("[DataImport] Binance returned no data for job {}. Falling back to Bitget.", job.getId());
+        log.info("[DataImport] Binance returned no data for job {}. Falling back to OKX.", job.getId());
 
-        // 2) Fallback Bitget
+        // 2) Fallback OKX
+        job.setBroker("OKX");
+        job.setUpdatedAt(Instant.now());
+        jobRepository.save(job);
+
+        ok = okxHistoricalService.fetchAndSave(job, start, end);
+        if (ok) {
+            log.info("[DataImport] Job {} successfully imported via OKX", job.getId());
+            return true;
+        }
+
+        log.info("[DataImport] OKX also returned no data for job {}. Falling back to Bybit.", job.getId());
+
+        // 3) Fallback Bybit
+        job.setBroker("BYBIT");
+        job.setUpdatedAt(Instant.now());
+        jobRepository.save(job);
+
+        ok = bybitHistoricalService.fetchAndSave(job, start, end);
+        if (ok) {
+            log.info("[DataImport] Job {} successfully imported via Bybit", job.getId());
+            return true;
+        }
+
+        log.info("[DataImport] Bybit also returned no data for job {}. Falling back to Bitget.", job.getId());
+
+        // 4) Fallback Bitget
         job.setBroker("BITGET");
         job.setUpdatedAt(Instant.now());
         jobRepository.save(job);
@@ -146,7 +178,7 @@ public class DataImportJobRunner {
 
         log.info("[DataImport] Bitget also returned no data for job {}. Falling back to MEXC.", job.getId());
 
-        // 3) Fallback MEXC
+        // 5) Fallback MEXC
         job.setBroker("MEXC");
         job.setUpdatedAt(Instant.now());
         jobRepository.save(job);
@@ -157,7 +189,7 @@ public class DataImportJobRunner {
             return true;
         }
 
-        log.warn("[DataImport] No crypto provider (Binance/Bitget/MEXC) could supply data for job {}", job.getId());
+        log.warn("[DataImport] No crypto provider (Binance/OKX/Bybit/Bitget/MEXC) could supply data for job {}", job.getId());
         return false;
     }
 
@@ -170,6 +202,8 @@ public class DataImportJobRunner {
 
         return switch (broker) {
             case "BINANCE" -> invokeCryptoWithFallback(job, start, end);
+            case "OKX" -> okxHistoricalService.fetchAndSave(job, start, end);
+            case "BYBIT" -> bybitHistoricalService.fetchAndSave(job, start, end);
             case "MEXC" -> mexcHistoricalService.fetchAndSave(job, start, end);
             case "BITGET" -> bitgetHistoricalService.fetchAndSave(job, start, end);
             case "IBKR" -> {
