@@ -8,10 +8,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import finance.project.api.dataimport.ingestion.BinanceHistoricalService;
+import finance.project.api.dataimport.ingestion.BybitHistoricalService;
 import finance.project.api.dataimport.ingestion.CsvImportService;
 import finance.project.api.dataimport.ingestion.DatabentoCsvImportService;
 import finance.project.api.dataimport.ingestion.IbkrImportService;
 import finance.project.api.dataimport.ingestion.MexcHistoricalService;
+import finance.project.api.dataimport.ingestion.OkxHistoricalService;
 import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +31,12 @@ class DataImportJobRunnerTest {
 
     @Mock
     private BinanceHistoricalService binanceHistoricalService;
+
+    @Mock
+    private OkxHistoricalService okxHistoricalService;
+
+    @Mock
+    private BybitHistoricalService bybitHistoricalService;
 
     @Mock
     private MexcHistoricalService mexcHistoricalService;
