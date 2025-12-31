@@ -85,4 +85,15 @@ class MarketScannerControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error", is("Invalid date format. Use ISO-8601.")));
     }
+
+    @Test
+    void getOhlcReturnsBadRequestWhenStartAfterEnd() throws Exception {
+        mockMvc.perform(get("/api/market/ohlc")
+                        .param("symbol", "AAPL")
+                        .param("start", "2024-01-02T00:00:00Z")
+                        .param("end", "2024-01-01T00:00:00Z")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error", is("start must be before end")));
+    }
 }

@@ -81,4 +81,20 @@ class CandleControllerWebMvcTest {
                 .andExpect(jsonPath("$.message").value("Trade not found"))
                 .andExpect(jsonPath("$.path").value("/api/finance/charts/from-trade"));
     }
+
+    @Test
+    void shouldReturnBadRequestWhenStartDateAfterEndDate() throws Exception {
+        mockMvc.perform(get("/api/finance/charts/candles/date-time")
+                        .param("symbol", "EURUSD")
+                        .param("timeframe", "1h")
+                        .param("startDate", "2024-01-02T00:00:00")
+                        .param("endDate", "2024-01-01T00:00:00")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").value("startDate must be before endDate"))
+                .andExpect(jsonPath("$.path").value("/api/finance/charts/candles/date-time"));
+    }
 }
