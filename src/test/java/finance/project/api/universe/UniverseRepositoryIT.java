@@ -14,7 +14,7 @@ import org.springframework.test.context.ActiveProfiles;
 @DataJpaTest
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class UniverseRepositoryTest extends AbstractMySqlIntegrationTest {
+class UniverseRepositoryIT extends AbstractMySqlIntegrationTest {
 
     @Autowired
     private UniverseRepository universeRepository;

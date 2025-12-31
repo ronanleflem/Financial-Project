@@ -18,7 +18,7 @@ import org.springframework.test.context.ActiveProfiles;
 @DataJpaTest
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class CandleAvailabilityProjectionTest extends AbstractMySqlIntegrationTest {
+class CandleAvailabilityProjectionIT extends AbstractMySqlIntegrationTest {
 
     @Autowired
     private CandleRepository candleRepository;

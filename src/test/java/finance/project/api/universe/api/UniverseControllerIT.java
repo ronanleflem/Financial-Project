@@ -32,7 +32,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class UniverseControllerIntegrationTest {
+class UniverseControllerIT {
 
     @Autowired
     private MockMvc mockMvc;
