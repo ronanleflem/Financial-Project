@@ -27,7 +27,7 @@ import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @ActiveProfiles("test")
-class BinanceHistoricalServiceIntegrationTest {
+class BinanceHistoricalServiceIT {
 
     @Autowired
     private BinanceHistoricalService binanceHistoricalService;

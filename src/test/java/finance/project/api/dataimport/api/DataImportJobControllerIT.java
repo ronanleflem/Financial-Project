@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-class DataImportJobControllerIntegrationTest extends AbstractMySqlIntegrationTest {
+class DataImportJobControllerIT extends AbstractMySqlIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
