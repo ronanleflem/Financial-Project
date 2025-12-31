@@ -111,6 +111,10 @@ public class CandleController {
                                                               @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
                                                               @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate, @RequestParam(defaultValue = "2") int analysisPeriodDays) {
 
+        if (!startDate.isBefore(endDate)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "startDate must be before endDate");
+        }
+
         SymbolDTO symbolDTO = symbolService.getSymbolByCode(symbol);
         System.out.println(symbolDTO);
 

@@ -76,6 +76,9 @@ public class MarketScannerController {
                                  @RequestParam(required = false) String timeframe) {
         Instant startInstant = parseInstant(start);
         Instant endInstant = parseInstant(end);
+        if (startInstant != null && endInstant != null && !startInstant.isBefore(endInstant)) {
+            throw new IllegalArgumentException("start must be before end");
+        }
         return historicalDataService.getHistoricalOhlc(symbol, assetClass, startInstant, endInstant, timeframe);
     }
 

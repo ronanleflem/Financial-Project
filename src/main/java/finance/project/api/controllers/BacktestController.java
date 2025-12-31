@@ -11,11 +11,13 @@ import finance.project.api.utils.StrategyResult;
 import jdk.jfr.Category;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.server.ResponseStatusException;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.Strategy;
 import org.ta4j.core.TradingRecord;
@@ -23,6 +25,7 @@ import org.ta4j.core.backtest.BacktestExecutor;
 import org.ta4j.core.reports.PerformanceReport;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -137,8 +140,11 @@ public class BacktestController {
             @RequestParam(required = false) Double explosionPct,
             @RequestParam(required = false) Double stepPct) {
 
-        LocalDateTime start = LocalDateTime.parse(startDate);
-        LocalDateTime end = LocalDateTime.parse(endDate);
+        LocalDateTime start = parseDateTime(startDate, "startDate");
+        LocalDateTime end = parseDateTime(endDate, "endDate");
+        if (!start.isBefore(end)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "startDate must be before endDate");
+        }
 
         candleCacheManager.preload(symbol, timeframe, start, end);
         StrategyResult result = strategyManager.runStrategyByName(strategyName, symbol, timeframe, period,
@@ -152,6 +158,18 @@ public class BacktestController {
         performanceService.savePerformance(strategyName, runId, result.getPerformance(), symbol, compared, timeframe);
 
         return ResponseEntity.ok(result);
+    }
+
+    private LocalDateTime parseDateTime(String value, String fieldName) {
+        try {
+            return LocalDateTime.parse(value);
+        } catch (DateTimeParseException ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Invalid " + fieldName + " format. Use ISO-8601.",
+                    ex
+            );
+        }
     }
 
     @GetMapping("/all-strategies")
