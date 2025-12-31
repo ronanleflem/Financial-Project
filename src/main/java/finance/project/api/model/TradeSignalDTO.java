@@ -1,11 +1,15 @@
 package finance.project.api.model;
 
-import lombok.*;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 
 @Builder
-@AllArgsConstructor
 @Getter
 @Setter
 public class TradeSignalDTO {
@@ -16,6 +20,7 @@ public class TradeSignalDTO {
     private final double stopLoss;
     private final double takeProfit;
     private final double confidenceScore;
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
     private final LocalDateTime timestamp;
 
     public boolean isSecondEntry() {
@@ -29,6 +34,27 @@ public class TradeSignalDTO {
     }
 
     private final String symbol;
+
+    @JsonCreator
+    public TradeSignalDTO(
+            @JsonProperty("tradeType") TradeType tradeType,
+            @JsonProperty("entryPrice") double entryPrice,
+            @JsonProperty("stopLoss") double stopLoss,
+            @JsonProperty("takeProfit") double takeProfit,
+            @JsonProperty("confidenceScore") double confidenceScore,
+            @JsonProperty("timestamp") LocalDateTime timestamp,
+            @JsonProperty("secondEntry") boolean secondEntry,
+            @JsonProperty("symbol") String symbol
+    ) {
+        this.tradeType = tradeType;
+        this.entryPrice = entryPrice;
+        this.stopLoss = stopLoss;
+        this.takeProfit = takeProfit;
+        this.confidenceScore = confidenceScore;
+        this.timestamp = timestamp;
+        this.secondEntry = secondEntry;
+        this.symbol = symbol;
+    }
 
     public TradeSignalDTO(TradeType tradeType, double entryPrice, double stopLoss, double takeProfit, double confidenceScore, String symbol) {
         this.tradeType = tradeType;

@@ -1,5 +1,7 @@
 package finance.project.api.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -20,8 +22,8 @@ public record TradeCompletedDTO(
         BigDecimal quantity,
         Integer cycleId,
         double confidenceScore,
-        LocalDateTime entryTimestamp,
-        LocalDateTime exitTimestamp,
+        @JsonFormat(shape = JsonFormat.Shape.STRING) LocalDateTime entryTimestamp,
+        @JsonFormat(shape = JsonFormat.Shape.STRING) LocalDateTime exitTimestamp,
         String symbol,
         List<IntermediateEntryDTO> intermediateEntries
 ) {
