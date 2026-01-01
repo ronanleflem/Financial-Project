@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -40,7 +41,7 @@ public class DataImportService {
         job.setSymbol(req.symbol());
         job.setTimeframe(req.timeframe());
         job.setAssetClass(req.assetClass());
-        job.setVenue(req.venue());
+        job.setVenue(resolveVenue(req));
         job.setCurrency(req.currency());
         job.setTimezone(req.timezone());
         job.setConflictPolicy(req.conflictPolicy());
@@ -63,5 +64,32 @@ public class DataImportService {
 
     public Optional<DataImportJob> getJob(String id) {
         return jobRepository.findById(id);
+    }
+
+    private String resolveVenue(DataImportRequest req) {
+        if (StringUtils.hasText(req.venue())) {
+            return req.venue();
+        }
+
+        String assetClass = req.assetClass();
+        if (assetClass != null && assetClass.toUpperCase().contains("CRYPTO")) {
+            return "SPOT";
+        }
+
+        String broker = req.broker();
+        if (broker != null && isCryptoBroker(broker)) {
+            return "SPOT";
+        }
+
+        return req.venue();
+    }
+
+    private boolean isCryptoBroker(String broker) {
+        String normalized = broker.trim().toUpperCase();
+        return normalized.equals("BINANCE")
+                || normalized.equals("OKX")
+                || normalized.equals("BYBIT")
+                || normalized.equals("MEXC")
+                || normalized.equals("BITGET");
     }
 }
