@@ -7,6 +7,7 @@ import finance.project.api.dataimport.dto.DataImportRequest;
 import finance.project.api.entities.Symbol;
 import finance.project.api.universe.Universe;
 import finance.project.api.universe.UniverseRepository;
+import finance.project.api.universe.UniverseType;
 import finance.project.api.universe.dto.UniverseImportRequest;
 import java.time.Instant;
 import java.util.LinkedHashSet;
@@ -63,9 +64,7 @@ public class UniverseImportRunner {
     }
 
     private DataImportRequest buildJobRequest(UniverseImportRequest request, Universe universe, Symbol symbol) {
-        String venue = (request.venue() != null && !request.venue().isBlank())
-                ? request.venue()
-                : symbol.getExchange();
+        String venue = resolveVenue(request, universe, symbol);
 
         String symbolForImport = symbol.getSymbol();
         String currency = symbol.getCurrency();
@@ -89,6 +88,29 @@ public class UniverseImportRunner {
                 null,
                 assetClass
         );
+    }
+
+    private String resolveVenue(UniverseImportRequest request, Universe universe, Symbol symbol) {
+        if (request.venue() != null && !request.venue().isBlank()) {
+            return request.venue();
+        }
+        if (universe.getType() == UniverseType.CRYPTO) {
+            return resolveCryptoVenue(symbol);
+        }
+        return symbol.getExchange();
+    }
+
+    private String resolveCryptoVenue(Symbol symbol) {
+        if (symbol != null && symbol.getMarket() != null) {
+            String normalized = symbol.getMarket().trim().toUpperCase(Locale.ROOT);
+            if (normalized.contains("FUTURE")) {
+                return "FUTURE";
+            }
+            if (normalized.contains("SPOT")) {
+                return "SPOT";
+            }
+        }
+        return "SPOT";
     }
 
     private boolean pauseBetweenJobs() {
