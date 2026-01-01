@@ -32,8 +32,8 @@ public class BitgetService {
     /**
      * Récupère des candles spot Bitget autour de 'end'.
      *
-     * Doc : Spot -> Market -> Get History Candle Data
-     * GET /api/spot/v1/market/history-candles
+     * Doc : Spot -> Market -> Candles (v2)
+     * GET /api/v2/spot/market/candles
      */
     public List<CandleDTO> getHistoricalCandlesInRange(
             String symbol,
@@ -41,24 +41,26 @@ public class BitgetService {
             LocalDateTime start,   // pas utilisé directement par l'API mais laissé pour la compat
             LocalDateTime end
     ) {
-        String period = mapToBitgetPeriod(timeframe);
-        if (period == null) {
+        String granularity = mapToBitgetGranularity(timeframe);
+        if (granularity == null) {
             log.warn("[Bitget] Unsupported timeframe '{}' -> returning empty list", timeframe);
             return List.of();
         }
 
+        long startMs = start.toInstant(ZoneOffset.UTC).toEpochMilli();
         long endMs = end.toInstant(ZoneOffset.UTC).toEpochMilli();
 
-        URI uri = UriComponentsBuilder.fromHttpUrl(BASE_URL + "/api/spot/v1/market/history-candles")
-                .queryParam("symbol", normalizeBitgetSymbol(symbol))
-                .queryParam("period", period)
+        URI uri = UriComponentsBuilder.fromHttpUrl(BASE_URL + "/api/v2/spot/market/candles")
+                .queryParam("symbol", symbol.toUpperCase())
+                .queryParam("granularity", granularity)
+                .queryParam("startTime", String.valueOf(startMs))
                 .queryParam("endTime", String.valueOf(endMs))
-                .queryParam("limit", "200") // max
+                .queryParam("limit", "100")
                 .build(true)
                 .toUri();
 
-        log.info("[Bitget] Fetching history-candles symbol={} period={} end={}",
-                symbol, period, end);
+        log.info("[Bitget] Fetching candles symbol={} granularity={} start={} end={}",
+                symbol, granularity, start, end);
 
         try {
             RequestEntity<Void> req = new RequestEntity<>(HttpMethod.GET, uri);
@@ -93,7 +95,7 @@ public class BitgetService {
                         .close(new BigDecimal(close))
                         .volume(new BigDecimal(volume))
                         .symbol(SymbolDTO.builder().symbol(symbol).build())
-                        .timeframe(period)
+                        .timeframe(granularity)
                         .build();
                 result.add(dto);
             }
@@ -106,23 +108,11 @@ public class BitgetService {
     }
 
     /**
-     * Bitget symbol format : souvent 'BTCUSDT_SPBL' pour le spot.
-     * Ici on met un mapping simple : si tu stockes 'BTCUSDT', on rajoute '_SPBL'.
-     * Tu peux raffiner si besoin.
-     */
-    private String normalizeBitgetSymbol(String symbol) {
-        String s = symbol.toUpperCase();
-        if (!s.endsWith("_SPBL")) {
-            s = s + "_SPBL";
-        }
-        return s;
-    }
-
     /**
-     * Mapping timeframe interne -> period Bitget.
+     * Mapping timeframe interne -> granularity Bitget v2.
      * Adapte selon ce que tu utilises côté Java.
      */
-    private String mapToBitgetPeriod(String timeframe) {
+    private String mapToBitgetGranularity(String timeframe) {
         if (timeframe == null) return null;
         return switch (timeframe.toLowerCase()) {
             case "1m", "1min" -> "1min";
