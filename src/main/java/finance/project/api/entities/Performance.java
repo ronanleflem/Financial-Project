@@ -23,7 +23,7 @@ public class Performance {
     private String metric; // Ex: "winRate", "profitFactor"
 
     @Column(name = "metric_value")
-    private double metricValue;
+    private Double metricValue;
 
     /**
      * Identifier to group all metrics of the same strategy run. This allows
