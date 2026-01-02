@@ -123,7 +123,14 @@ public class DeltaLakeCandleReader {
         String currencyFallback = isCrypto ? "USDT" : "USD";
         String currency = defaultIfBlank(trade.getCurrency(), currencyFallback);
         String symbol = defaultIfBlank(trade.getSymbol(), "UNKNOWN");
-        return "%s/%s/%s/%s/%s/%s/%s".formatted(
+        return isCrypto ? "%s/%s/%s/%s/%s/%s".formatted(
+                deltaLakeConfig.getBaseUri(),
+                market,
+                broker,
+                marketType,
+                currency,
+                symbol
+        ) : "%s/%s/%s/%s/%s/%s/%s".formatted(
                 deltaLakeConfig.getBaseUri(),
                 market,
                 broker,
