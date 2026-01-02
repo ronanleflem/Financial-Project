@@ -19,14 +19,14 @@ class DeltaLakeConfigTest {
         String pathUnderscore = config.resolveTablePath("ACTION", "IBKR", "NYSE", "AAPL_EUR");
         String pathColon = config.resolveTablePath("ACTION", "IBKR", "NYSE", "AAPL:USD");
 
-        assertThat(pathUnderscore).isEqualTo("s3://datalake/ACTION/IBKR/NYSE/EUR/AAPL/");
-        assertThat(pathColon).isEqualTo("s3://datalake/ACTION/IBKR/NYSE/USD/AAPL/");
+        assertThat(pathUnderscore).isEqualTo("s3://datalake/ACTION/IBKR/SPOT/NYSE/EUR/AAPL/");
+        assertThat(pathColon).isEqualTo("s3://datalake/ACTION/IBKR/SPOT/NYSE/USD/AAPL/");
     }
 
     @Test
     void sanitizesSegmentsAndFallsBackToUnknownCurrencyWhenMissing() {
         String path = config.resolveTablePath(" Action  ", "  ", "  ", "  T TE @#  ");
 
-        assertThat(path).isEqualTo("s3://datalake/ACTION/UNKNOWN/UNKNOWN/UNKNOWN/T_TE___/");
+        assertThat(path).isEqualTo("s3://datalake/ACTION/UNKNOWN/SPOT/UNKNOWN/UNKNOWN/T_TE___/");
     }
 }
