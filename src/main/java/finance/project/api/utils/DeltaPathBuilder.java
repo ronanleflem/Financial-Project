@@ -19,10 +19,23 @@ public class DeltaPathBuilder {
     public String buildPath(ResolvedInstrument instrument, String broker) {
         String market = sanitize(instrument != null ? instrument.marketTypeNormalized() : "UNKNOWN");
         String brokerSegment = sanitize(broker);
+        String tradingSegment = sanitize(resolveTradingSegment(instrument));
         String exchange = sanitize(instrument != null ? instrument.normalizedExchange() : "UNKNOWN");
         String currency = sanitize(instrument != null ? instrument.currency() : "UNKNOWN");
         String symbol = sanitize(instrument != null ? instrument.symbol() : "UNKNOWN");
-        return "%s/%s/%s/%s/%s/%s".formatted(deltaLakeConfig.getBaseUri(), market, brokerSegment, exchange, currency, symbol);
+        return "%s/%s/%s/%s/%s/%s/%s".formatted(deltaLakeConfig.getBaseUri(), market, brokerSegment, tradingSegment, exchange, currency, symbol);
+    }
+
+    private String resolveTradingSegment(ResolvedInstrument instrument) {
+        if (instrument == null) {
+            return "SPOT";
+        }
+        String marketType = StringUtils.trimWhitespace(instrument.marketTypeNormalized()).toUpperCase(Locale.ROOT);
+        String secType = StringUtils.trimWhitespace(instrument.secType()).toUpperCase(Locale.ROOT);
+        if (marketType.contains("FUT") || secType.contains("FUT")) {
+            return "FUTURE";
+        }
+        return "SPOT";
     }
 
     private String sanitize(String value) {
