@@ -34,9 +34,10 @@ public class BinanceService {
      * @return liste de CandleDTO
      */
     public List<CandleDTO> getHistoricalCandles(String symbol, String interval, int limit) {
+        String normalizedInterval = normalizeInterval(interval);
         String url = UriComponentsBuilder.fromHttpUrl(binanceApiUrl + "/klines")
                 .queryParam("symbol", symbol)
-                .queryParam("interval", interval)
+                .queryParam("interval", normalizedInterval)
                 .queryParam("limit", limit)
                 .toUriString();
 
@@ -69,7 +70,7 @@ public class BinanceService {
                     .close(new BigDecimal(close))
                     .volume(new BigDecimal(volume))
                     .symbol(SymbolDTO.builder().symbol(symbol).build())
-                    .timeframe(interval)
+                    .timeframe(normalizedInterval)
                     .build());
         }
         return candles;
@@ -88,7 +89,8 @@ public class BinanceService {
                                                        LocalDateTime startDate, LocalDateTime endDate) {
         List<CandleDTO> allCandles = new ArrayList<>();
 
-        java.time.Duration tfDuration = finance.project.api.utils.DurationUtils.parseTimeframe(interval);
+        String normalizedInterval = normalizeInterval(interval);
+        java.time.Duration tfDuration = finance.project.api.utils.DurationUtils.parseTimeframe(normalizedInterval);
 
         LocalDateTime currentStart = startDate;
 
@@ -100,7 +102,7 @@ public class BinanceService {
 
             String url = UriComponentsBuilder.fromHttpUrl(binanceApiUrl + "/klines")
                     .queryParam("symbol", symbol)
-                    .queryParam("interval", interval)
+                    .queryParam("interval", normalizedInterval)
                     .queryParam("startTime", currentStart.toInstant(ZoneOffset.UTC).toEpochMilli())
                     .queryParam("endTime", currentEnd.toInstant(ZoneOffset.UTC).toEpochMilli())
                     .queryParam("limit", 1000)
@@ -134,7 +136,7 @@ public class BinanceService {
                         .close(new BigDecimal(close))
                         .volume(new BigDecimal(volume))
                         .symbol(SymbolDTO.builder().symbol(symbol).build())
-                        .timeframe(interval)
+                        .timeframe(normalizedInterval)
                         .build());
             }
 
@@ -148,5 +150,12 @@ public class BinanceService {
         }
 
         return allCandles;
+    }
+
+    private String normalizeInterval(String interval) {
+        if (interval == null) {
+            return null;
+        }
+        return interval.trim().toLowerCase();
     }
 }
