@@ -115,11 +115,23 @@ public class DeltaLakeCandleReader {
 
     private String buildDeltaPath(TradeCompleted trade) {
         String market = resolveMarket(trade.getAssetClass());
-        String broker = "UNKNOWN";
-        String exchange = "NASDAQ";
-        String currency = "USD";
-        String symbol = Optional.ofNullable(trade.getSymbol()).orElse("UNKNOWN");
-        return "%s/%s/%s/%s/%s/%s".formatted(deltaLakeConfig.getBaseUri(), market, broker, exchange, currency, symbol);
+        boolean isCrypto = isCryptoAsset(trade.getAssetClass());
+        String broker = defaultIfBlank(trade.getBroker(), "UNKNOWN");
+        String marketType = defaultIfBlank(trade.getMarketType(), "SPOT");
+        String exchangeFallback = isCrypto && !"UNKNOWN".equalsIgnoreCase(broker) ? broker : "UNKNOWN";
+        String exchange = defaultIfBlank(trade.getExchange(), exchangeFallback);
+        String currencyFallback = isCrypto ? "USDT" : "USD";
+        String currency = defaultIfBlank(trade.getCurrency(), currencyFallback);
+        String symbol = defaultIfBlank(trade.getSymbol(), "UNKNOWN");
+        return "%s/%s/%s/%s/%s/%s/%s".formatted(
+                deltaLakeConfig.getBaseUri(),
+                market,
+                broker,
+                marketType,
+                exchange,
+                currency,
+                symbol
+        );
     }
 
     private String resolveMarket(String assetClass) {
@@ -128,6 +140,18 @@ public class DeltaLakeCandleReader {
             return "STOCK";
         }
         return normalized.isBlank() ? "UNKNOWN" : normalized;
+    }
+
+    private boolean isCryptoAsset(String assetClass) {
+        String normalized = Optional.ofNullable(assetClass).orElse("").toUpperCase(Locale.ROOT);
+        return normalized.contains("CRYPTO");
+    }
+
+    private String defaultIfBlank(String value, String defaultValue) {
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        return value;
     }
 
     private BigDecimal asBigDecimal(Object value) {

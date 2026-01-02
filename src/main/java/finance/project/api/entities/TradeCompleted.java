@@ -29,6 +29,15 @@ public class TradeCompleted {
 
     private String assetClass;
 
+    private String broker;
+
+    private String exchange;
+
+    private String currency;
+
+    @Column(name = "market_type")
+    private String marketType;
+
     private double entryPrice;
     private double stopLoss;
     private double takeProfit;
