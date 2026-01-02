@@ -31,10 +31,29 @@ public class DeltaLakeConfig {
         String sanitizedCategory = sanitizeSegment(assetCategory);
         String sanitizedBroker = sanitizeSegment(broker);
         String sanitizedVenue = sanitizeSegment(venue);
+        String tradingSegment = resolveTradingSegment(assetCategory, venue);
         SymbolPathSegments segments = parseSymbolSegments(symbol);
 
-        return baseUri + "/" + sanitizedCategory + "/" + sanitizedBroker + "/" + sanitizedVenue + "/"
-                + segments.currency() + "/" + segments.baseSymbol() + "/";
+        if (isCryptoCategory(sanitizedCategory)) {
+            return baseUri + "/" + sanitizedCategory + "/" + sanitizedBroker + "/" + sanitizedVenue + "/"
+                    + segments.currency() + "/" + segments.baseSymbol() + "/";
+        }
+
+        return baseUri + "/" + sanitizedCategory + "/" + sanitizedBroker + "/" + tradingSegment + "/"
+                + sanitizedVenue + "/" + segments.currency() + "/" + segments.baseSymbol() + "/";
+    }
+
+    private String resolveTradingSegment(String assetCategory, String venue) {
+        String normalizedCategory = assetCategory == null ? "" : assetCategory.toUpperCase(Locale.ROOT);
+        String normalizedVenue = venue == null ? "" : venue.toUpperCase(Locale.ROOT);
+        if (normalizedCategory.contains("FUT") || normalizedVenue.contains("CME")) {
+            return "FUTURE";
+        }
+        return "SPOT";
+    }
+
+    private boolean isCryptoCategory(String category) {
+        return category != null && category.toUpperCase(Locale.ROOT).contains("CRYPTO");
     }
 
     private SymbolPathSegments parseSymbolSegments(String symbol) {
