@@ -116,6 +116,7 @@ public class DeltaLakeCandleReader {
     private String buildDeltaPath(TradeCompleted trade) {
         String market = resolveMarket(trade.getAssetClass());
         boolean isCrypto = isCryptoAsset(trade.getAssetClass());
+        boolean isForex = market.equals("FX");
         String broker = defaultIfBlank(trade.getBroker(), "UNKNOWN");
         String marketType = defaultIfBlank(trade.getMarketType(), "SPOT");
         String exchangeFallback = isCrypto && !"UNKNOWN".equalsIgnoreCase(broker) ? broker : "UNKNOWN";
@@ -123,7 +124,7 @@ public class DeltaLakeCandleReader {
         String currencyFallback = isCrypto ? "USDT" : "USD";
         String currency = defaultIfBlank(trade.getCurrency(), currencyFallback);
         String symbol = defaultIfBlank(trade.getSymbol(), "UNKNOWN");
-        return isCrypto ? "%s/%s/%s/%s/%s/%s".formatted(
+        return isCrypto || isForex ? "%s/%s/%s/%s/%s/%s".formatted(
                 deltaLakeConfig.getBaseUri(),
                 market,
                 broker,
