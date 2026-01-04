@@ -7,10 +7,7 @@ import finance.project.api.services.BinanceService;
 import finance.project.api.services.IbkrFxService;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
+import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -65,20 +62,31 @@ public class HistoricalDataService {
     }
 
     private List<OhlcBar> fetchIbkrHistory(String symbol, String assetClass, Instant start, Instant end, String timeframe) {
-        String resolvedSymbol = symbol;
-        String currency = "USD";
-        if (symbol.contains(":")) {
-            String[] parts = symbol.split(":", 2);
-            resolvedSymbol = parts[0];
-            currency = parts[1];
-        }
-        String secType = mapAssetClass(assetClass);
         Contract contract = new Contract();
-        contract.symbol(resolvedSymbol);
-        contract.secType(secType);
-        contract.currency(currency);
-        contract.exchange("SMART");
+        if (assetClass.equals("FX") || assetClass.equals("FOREX")) {
+            // ===== FX SPOT =====
+            String base = symbol.substring(0, 3);
+            String quote = symbol.substring(3, 6);
 
+            contract.symbol(base);
+            contract.secType("CASH");
+            contract.currency(quote);
+            contract.exchange("IDEALPRO");// Pour la partie Fx only
+        }
+        else {
+            String resolvedSymbol = symbol;
+            String currency = "USD";
+            if (symbol.contains(":")) {
+                String[] parts = symbol.split(":", 2);
+                resolvedSymbol = parts[0];
+                currency = parts[1];
+            }
+            String secType = mapAssetClass(assetClass);
+            contract.symbol(resolvedSymbol);
+            contract.secType(secType);
+            contract.currency(currency);
+            contract.exchange("SMART");
+        }
         String barSize = toIbBarSize(timeframe);
         Duration diff = Duration.between(start, end);
         if (diff.isZero()) {
@@ -89,14 +97,22 @@ public class HistoricalDataService {
         }
         String durationStr = toIbDuration(diff);
         String endDateTime = IB_END_DATETIME.format(end);
+        List<IbkrBar> bars;
+        if (assetClass.equals("FX") || assetClass.equals("FOREX")) { // RTH False en Fx et MIDPOINT
+            bars = ibkrService.requestHistoricalData(contract, endDateTime, durationStr, barSize, "MIDPOINT", false, List.of(), Duration.ofSeconds(12));
+        } else {
+            bars = ibkrService.requestHistoricalData(contract, endDateTime, durationStr, barSize, "TRADES", true, List.of(), Duration.ofSeconds(12));
+        }
+        Instant startUtc = start;
+        Instant endUtc = end;
 
-        List<IbkrBar> bars = ibkrService.requestHistoricalData(contract, endDateTime, durationStr, barSize, "TRADES", true, List.of(), Duration.ofSeconds(12));
         List<OhlcBar> result = new ArrayList<>(bars.size());
         for (IbkrBar bar : bars) {
-            if (bar.time().isBefore(start) || bar.time().isAfter(end)) {
+            Instant barInstant = bar.time();
+            if (barInstant.isBefore(startUtc) || barInstant.isAfter(endUtc)) {
                 continue;
             }
-            result.add(new OhlcBar(bar.time(), bar.open(), bar.high(), bar.low(), bar.close(), bar.volume()));
+            result.add(new OhlcBar(barInstant, bar.open(), bar.high(), bar.low(), bar.close(), bar.volume()));
         }
         return result;
     }
@@ -139,8 +155,27 @@ public class HistoricalDataService {
             default -> "1 day";
         };
     }
-
     private String toIbDuration(Duration duration) {
+        long seconds = Math.max(60, Math.abs(duration.getSeconds()));
+
+        // On "couvre" la période : division CEIL (sinon tu tronques et tu perds des barres)
+        long days = (long) Math.ceil(seconds / 86_400.0);
+
+        // Pour les plages courtes, IB accepte aussi les secondes, mais ça devient vite inutile.
+        if (days <= 1) {
+            return seconds + " S";
+        }
+
+        // Jusqu'à 365 jours: on reste en "D" (évite les effets de bord de W/M)
+        if (days <= 365) {
+            return days + " D";
+        }
+
+        // Au-delà, tu peux passer en années (ou mois si tu veux, mais "Y" est stable)
+        long years = (long) Math.ceil(days / 365.0);
+        return years + " Y";
+    }
+    private String toIbDurationOld(Duration duration) {
         long seconds = Math.max(60, Math.abs(duration.getSeconds()));
         if (seconds <= 86_400) {
             return seconds + " S";
