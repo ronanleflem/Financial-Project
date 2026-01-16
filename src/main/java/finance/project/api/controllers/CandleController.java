@@ -10,6 +10,7 @@ import finance.project.api.model.CandleDTO;
 import finance.project.api.model.CandleFilterDTO;
 import finance.project.api.model.SymbolDTO;
 import finance.project.api.model.TradeCompletedDTO;
+import finance.project.api.repositories.SymbolRepository;
 import finance.project.api.services.*;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -64,6 +65,7 @@ public class CandleController {
     private final DeltaLakeCandleReader deltaLakeCandleReader;
 
     private final BinanceService binanceService;
+    private final SymbolRepository symbolRepository;
 
     /**
      * Service pour la gestion des symboles.
@@ -291,11 +293,12 @@ public class CandleController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Trade not found"));
         TradeCompletedDTO tradeDto = tradeCompletedMapper.toDto(trade);
         String tradeSymbol = trade.getSymbol();
+        Symbol tradeSymbolEntity = resolveTradeSymbolEntity(tradeSymbol, trade.getAssetClass());
 
         // A ajouter trade.getSymbol() au lieu de EURUSD en dur
         List<CandleDTO> candles = candleService.getCandlesForTrade(trade, tradeSymbol, timeframe, beforeCandles, afterCandles);
         if (candles.isEmpty()) {
-            candles = deltaLakeCandleReader.getCandlesForTrade(trade, timeframe, beforeCandles, afterCandles);
+            candles = deltaLakeCandleReader.getCandlesForTrade(trade, tradeSymbolEntity, timeframe, beforeCandles, afterCandles);
         }
         List<CandleDTO> candlesComparedSymbol = candleService.getCandlesForTrade(trade, comparedSymbol, timeframe, beforeCandles, afterCandles);
 
@@ -305,6 +308,18 @@ public class CandleController {
         response.put("trade", tradeDto);
 
         return response;
+    }
+
+    private Symbol resolveTradeSymbolEntity(String tradeSymbol, String assetClass) {
+        if (tradeSymbol == null || tradeSymbol.isBlank()) {
+            return null;
+        }
+        String normalized = tradeSymbol.trim();
+        boolean isEtf = assetClass != null && assetClass.trim().equalsIgnoreCase("ETF");
+        if (isEtf && normalized.matches("^[A-Z0-9]{12}$")) {
+            return symbolRepository.findByIsin(normalized.toUpperCase()).orElse(null);
+        }
+        return symbolRepository.findBySymbol(normalized).orElse(null);
     }
 
     @GetMapping("/binance/historical")

@@ -1,6 +1,7 @@
 package finance.project.api.services;
 
 import finance.project.api.config.DeltaLakeConfig;
+import finance.project.api.entities.Symbol;
 import finance.project.api.entities.TradeCompleted;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.model.SymbolDTO;
@@ -39,13 +40,21 @@ public class DeltaLakeCandleReader {
     }
 
     public List<CandleDTO> getCandlesForTrade(TradeCompleted trade, String timeframe, int beforeCandles, int afterCandles) {
+        return getCandlesForTrade(trade, null, timeframe, beforeCandles, afterCandles);
+    }
+
+    public List<CandleDTO> getCandlesForTrade(TradeCompleted trade,
+                                              Symbol symbol,
+                                              String timeframe,
+                                              int beforeCandles,
+                                              int afterCandles) {
         if (trade == null) {
             return List.of();
         }
         Duration tfDuration = DurationUtils.parseTimeframe(timeframe);
         LocalDateTime start = trade.getEntryTimestamp().minus(tfDuration.multipliedBy(beforeCandles));
         LocalDateTime end = trade.getExitTimestamp().plus(tfDuration.multipliedBy(afterCandles));
-        String tablePath = buildDeltaPath(trade);
+        String tablePath = buildDeltaPath(trade, symbol);
         return loadCandles(tablePath, trade.getSymbol(), timeframe, start, end);
     }
 
@@ -113,24 +122,28 @@ public class DeltaLakeCandleReader {
         return results;
     }
 
-    private String buildDeltaPath(TradeCompleted trade) {
+    private String buildDeltaPath(TradeCompleted trade, Symbol symbol) {
         String market = resolveMarket(trade.getAssetClass());
         boolean isCrypto = isCryptoAsset(trade.getAssetClass());
         boolean isForex = market.equals("FX");
+        boolean isEtf = isEtfAsset(trade.getAssetClass());
         String broker = defaultIfBlank(trade.getBroker(), "UNKNOWN");
         String marketType = defaultIfBlank(trade.getMarketType(), "SPOT");
         String exchangeFallback = isCrypto && !"UNKNOWN".equalsIgnoreCase(broker) ? broker : "UNKNOWN";
         String exchange = defaultIfBlank(trade.getExchange(), exchangeFallback);
+        if (isEtf && symbol != null && !defaultIfBlank(symbol.getExchange(), "").isBlank()) {
+            exchange = symbol.getExchange();
+        }
         String currencyFallback = isCrypto ? "USDT" : "USD";
         String currency = defaultIfBlank(trade.getCurrency(), currencyFallback);
-        String symbol = defaultIfBlank(trade.getSymbol(), "UNKNOWN");
+        String symbolCode = defaultIfBlank(trade.getSymbol(), "UNKNOWN");
         return isCrypto || isForex ? "%s/%s/%s/%s/%s/%s".formatted(
                 deltaLakeConfig.getBaseUri(),
                 market,
                 broker,
                 marketType,
                 currency,
-                symbol
+                symbolCode
         ) : "%s/%s/%s/%s/%s/%s/%s".formatted(
                 deltaLakeConfig.getBaseUri(),
                 market,
@@ -138,7 +151,7 @@ public class DeltaLakeCandleReader {
                 marketType,
                 exchange,
                 currency,
-                symbol
+                symbolCode
         );
     }
 
@@ -153,6 +166,11 @@ public class DeltaLakeCandleReader {
     private boolean isCryptoAsset(String assetClass) {
         String normalized = Optional.ofNullable(assetClass).orElse("").toUpperCase(Locale.ROOT);
         return normalized.contains("CRYPTO");
+    }
+
+    private boolean isEtfAsset(String assetClass) {
+        String normalized = Optional.ofNullable(assetClass).orElse("").toUpperCase(Locale.ROOT);
+        return normalized.equals("ETF");
     }
 
     private String defaultIfBlank(String value, String defaultValue) {

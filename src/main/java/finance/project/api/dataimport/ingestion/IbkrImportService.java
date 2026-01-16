@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 public class IbkrImportService {
@@ -61,6 +62,7 @@ public class IbkrImportService {
 
         try {
             String symbolCode = job.getSymbol();
+            boolean isEtf = job.getAssetClass() != null && job.getAssetClass().equalsIgnoreCase("ETF");
             log.info("[IBKR] Fetching candles for symbol={} timeframe={} range={} -> {}", symbolCode, job.getTimeframe(), start, end);
 
             String baseSymbol = symbolCode;
@@ -72,13 +74,20 @@ public class IbkrImportService {
                     currencyFromSymbol = parts[1];
                 }
             }
+            String normalizedBaseSymbol = baseSymbol != null ? baseSymbol.trim() : baseSymbol;
+            if (isIsin(normalizedBaseSymbol)) {
+                normalizedBaseSymbol = normalizedBaseSymbol.toUpperCase(Locale.ROOT);
+            }
 
             Optional<Symbol> symbolOpt = Optional.empty();
+            if (isEtf && isIsin(normalizedBaseSymbol)) {
+                symbolOpt = symbolRepository.findByIsin(normalizedBaseSymbol);
+            }
             if (currencyFromSymbol != null && !currencyFromSymbol.isBlank()) {
-                symbolOpt = symbolRepository.findBySymbolAndCurrency(baseSymbol, currencyFromSymbol);
+                symbolOpt = symbolRepository.findBySymbolAndCurrency(normalizedBaseSymbol, currencyFromSymbol);
             }
             if (symbolOpt.isEmpty()) {
-                symbolOpt = symbolRepository.findBySymbol(baseSymbol);
+                symbolOpt = symbolRepository.findBySymbol(normalizedBaseSymbol);
             }
             if (symbolOpt.isEmpty()) {
                 log.warn("[IBKR] Symbol {} not found in repository. Skipping import.", symbolCode);
@@ -93,6 +102,8 @@ public class IbkrImportService {
             }
 
             Symbol symbol = symbolOpt.get();
+            ResolvedInstrument resolved = fetchResult.resolvedInstrument();
+            updateSymbolFromResolved(symbol, resolved, isEtf, normalizedBaseSymbol);
             List<Candle> candles = new ArrayList<>(bars.size());
             for (OhlcBar bar : bars) {
                 LocalDateTime barTime = LocalDateTime.ofInstant(bar.time(), ZoneOffset.UTC);
@@ -115,7 +126,6 @@ public class IbkrImportService {
             candleRepository.saveAll(candles);
             log.info("[IBKR][SAVE][{}] saved={} (symbol={}, tf={})", runId, candles.size(), symbolCode, job.getTimeframe());
             log.info("[IBKR] Persisted {} candles for symbol={} timeframe={}", candles.size(), symbolCode, job.getTimeframe());
-            ResolvedInstrument resolved = fetchResult.resolvedInstrument();
             Map<String, String> metadata = buildMetadata(resolved);
             String deltaPath = deltaPathBuilder.buildPath(resolved, job.getBroker());
             log.info("[IBKR][DELTA][{}] exporting {} candles to path={} metadata={}",
@@ -301,6 +311,37 @@ public class IbkrImportService {
             return false;
         }
         return value.trim().toUpperCase(Locale.ROOT).matches("^[A-Z0-9]{12}$");
+    }
+
+    private void updateSymbolFromResolved(Symbol symbol,
+                                          ResolvedInstrument resolved,
+                                          boolean isEtf,
+                                          String requestedSymbol) {
+        if (symbol == null || resolved == null) {
+            return;
+        }
+        boolean updated = false;
+        if (isEtf && isIsin(requestedSymbol)) {
+            String normalizedIsin = requestedSymbol.trim().toUpperCase(Locale.ROOT);
+            if (!StringUtils.hasText(symbol.getIsin())) {
+                symbol.setIsin(normalizedIsin);
+                updated = true;
+            }
+            String resolvedSymbol = resolved.symbol();
+            if (StringUtils.hasText(resolvedSymbol)
+                    && (isIsin(symbol.getSymbol()) || symbol.getSymbol().equalsIgnoreCase(normalizedIsin))
+                    && !resolvedSymbol.equals(symbol.getSymbol())) {
+                symbol.setSymbol(resolvedSymbol);
+                updated = true;
+            }
+        }
+        if (!StringUtils.hasText(symbol.getExchange()) && StringUtils.hasText(resolved.normalizedExchange())) {
+            symbol.setExchange(resolved.normalizedExchange());
+            updated = true;
+        }
+        if (updated) {
+            symbolRepository.save(symbol);
+        }
     }
 
     private String mapAssetClass(String assetClass) {

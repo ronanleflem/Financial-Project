@@ -55,6 +55,10 @@ public class Symbol {
     @Column(length = 10)
     private String currency;
 
+    @Size(max = 12)
+    @Column(length = 12)
+    private String isin;
+
     @OneToMany(mappedBy = "symbol", cascade = CascadeType.ALL)
     private List<Candle> candles;
 
