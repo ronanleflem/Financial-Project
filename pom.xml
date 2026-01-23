@@ -30,7 +30,14 @@
 		<java.version>21</java.version>
 		<org.mapstruct.version>1.5.2.Final</org.mapstruct.version>
 		<javafx.version>23</javafx.version>
+		<guava.version>20.0</guava.version>
 	</properties>
+	<repositories>
+		<repository>
+			<id>dukascopy-public</id>
+			<url>https://www.dukascopy.com/client/jforexlib/publicrepo/</url>
+		</repository>
+	</repositories>
 	<dependencies>
 		<dependency>
 				<groupId>io.delta</groupId>
@@ -114,10 +121,38 @@
 		</dependency>
 		<!-- FIN DEPENDANCES DE JAR IBKR (lié aux commandes maven)-->
 
+		<!-- DEPENDANCE JFOREX (Dukascopy) -->
+		<dependency>
+			<groupId>com.dukascopy.api</groupId>
+			<artifactId>JForex-API</artifactId>
+			<version>2.13.99</version>
+			<classifier>sources</classifier>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.dukascopy.dds2</groupId>
+			<artifactId>DDS2-jClient-JForex</artifactId>
+			<version>3.6.51</version>
+			<exclusions>
+				<exclusion>
+					<groupId>org.slf4j</groupId>
+					<artifactId>slf4j-reload4j</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>ch.qos.reload4j</groupId>
+					<artifactId>reload4j</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
 		<dependency>
 			<groupId>com.google.protobuf</groupId>
 			<artifactId>protobuf-java</artifactId>
 			<version>4.29.3</version>
+		</dependency>
+		<dependency>
+			<groupId>com.google.guava</groupId>
+			<artifactId>guava</artifactId>
+			<version>${guava.version}</version>
 		</dependency>
 
 		<!--

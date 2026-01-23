@@ -17,6 +17,15 @@ ibkr:
   pacing-min-interval-millis: 1200
   pacing-violation-backoff-millis: 5000
   default-request-timeout-millis: 8000
+dukascopy:
+  jnlp-url: ${DUKASCOPY_JNLP_URL:http://platform.dukascopy.com/demo_3/jforex_3.jnlp}
+  #username: ${DUKASCOPY_USERNAME:Espe20}
+  #password: ${DUKASCOPY_PASSWORD:EwqMf7w8JJN7Lay)}
+  username: ${DUKASCOPY_USERNAME:DEMO2MpUmT}
+  password: ${DUKASCOPY_PASSWORD:MpUmT}
+  connect-timeout-millis: 15000
+  history-timeout-millis: 30000
+  offer-side: BID
 
 external:
   coingecko:

@@ -11,6 +11,7 @@ import finance.project.api.dataimport.ingestion.BinanceHistoricalService;
 import finance.project.api.dataimport.ingestion.BybitHistoricalService;
 import finance.project.api.dataimport.ingestion.CsvImportService;
 import finance.project.api.dataimport.ingestion.DatabentoCsvImportService;
+import finance.project.api.dataimport.ingestion.DukascopyHistoricalService;
 import finance.project.api.dataimport.ingestion.IbkrImportService;
 import finance.project.api.dataimport.ingestion.MexcHistoricalService;
 import finance.project.api.dataimport.ingestion.OkxHistoricalService;
@@ -49,6 +50,9 @@ class DataImportJobRunnerTest {
 
     @Mock
     private CsvImportService csvImportService;
+
+    @Mock
+    private DukascopyHistoricalService dukascopyHistoricalService;
 
     @InjectMocks
     private DataImportJobRunner runner;

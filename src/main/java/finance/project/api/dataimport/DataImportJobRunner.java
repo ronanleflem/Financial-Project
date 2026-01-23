@@ -29,6 +29,7 @@ public class DataImportJobRunner {
     private final DatabentoCsvImportService databentoCsvImportService;
     private final CsvImportService csvImportService;
     private final BitgetHistoricalService bitgetHistoricalService;
+    private final DukascopyHistoricalService dukascopyHistoricalService;
 
     public DataImportJobRunner(DataImportJobRepository jobRepository,
                                BinanceHistoricalService binanceHistoricalService,
@@ -38,7 +39,8 @@ public class DataImportJobRunner {
                                IbkrImportService ibkrImportService,
                                DatabentoCsvImportService databentoCsvImportService,
                                CsvImportService csvImportService,
-                               BitgetHistoricalService bitgetHistoricalService) {
+                               BitgetHistoricalService bitgetHistoricalService,
+                               DukascopyHistoricalService dukascopyHistoricalService) {
         this.jobRepository = jobRepository;
         this.binanceHistoricalService = binanceHistoricalService;
         this.okxHistoricalService = okxHistoricalService;
@@ -48,6 +50,7 @@ public class DataImportJobRunner {
         this.databentoCsvImportService = databentoCsvImportService;
         this.csvImportService = csvImportService;
         this.bitgetHistoricalService = bitgetHistoricalService;
+        this.dukascopyHistoricalService = dukascopyHistoricalService;
     }
 
     @Async("dataImportExecutor")
@@ -206,6 +209,7 @@ public class DataImportJobRunner {
             case "BYBIT" -> bybitHistoricalService.fetchAndSave(job, start, end);
             case "MEXC" -> mexcHistoricalService.fetchAndSave(job, start, end);
             case "BITGET" -> bitgetHistoricalService.fetchAndSave(job, start, end);
+            case "DUKASCOPY" -> dukascopyHistoricalService.fetchAndSave(job, start, end);
             case "IBKR" -> {
                 ibkrImportService.fetchAndSave(job, start, end);
                 yield true;

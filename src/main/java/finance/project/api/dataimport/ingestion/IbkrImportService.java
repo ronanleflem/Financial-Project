@@ -193,6 +193,10 @@ public class IbkrImportService {
             currency = parts[1];
         }
         String secType = mapAssetClass(assetClass);
+        boolean isFx = "CASH".equalsIgnoreCase(secType) || isFxPair(resolvedSymbol);
+        if (isFx) {
+            secType = "CASH";
+        }
         boolean isEtf = assetClass != null && assetClass.equalsIgnoreCase("ETF");
 
         ResolvedInstrument resolvedInstrument = null;
@@ -203,21 +207,38 @@ public class IbkrImportService {
                         symbolEntity != null ? symbolEntity.getCurrency() : currency,
                         Duration.ofSeconds(15));
             } else {
-                resolvedInstrument = ibkrService.resolveContractMetadata(resolvedSymbol,
-                        secType,
-                        symbolEntity != null ? symbolEntity.getExchange() : null,
-                        symbolEntity != null ? symbolEntity.getCurrency() : currency,
-                        Duration.ofSeconds(15));
+                if (isFx) {
+                    String[] fx = splitFxPair(resolvedSymbol);
+                    resolvedInstrument = ibkrService.resolveContractMetadata(fx[0],
+                            "CASH",
+                            "IDEALPRO",
+                            fx[1],
+                            Duration.ofSeconds(15));
+                } else {
+                    resolvedInstrument = ibkrService.resolveContractMetadata(resolvedSymbol,
+                            secType,
+                            symbolEntity != null ? symbolEntity.getExchange() : null,
+                            symbolEntity != null ? symbolEntity.getCurrency() : currency,
+                            Duration.ofSeconds(15));
+                }
             }
         } catch (IbkrRequestException ex) {
             log.warn("[IBKR] Unable to resolve contract metadata for {}: {}. Using fallback contract.", symbol, ex.getMessage());
         }
 
         Contract contract = new Contract();
-        contract.symbol(resolvedInstrument != null ? resolvedInstrument.symbol() : resolvedSymbol);
-        contract.secType(resolvedInstrument != null ? resolvedInstrument.secType() : secType);
-        contract.currency(resolvedInstrument != null ? resolvedInstrument.currency() : currency);
-        contract.exchange("SMART");
+        if (isFx) {
+            String[] fx = splitFxPair(resolvedInstrument != null ? resolvedInstrument.symbol() : resolvedSymbol);
+            contract.symbol(fx[0]);
+            contract.secType("CASH");
+            contract.currency(resolvedInstrument != null ? resolvedInstrument.currency() : fx[1]);
+            contract.exchange("IDEALPRO");
+        } else {
+            contract.symbol(resolvedInstrument != null ? resolvedInstrument.symbol() : resolvedSymbol);
+            contract.secType(resolvedInstrument != null ? resolvedInstrument.secType() : secType);
+            contract.currency(resolvedInstrument != null ? resolvedInstrument.currency() : currency);
+            contract.exchange("SMART");
+        }
         if (resolvedInstrument != null) {
             contract.conid(resolvedInstrument.conid());
             contract.primaryExch(resolvedInstrument.ibPrimaryExch());
@@ -234,6 +255,9 @@ public class IbkrImportService {
         String durationStr = toIbDuration(diff);
         String endDateTime = IB_END_DATETIME.format(end);
 
+        String whatToShow = isFx ? "MIDPOINT" : "TRADES";
+        boolean useRth = !isFx;
+
         log.info("[IBKR][HIST][{}] symbol={} secType={} tf={} start={} end={} diff={} endDateTime='{}' durationStr='{}' barSize='{}' whatToShow={} useRth={}",
                 runId,
                 symbol,
@@ -242,7 +266,7 @@ public class IbkrImportService {
                 start, end,
                 diff,
                 endDateTime, durationStr, barSize,
-                "TRADES", true);
+                whatToShow, useRth);
         log.info("[IBKR][HIST][{}] contract conid={} symbol={} localSymbol={} secType={} currency={} exchange={} primaryExch={} tradingClass={}",
                 runId,
                 contract.conid(),
@@ -254,7 +278,7 @@ public class IbkrImportService {
                 contract.primaryExch(),
                 contract.tradingClass());
 
-        List<IbkrBar> bars = ibkrService.requestHistoricalData(contract, endDateTime, durationStr, barSize, "TRADES", true, List.of(), Duration.ofSeconds(12));
+        List<IbkrBar> bars = ibkrService.requestHistoricalData(contract, endDateTime, durationStr, barSize, whatToShow, useRth, List.of(), Duration.ofSeconds(12));
 
         var dates = bars.stream()
                 .map(b -> b.time().atZone(ZoneOffset.UTC).toLocalDate())
@@ -350,10 +374,27 @@ public class IbkrImportService {
         }
         String upper = assetClass.toUpperCase(Locale.ROOT);
         return switch (upper) {
+            case "FX", "FOREX" -> "CASH";
             case "ETF", "EQUITY", "STOCK", "STK" -> "STK";
             case "FUT", "FUTURE", "FUTURES" -> "FUT";
             default -> upper;
         };
+    }
+
+    private boolean isFxPair(String symbol) {
+        if (symbol == null) {
+            return false;
+        }
+        String normalized = symbol.replace("/", "").replace("-", "").trim().toUpperCase(Locale.ROOT);
+        return normalized.length() == 6 && normalized.chars().allMatch(Character::isLetter);
+    }
+
+    private String[] splitFxPair(String symbol) {
+        String normalized = symbol.replace("/", "").replace("-", "").trim().toUpperCase(Locale.ROOT);
+        if (normalized.length() != 6) {
+            return new String[]{normalized, "USD"};
+        }
+        return new String[]{normalized.substring(0, 3), normalized.substring(3, 6)};
     }
 
     private String toIbBarSize(String timeframe) {

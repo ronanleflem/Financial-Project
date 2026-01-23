@@ -274,7 +274,8 @@ public class DeltaLakeExporter {
             log.info("[Delta] Unable to classify asset because job is null for symbol={}, defaulting to STOCK", job.getSymbol());
             return "STOCK";
         }
-        if (job.getBroker() != null && job.getBroker().toUpperCase(Locale.ROOT).contains("CME")) {
+        String broker = Optional.ofNullable(job.getBroker()).orElse("").toUpperCase(Locale.ROOT);
+        if (broker.contains("CME")) {
             return "CME";
         }
 
@@ -295,7 +296,11 @@ public class DeltaLakeExporter {
             return "CME";
         }
 
-        if (job.getAssetClass().contains("STOCK") || job.getAssetClass().contains("STK")) {
+        String assetClass = Optional.ofNullable(job.getAssetClass()).orElse("").toUpperCase(Locale.ROOT);
+        if (assetClass.contains("FOREX") || assetClass.contains("FX")) {
+            return "FOREX";
+        }
+        if (assetClass.contains("STOCK") || assetClass.contains("STK")) {
             return "STOCK";
         }
 
