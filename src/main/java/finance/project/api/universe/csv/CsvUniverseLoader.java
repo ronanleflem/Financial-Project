@@ -90,6 +90,13 @@ public class CsvUniverseLoader {
                 UniverseType.ETF,
                 "universe_etf.csv"
         ));
+        defs.put("FOREX_MAJORS", new CsvUniverseDefinition(
+                "FOREX_MAJORS",
+                "Forex Majors (Dukascopy CSV)",
+                "FOREX_UNIVERSE_CSV",
+                UniverseType.FOREX,
+                "major_forex.csv"
+        ));
         DEFINITIONS = Map.copyOf(defs);
     }
 
