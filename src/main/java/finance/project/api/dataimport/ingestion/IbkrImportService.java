@@ -83,7 +83,7 @@ public class IbkrImportService {
             if (isEtf && isIsin(normalizedBaseSymbol)) {
                 symbolOpt = symbolRepository.findByIsin(normalizedBaseSymbol);
             }
-            if (currencyFromSymbol != null && !currencyFromSymbol.isBlank()) {
+            else if (currencyFromSymbol != null && !currencyFromSymbol.isBlank()) {
                 symbolOpt = symbolRepository.findBySymbolAndCurrency(normalizedBaseSymbol, currencyFromSymbol);
             }
             if (symbolOpt.isEmpty()) {
