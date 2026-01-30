@@ -11,8 +11,13 @@ import finance.project.api.entities.StressTestResult;
 import finance.project.api.repositories.StressTestResultRepository;
 import org.springframework.stereotype.Service;
 
+import finance.project.api.model.StressTestRunSummaryDTO;
+
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Service
 public class StressTestResultService {
@@ -34,6 +39,23 @@ public class StressTestResultService {
     public StressTestResult getById(Long id) {
         return stressTestResultRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("StressTestResult not found: " + id));
+    }
+
+    public List<StressTestRunSummaryDTO> listRunSummaries() {
+        List<StressTestResult> results = stressTestResultRepository.findAll();
+        if (results.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, List<StressTestResult>> byRun = results.stream()
+                .filter(result -> result.getRunId() != null)
+                .collect(Collectors.groupingBy(StressTestResult::getRunId));
+
+        return byRun.values().stream()
+                .map(this::buildRunSummary)
+                .sorted(Comparator.comparing(StressTestRunSummaryDTO::getCreatedAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
     }
 
     public ObjectNode buildSummary(String runId) {
@@ -67,6 +89,34 @@ public class StressTestResultService {
         response.set("scenarios", scenarios != null ? mapScenarios(scenarios) : NullNode.getInstance());
 
         return response;
+    }
+
+    private StressTestRunSummaryDTO buildRunSummary(List<StressTestResult> results) {
+        StressTestResult base = results.stream()
+                .filter(result -> result.getCreatedAt() != null)
+                .max(Comparator.comparing(StressTestResult::getCreatedAt))
+                .orElse(results.get(0));
+
+        List<String> modes = results.stream()
+                .map(StressTestResult::getMode)
+                .filter(Objects::nonNull)
+                .map(String::toLowerCase)
+                .distinct()
+                .toList();
+
+        boolean hasSummary = modes.contains(MODE_MONTE_CARLO) && modes.contains(MODE_SCENARIOS);
+
+        return StressTestRunSummaryDTO.builder()
+                .runId(base.getRunId())
+                .createdAt(base.getCreatedAt())
+                .strategyId(base.getStrategyId())
+                .symbol(base.getSymbol())
+                .assetClass(base.getAssetClass())
+                .timeframe(base.getTimeframe())
+                .status("COMPLETED")
+                .hasSummary(hasSummary)
+                .modes(modes)
+                .build();
     }
 
     private ObjectNode mapMonteCarlo(StressTestResult result) {

@@ -2,6 +2,7 @@ package finance.project.api.controllers;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import finance.project.api.entities.StressTestResult;
+import finance.project.api.model.StressTestRunSummaryDTO;
 import finance.project.api.services.StressTestResultService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -39,5 +40,14 @@ public class StressTestResultController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(summary);
+    }
+
+    @GetMapping("/runs")
+    public ResponseEntity<List<StressTestRunSummaryDTO>> listRuns() {
+        List<StressTestRunSummaryDTO> runs = stressTestResultService.listRunSummaries();
+        if (runs.isEmpty()) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(runs);
     }
 }
