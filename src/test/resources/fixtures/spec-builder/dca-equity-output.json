@@ -1,0 +1,43 @@
+{
+  "spec_type": "dca",
+  "data": {
+    "symbols": ["BTCUSD"],
+    "timeframe": "1d",
+    "start": "2022-01-01",
+    "end": "2025-01-01",
+    "frequency": "weekly",
+    "amount": 250
+  },
+  "strategy": {
+    "type": "dca_equity",
+    "grid": ["grid_conservative", "grid_balanced"],
+    "params": {
+      "drawdown_reference": "rolling_high",
+      "execution_mode": "limit",
+      "tp_sl": "tp_2_sl_1",
+      "require_crossing": true
+    }
+  },
+  "filters": [],
+  "filter_rules": [],
+  "filter_rules_config": {
+    "min_score": 0,
+    "min_score_pct": 0
+  },
+  "performance": {
+    "initial_capital": 10000,
+    "capital_per_unit": 500,
+    "max_capital_per_trade": 2000,
+    "stress_tests": {
+      "enabled": true,
+      "monte_carlo": {
+        "n_sims": 200,
+        "seed": 42,
+        "method": "monte_carlo"
+      },
+      "output": { "mode": "summary" },
+      "scenarios": []
+    }
+  }
+}
+

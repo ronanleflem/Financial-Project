@@ -1,0 +1,34 @@
+{
+  "specType": "dca",
+  "catalogVersion": "2026-02-02",
+  "runType": "dca",
+  "data": {
+    "symbol": "ETHUSD",
+    "timeframe": "4h",
+    "frequency": "weekly",
+    "amount": 200,
+    "startDate": "2021-01-01",
+    "endDate": "2023-01-01"
+  },
+  "strategy": {
+    "type": "crypto_grid",
+    "grid": ["grid_aggressive"],
+    "params": {
+      "tpSlPreset": "tp_3_sl_1.5"
+    }
+  },
+  "filters": {
+    "filters": [],
+    "rules": [],
+    "rulesConfig": {
+      "minScore": 0,
+      "minScorePct": 0
+    }
+  },
+  "performance": {
+    "initialCapital": 5000,
+    "capitalPerUnit": 250,
+    "maxCapitalPerTrade": 1500
+  }
+}
+

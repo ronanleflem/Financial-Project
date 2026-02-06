@@ -1,0 +1,30 @@
+{
+  "spec_type": "dca",
+  "data": {
+    "symbols": ["ETHUSD"],
+    "timeframe": "4h",
+    "start": "2021-01-01",
+    "end": "2023-01-01",
+    "frequency": "weekly",
+    "amount": 200
+  },
+  "strategy": {
+    "type": "crypto_grid",
+    "grid": ["grid_aggressive"],
+    "params": {
+      "tp_sl": "tp_3_sl_1.5"
+    }
+  },
+  "filters": [],
+  "filter_rules": [],
+  "filter_rules_config": {
+    "min_score": 0,
+    "min_score_pct": 0
+  },
+  "performance": {
+    "initial_capital": 5000,
+    "capital_per_unit": 250,
+    "max_capital_per_trade": 1500
+  }
+}
+

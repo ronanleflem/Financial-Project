@@ -5,15 +5,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import finance.project.api.model.PythonSpec;
 import finance.project.api.model.run.BacktestDataBlock;
 import finance.project.api.model.run.DcaDataBlock;
+import finance.project.api.model.run.DcaEquityParams;
+import finance.project.api.model.run.DcaStrategyCore;
+import finance.project.api.model.run.DcaStrategyType;
 import finance.project.api.model.run.MarketStatsDataBlock;
 import finance.project.api.model.run.RunRequestInput;
 import finance.project.api.model.run.RunType;
 import finance.project.api.model.run.SeasonalityDataBlock;
 import finance.project.api.model.run.StressTestsDataBlock;
 import finance.project.api.spec.builders.BacktestSpecBuilder;
-import finance.project.api.spec.builders.DcaSpecBuilder;
 import finance.project.api.spec.builders.MarketStatsSpecBuilder;
 import finance.project.api.spec.builders.SeasonalitySpecBuilder;
+import finance.project.api.spec.builders.StrategyBacktestSpecBuilder;
 import finance.project.api.spec.builders.StressTestsSpecBuilder;
 import org.junit.jupiter.api.Test;
 
@@ -46,14 +49,18 @@ class SpecBuilderRegistrationTest {
 
     @Test
     void dcaBuilderBuildsSpec() {
-        DcaSpecBuilder builder = new DcaSpecBuilder();
+        StrategyBacktestSpecBuilder builder = new StrategyBacktestSpecBuilder();
         RunRequestInput input = new RunRequestInput(
                 "dca",
                 "2026-02-02",
                 null,
                 RunType.DCA,
                 new DcaDataBlock("BTCUSD", "1d", "weekly", 250, "2022-01-01", "2023-01-01"),
-                null,
+                new DcaStrategyCore(
+                        DcaStrategyType.DCA_EQUITY,
+                        java.util.List.of("grid_conservative"),
+                        new DcaEquityParams("rolling_high", "limit", "default", true)
+                ),
                 null,
                 null,
                 null,

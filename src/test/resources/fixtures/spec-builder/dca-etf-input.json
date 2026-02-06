@@ -1,0 +1,37 @@
+{
+  "specType": "dca",
+  "catalogVersion": "2026-02-02",
+  "runType": "dca",
+  "data": {
+    "symbol": "SPY",
+    "timeframe": "1d",
+    "frequency": "monthly",
+    "amount": 500,
+    "startDate": "2018-01-01",
+    "endDate": "2024-01-01"
+  },
+  "strategy": {
+    "type": "dca_etf",
+    "grid": ["grid_balanced"],
+    "params": {
+      "activationLimit": 0.1,
+      "resetOnNewHigh": true,
+      "rearmOnReboundPct": 2.5,
+      "forceCloseEnd": false
+    }
+  },
+  "filters": {
+    "filters": [],
+    "rules": [],
+    "rulesConfig": {
+      "minScore": 0,
+      "minScorePct": 0
+    }
+  },
+  "performance": {
+    "initialCapital": 25000,
+    "capitalPerUnit": 1000,
+    "maxCapitalPerTrade": 3000
+  }
+}
+

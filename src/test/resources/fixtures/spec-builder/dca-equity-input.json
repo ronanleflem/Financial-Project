@@ -1,0 +1,46 @@
+{
+  "specType": "dca",
+  "catalogVersion": "2026-02-02",
+  "runType": "dca",
+  "data": {
+    "symbol": "BTCUSD",
+    "timeframe": "1d",
+    "frequency": "weekly",
+    "amount": 250,
+    "startDate": "2022-01-01",
+    "endDate": "2025-01-01"
+  },
+  "strategy": {
+    "type": "dca_equity",
+    "grid": ["grid_conservative", "grid_balanced"],
+    "params": {
+      "drawdownReference": "rolling_high",
+      "executionMode": "limit",
+      "tpSlPreset": "tp_2_sl_1",
+      "requireCrossing": true
+    }
+  },
+  "filters": {
+    "filters": [],
+    "rules": [],
+    "rulesConfig": {
+      "minScore": 0,
+      "minScorePct": 0
+    }
+  },
+  "performance": {
+    "initialCapital": 10000,
+    "capitalPerUnit": 500,
+    "maxCapitalPerTrade": 2000,
+    "stressTests": {
+      "enabled": true,
+      "nSims": 200,
+      "seed": 42,
+      "method": "monte_carlo",
+      "output": { "mode": "summary" },
+      "scenarios": [],
+      "multiAsset": null
+    }
+  }
+}
+

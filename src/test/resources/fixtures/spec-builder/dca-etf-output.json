@@ -1,0 +1,33 @@
+{
+  "spec_type": "dca",
+  "data": {
+    "symbols": ["SPY"],
+    "timeframe": "1d",
+    "start": "2018-01-01",
+    "end": "2024-01-01",
+    "frequency": "monthly",
+    "amount": 500
+  },
+  "strategy": {
+    "type": "dca_etf",
+    "grid": ["grid_balanced"],
+    "params": {
+      "activation_limit": 0.1,
+      "reset_on_new_high": true,
+      "rearm_on_rebound_pct": 2.5,
+      "force_close_end": false
+    }
+  },
+  "filters": [],
+  "filter_rules": [],
+  "filter_rules_config": {
+    "min_score": 0,
+    "min_score_pct": 0
+  },
+  "performance": {
+    "initial_capital": 25000,
+    "capital_per_unit": 1000,
+    "max_capital_per_trade": 3000
+  }
+}
+

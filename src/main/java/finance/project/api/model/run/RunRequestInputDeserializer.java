@@ -8,10 +8,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 public class RunRequestInputDeserializer extends StdDeserializer<RunRequestInput> {
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
+    private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {};
 
     public RunRequestInputDeserializer() {
         super(RunRequestInput.class);
@@ -86,9 +88,26 @@ public class RunRequestInputDeserializer extends StdDeserializer<RunRequestInput
         }
         return switch (runType) {
             case BACKTEST -> mapper.treeToValue(node, BacktestStrategyBlock.class);
-            case DCA -> mapper.treeToValue(node, DcaStrategyCore.class);
+            case DCA -> deserializeDcaStrategy(mapper, ctxt, node);
             case MARKET_STATS, SEASONALITY, STRESS_TESTS -> null;
         };
+    }
+
+    private static DcaStrategyCore deserializeDcaStrategy(ObjectMapper mapper, DeserializationContext ctxt, JsonNode node)
+            throws IOException {
+        DcaStrategyType type = treeToValue(mapper, ctxt, node.get("type"), DcaStrategyType.class);
+        List<String> grid = node.hasNonNull("grid") ? mapper.convertValue(node.get("grid"), STRING_LIST_TYPE) : null;
+
+        JsonNode paramsNode = node.get("params");
+        DcaParams params = null;
+        if (type != null && paramsNode != null && !paramsNode.isNull()) {
+            params = switch (type) {
+                case DCA_EQUITY -> mapper.treeToValue(paramsNode, DcaEquityParams.class);
+                case DCA_ETF -> mapper.treeToValue(paramsNode, DcaEtfParams.class);
+                case CRYPTO_GRID -> mapper.treeToValue(paramsNode, CryptoGridParams.class);
+            };
+        }
+        return new DcaStrategyCore(type, grid, params);
     }
 
     private static <T> T treeToValue(ObjectMapper mapper, DeserializationContext ctxt, JsonNode node, Class<T> type)
