@@ -1,0 +1,21 @@
+{
+  "specType": "market_stats",
+  "catalogVersion": "2026-02-02",
+  "runType": "market_stats",
+  "data": {
+    "symbol": "SPY",
+    "timeframe": "1d",
+    "lookback": 1500,
+    "statsPack": "Volatility",
+    "session": "Full",
+    "includeWeekends": false
+  },
+  "stats": {
+    "event": { "id": "k_consecutive", "params": { "window": 5 } },
+    "condition": { "id": "htf_trend", "params": { "ma_fast": 20, "ma_slow": 50 } },
+    "target": { "id": "continuation_n", "params": { "n": 3 } },
+    "validation": { "trainMonths": 12, "testMonths": 3, "folds": 3, "embargoDays": 5 },
+    "persistence": { "enabled": true, "specId": "spec-1", "datasetId": "dataset-1" },
+    "artifacts": { "outDir": "/tmp/stats" }
+  }
+}

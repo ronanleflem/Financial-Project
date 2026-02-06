@@ -1,0 +1,18 @@
+{
+  "specType": "backtest",
+  "catalogVersion": "2026-02-02",
+  "runType": "backtest",
+  "data": {
+    "symbol": "BTCUSDT",
+    "timeframe": "1h",
+    "startDate": "2023-01-01",
+    "endDate": "2023-02-01",
+    "strategyName": "EmaCross"
+  },
+  "signal": {
+    "type": "ema_cross",
+    "fast": 12,
+    "slow": 26,
+    "requireCrossing": true
+  }
+}

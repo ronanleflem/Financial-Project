@@ -1,0 +1,58 @@
+{
+  "specType": "seasonality",
+  "catalogVersion": "2026-02-02",
+  "runType": "seasonality",
+  "data": {
+    "symbol": "SPY",
+    "timeframe": "1d",
+    "window": "Monthly",
+    "startYear": 2008,
+    "endYear": 2024,
+    "filter": "All",
+    "normalize": true
+  },
+  "seasonality": {
+    "profile": {
+      "id": "by_hour",
+      "measure": "ret",
+      "retHorizon": 5,
+      "minSamplesBin": 30,
+      "params": { "tz": "UTC", "bin_size": 2 }
+    },
+    "signal": {
+      "method": "zscore",
+      "threshold": 1.2,
+      "topk": 3,
+      "dims": ["hour", "dow"],
+      "combine": "mean"
+    },
+    "compute": { "maxTrials": 50, "searchSpace": "default" },
+    "execution": { "riskModel": "fixed", "tpSl": "default" },
+    "validation": { "trainMonths": 12, "testMonths": 3, "folds": 3, "embargoDays": 5 },
+    "persistence": { "enabled": false, "specId": "", "datasetId": "" },
+    "artifacts": { "outDir": "/tmp/seasonality" }
+  },
+  "performance": {
+    "initialCapital": 10000,
+    "capitalPerUnit": 500,
+    "maxCapitalPerTrade": 2000,
+    "riskPct": 1.0,
+    "riskFreeRatePct": 2.0,
+    "stressTests": {
+      "enabled": true,
+      "nSims": 500,
+      "seed": 42,
+      "method": "monte_carlo",
+      "blockSize": 20,
+      "overlapping": true,
+      "timeDistribution": { "mode": "calendar", "seed": 1 },
+      "paramDrift": { "mode": "linear", "dist": "normal", "mu": 0, "sigma": 0.2 },
+      "sizing": { "dist": "normal", "mu": 1, "sigma": 0.1 },
+      "output": { "mode": "summary", "maxCurves": 10, "curveStride": 5 },
+      "scenarios": [
+        { "type": "crash", "shockPct": 20, "window": 30, "index": "SPX" }
+      ],
+      "multiAsset": { "aggregation": "weighted", "weights": [0.5, 0.3, 0.2], "timestampAlignment": "asof" }
+    }
+  }
+}

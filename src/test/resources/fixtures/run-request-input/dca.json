@@ -1,0 +1,59 @@
+{
+  "specType": "dca",
+  "catalogVersion": "2026-02-02",
+  "requestId": "req-dca-1",
+  "runType": "dca",
+  "data": {
+    "symbol": "BTCUSD",
+    "timeframe": "1d",
+    "frequency": "weekly",
+    "amount": 250,
+    "startDate": "2022-01-01",
+    "endDate": "2025-01-01"
+  },
+  "strategy": {
+    "type": "dca_equity",
+    "grid": ["grid_conservative", "grid_balanced"],
+    "params": {
+      "drawdownReference": "peak",
+      "executionMode": "close",
+      "tpSlPreset": "default",
+      "requireCrossing": true
+    }
+  },
+  "filters": {
+    "filters": [
+      { "id": "adx", "params": { "window": 14, "thresh": 20 } }
+    ],
+    "rules": [
+      { "id": "momentum_alignment", "mode": "soft", "weight": 0.6 }
+    ],
+    "rulesConfig": {
+      "minScore": 0.5,
+      "minScorePct": 60
+    }
+  },
+  "performance": {
+    "initialCapital": 10000,
+    "capitalPerUnit": 500,
+    "maxCapitalPerTrade": 2000,
+    "riskPct": 1.0,
+    "riskFreeRatePct": 2.0,
+    "stressTests": {
+      "enabled": false,
+      "nSims": 0,
+      "seed": 0,
+      "method": "monte_carlo",
+      "blockSize": 20,
+      "overlapping": false,
+      "timeDistribution": { "mode": "calendar", "seed": 1 },
+      "paramDrift": { "mode": "linear", "dist": "normal", "mu": 0, "sigma": 0.2 },
+      "sizing": { "dist": "normal", "mu": 1, "sigma": 0.1 },
+      "output": { "mode": "summary", "maxCurves": 10, "curveStride": 5 },
+      "scenarios": [
+        { "type": "crash", "shockPct": 20, "window": 30, "index": "SPX" }
+      ],
+      "multiAsset": { "aggregation": "weighted", "weights": [0.5, 0.3, 0.2], "timestampAlignment": "asof" }
+    }
+  }
+}

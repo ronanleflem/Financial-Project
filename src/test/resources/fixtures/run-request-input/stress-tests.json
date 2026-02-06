@@ -1,0 +1,32 @@
+{
+  "specType": "stress_tests",
+  "catalogVersion": "2026-02-02",
+  "runType": "stress_tests",
+  "data": {
+    "symbol": "SPY",
+    "timeframe": "1d"
+  },
+  "performance": {
+    "initialCapital": 10000,
+    "capitalPerUnit": 500,
+    "maxCapitalPerTrade": 2000,
+    "riskPct": 1.0,
+    "riskFreeRatePct": 2.0,
+    "stressTests": {
+      "enabled": true,
+      "nSims": 500,
+      "seed": 42,
+      "method": "monte_carlo",
+      "blockSize": 20,
+      "overlapping": true,
+      "timeDistribution": { "mode": "calendar", "seed": 1 },
+      "paramDrift": { "mode": "linear", "dist": "normal", "mu": 0, "sigma": 0.2 },
+      "sizing": { "dist": "normal", "mu": 1, "sigma": 0.1 },
+      "output": { "mode": "summary", "maxCurves": 10, "curveStride": 5 },
+      "scenarios": [
+        { "type": "crash", "shockPct": 20, "window": 30, "index": "SPX" }
+      ],
+      "multiAsset": { "aggregation": "weighted", "weights": [0.5, 0.3, 0.2], "timestampAlignment": "asof" }
+    }
+  }
+}
