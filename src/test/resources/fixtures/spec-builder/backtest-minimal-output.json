@@ -1,22 +1,20 @@
 {
-  "specType": "backtest",
-  "payload": {
-    "data": {
-      "symbols": ["BTCUSDT"],
-      "timeframe": "1h",
-      "start": "2023-01-01",
-      "end": "2023-02-01"
-    },
-    "signal": {
-      "type": "ema_cross",
-      "params": {
-        "fast": 12,
-        "slow": 26,
-        "require_crossing": true
-      }
-    },
-    "strategy": {
-      "strategy_id": "EmaCross"
+  "spec_type": "backtest",
+  "strategy": {
+    "strategy_id": "Breakout"
+  },
+  "data": {
+    "symbols": ["SPY"],
+    "timeframe": "1d",
+    "start": "2018-01-01",
+    "end": "2024-01-01"
+  },
+  "signal": {
+    "type": "ema_cross",
+    "params": {
+      "fast": 10,
+      "slow": 30,
+      "require_crossing": true
     }
   }
 }

@@ -1,7 +1,6 @@
 {
   "specType": "backtest",
   "catalogVersion": "2026-02-02",
-  "requestId": "req-9",
   "runType": "backtest",
   "data": {
     "symbol": "SPY",
@@ -29,16 +28,16 @@
       "jitter": {
         "enabled": false,
         "dist": "gaussian",
-        "tpBps": 5,
-        "slBps": 7,
+        "tpBps": 0,
+        "slBps": 0,
         "seed": 42
       }
     },
     "screening": {
       "enabled": true,
       "window": {
-        "startDate": "2022-01-01",
-        "endDate": "2023-01-01"
+        "startDate": "2020-01-01",
+        "endDate": "2022-01-01"
       },
       "maxBars": 1500,
       "maxTrades": 200,
@@ -53,12 +52,10 @@
   },
   "filters": {
     "filters": [
-      { "id": "adx", "params": { "window": 14, "thresh": 20 } },
-      { "id": "volatility", "params": { "window": 10 } }
+      { "id": "adx", "params": { "window": 14, "thresh": 20 } }
     ],
     "rules": [
-      { "id": "momentum_alignment", "mode": "soft", "weight": 0.6 },
-      { "id": "trend_stability", "mode": "hard", "weight": 0.4 }
+      { "id": "momentum_alignment", "mode": "soft", "weight": 0.6 }
     ],
     "rulesConfig": {
       "minScore": 0.5,
@@ -67,18 +64,16 @@
   },
   "performance": {
     "initialCapital": 10000,
-    "capitalPerUnit": 500,
-    "maxCapitalPerTrade": 2000,
     "riskPct": 1.0,
-    "riskFreeRatePct": 2.0
-  },
-  "output": {
-    "mode": "summary",
-    "maxRows": 500
-  },
-  "persistence": {
-    "enabled": true,
-    "specId": "spec-1",
-    "datasetId": "dataset-1"
+    "riskFreeRatePct": 2.0,
+    "stressTests": {
+      "enabled": true,
+      "nSims": 500,
+      "seed": 42,
+      "method": "monte_carlo",
+      "output": { "mode": "summary" },
+      "scenarios": [],
+      "multiAsset": null
+    }
   }
 }

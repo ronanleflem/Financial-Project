@@ -3,16 +3,19 @@
   "catalogVersion": "2026-02-02",
   "runType": "backtest",
   "data": {
-    "symbol": "BTCUSDT",
-    "timeframe": "1h",
-    "startDate": "2023-01-01",
-    "endDate": "2023-02-01",
-    "strategyName": "EmaCross"
+    "symbol": "SPY",
+    "timeframe": "1d",
+    "startDate": "2018-01-01",
+    "endDate": "2024-01-01",
+    "strategyName": "Breakout"
+  },
+  "strategy": {
+    "name": "Breakout"
   },
   "signal": {
     "type": "ema_cross",
-    "fast": 12,
-    "slow": 26,
+    "fast": 10,
+    "slow": 30,
     "requireCrossing": true
   }
 }

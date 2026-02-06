@@ -1,78 +1,77 @@
 {
-  "specType": "backtest",
-  "payload": {
-    "data": {
-      "symbols": ["SPY"],
-      "timeframe": "1d",
-      "start": "2018-01-01",
-      "end": "2024-01-01"
-    },
-    "signal": {
-      "type": "ema_cross",
-      "params": {
-        "fast": 10,
-        "slow": 30,
-        "require_crossing": true
-      }
-    },
-    "strategy": {
-      "strategy_id": "Breakout",
-      "tp_sl": {
-        "atr_window": 14,
-        "atr_k": 2.5,
-        "r_mult": 1.5,
-        "slippage_bps": 2,
-        "fee_bps": 1,
-        "sl_pct": 1.5,
-        "tp_pct": 3.0,
-        "trailing_stop": false,
-        "dynamic_sl": {
-          "enabled": true,
-          "mode": "atr_trailing",
-          "atr_mult": 1.2
-        },
+  "spec_type": "backtest",
+  "strategy": {
+    "strategy_id": "Breakout",
+    "tp_sl": {
+      "atr_window": 14,
+      "atr_k": 2.5,
+      "r_mult": 1.5,
+      "slippage_bps": 2,
+      "fee_bps": 1,
+      "sl_pct": 1.5,
+      "tp_pct": 3.0,
+      "trailing_stop": false,
+      "dynamic_sl": {
+        "enabled": true,
+        "mode": "atr_trailing",
+        "atr_mult": 1.2
+      },
+      "tpsl": {
         "jitter": {
           "enabled": false,
           "dist": "gaussian",
-          "tp_bps": 5,
-          "sl_bps": 7,
+          "tp_bps": 0,
+          "sl_bps": 0,
           "seed": 42
         }
       }
     },
-    "filters": [
-      { "type": "adx", "params": { "window": 14, "thresh": 20 } },
-      { "type": "volatility", "params": { "window": 10 } }
-    ],
-    "filter_rules": [
-      { "id": "momentum_alignment", "mode": "soft", "weight": 0.6 },
-      { "id": "trend_stability", "mode": "hard", "weight": 0.4 }
-    ],
-    "filter_rules_config": {
-      "min_score": 0.5,
-      "min_score_pct": 60
-    },
     "screening": {
       "enabled": true,
-      "window_start": "2022-01-01",
-      "window_end": "2023-01-01",
+      "window_start": "2020-01-01",
+      "window_end": "2022-01-01",
       "max_bars": 1500,
       "max_trades": 200,
       "max_seconds": 30
-    },
-    "performance": {
-      "initial_capital": 10000,
-      "risk_pct": 1.0,
-      "risk_free_rate_pct": 2.0
-    },
-    "output": {
-      "mode": "summary",
-      "maxRows": 500
-    },
-    "persistence": {
+    }
+  },
+  "data": {
+    "symbols": ["SPY"],
+    "timeframe": "1d",
+    "start": "2018-01-01",
+    "end": "2024-01-01"
+  },
+  "signal": {
+    "type": "ema_cross",
+    "params": {
+      "fast": 10,
+      "slow": 30,
+      "require_crossing": true
+    }
+  },
+  "filters": [
+    { "type": "adx", "params": { "window": 14, "thresh": 20 } }
+  ],
+  "filter_rules": [
+    { "id": "momentum_alignment", "mode": "soft", "weight": 0.6 }
+  ],
+  "filter_rules_config": {
+    "min_score": 0.5,
+    "min_score_pct": 60
+  },
+  "performance": {
+    "initial_capital": 10000.0,
+    "risk_pct": 1.0,
+    "risk_free_rate_pct": 2.0,
+    "stress_tests": {
       "enabled": true,
-      "spec_id": "spec-1",
-      "dataset_id": "dataset-1"
+      "monte_carlo": {
+        "n_sims": 500,
+        "seed": 42,
+        "method": "monte_carlo"
+      },
+      "output": { "mode": "summary" },
+      "scenarios": []
     }
   }
 }

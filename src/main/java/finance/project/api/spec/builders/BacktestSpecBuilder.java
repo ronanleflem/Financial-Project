@@ -12,10 +12,13 @@ import finance.project.api.model.run.BacktestTpSlBlock;
 import finance.project.api.model.run.FilterRuleSpec;
 import finance.project.api.model.run.FilterSpec;
 import finance.project.api.model.run.FiltersBlock;
+import finance.project.api.model.run.MonteCarloStressTests;
 import finance.project.api.model.run.PerformanceBlock;
 import finance.project.api.model.run.PersistenceSpec;
 import finance.project.api.model.run.RulesConfig;
 import finance.project.api.model.run.RunRequestInput;
+import finance.project.api.model.run.StressOutputSpec;
+import finance.project.api.model.run.StressScenarioSpec;
 import finance.project.api.spec.InvalidSpecTypeException;
 import finance.project.api.spec.PythonSpecBuilder;
 import java.util.ArrayList;
@@ -52,11 +55,6 @@ public class BacktestSpecBuilder implements PythonSpecBuilder {
             addIfNotEmpty(payload, "filters", buildFilters(filters.filters()));
             addIfNotEmpty(payload, "filter_rules", buildFilterRules(filters.rules()));
             addIfNotEmpty(payload, "filter_rules_config", buildRulesConfig(filters.rulesConfig()));
-        }
-
-        Map<String, Object> screening = buildScreening(strategyBlock);
-        if (!screening.isEmpty()) {
-            payload.put("screening", screening);
         }
 
         Map<String, Object> performance = buildPerformance(input.performance());
@@ -118,6 +116,10 @@ public class BacktestSpecBuilder implements PythonSpecBuilder {
             Map<String, Object> tpSlSpec = buildTpSl(tpSl);
             addIfNotEmpty(strategySpec, "tp_sl", tpSlSpec);
         }
+
+        Map<String, Object> screening = buildScreening(strategy);
+        addIfNotEmpty(strategySpec, "screening", screening);
+
         return strategySpec;
     }
 
@@ -136,7 +138,11 @@ public class BacktestSpecBuilder implements PythonSpecBuilder {
         addIfNotEmpty(tpSlSpec, "dynamic_sl", dynamicSl);
 
         Map<String, Object> jitter = buildJitter(tpSl.jitter());
-        addIfNotEmpty(tpSlSpec, "jitter", jitter);
+        if (!jitter.isEmpty()) {
+            Map<String, Object> tpslSpec = new LinkedHashMap<>();
+            tpslSpec.put("jitter", jitter);
+            tpSlSpec.put("tpsl", tpslSpec);
+        }
 
         return tpSlSpec;
     }
@@ -242,7 +248,67 @@ public class BacktestSpecBuilder implements PythonSpecBuilder {
         addIfNotNull(performanceSpec, "initial_capital", performance.initialCapital());
         addIfNotNull(performanceSpec, "risk_pct", performance.riskPct());
         addIfNotNull(performanceSpec, "risk_free_rate_pct", performance.riskFreeRatePct());
+
+        Map<String, Object> stressTests = buildStressTests(performance.stressTests());
+        addIfNotEmpty(performanceSpec, "stress_tests", stressTests);
+
         return performanceSpec;
+    }
+
+    private static Map<String, Object> buildStressTests(MonteCarloStressTests stressTests) {
+        if (stressTests == null) {
+            return Map.of();
+        }
+
+        Map<String, Object> stressTestsSpec = new LinkedHashMap<>();
+        addIfNotNull(stressTestsSpec, "enabled", stressTests.enabled());
+
+        Map<String, Object> monteCarlo = new LinkedHashMap<>();
+        addIfNotNull(monteCarlo, "n_sims", stressTests.nSims());
+        addIfNotNull(monteCarlo, "seed", stressTests.seed());
+        addIfNotNull(monteCarlo, "method", stressTests.method());
+        addIfNotEmpty(stressTestsSpec, "monte_carlo", monteCarlo);
+
+        Map<String, Object> output = buildStressOutput(stressTests.output());
+        addIfNotEmpty(stressTestsSpec, "output", output);
+
+        if (stressTests.scenarios() != null) {
+            stressTestsSpec.put("scenarios", buildStressScenarios(stressTests.scenarios()));
+        }
+
+        return stressTestsSpec;
+    }
+
+    private static Map<String, Object> buildStressOutput(StressOutputSpec output) {
+        if (output == null) {
+            return Map.of();
+        }
+        Map<String, Object> outputSpec = new LinkedHashMap<>();
+        addIfNotNull(outputSpec, "mode", output.mode());
+        addIfNotNull(outputSpec, "max_curves", output.maxCurves());
+        addIfNotNull(outputSpec, "curve_stride", output.curveStride());
+        return outputSpec;
+    }
+
+    private static List<Map<String, Object>> buildStressScenarios(List<StressScenarioSpec> scenarios) {
+        if (scenarios == null) {
+            return List.of();
+        }
+        List<Map<String, Object>> entries = new ArrayList<>();
+        for (StressScenarioSpec scenario : scenarios) {
+            if (scenario == null) {
+                continue;
+            }
+            Map<String, Object> entry = new LinkedHashMap<>();
+            addIfNotNull(entry, "type", scenario.type());
+            addIfNotNull(entry, "shock_pct", scenario.shockPct());
+            addIfNotNull(entry, "window", scenario.window());
+            addIfNotNull(entry, "index", scenario.index());
+            if (!entry.isEmpty()) {
+                entries.add(entry);
+            }
+        }
+        return entries;
     }
 
     private static Map<String, Object> buildPersistence(PersistenceSpec persistence) {

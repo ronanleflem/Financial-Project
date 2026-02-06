@@ -2,6 +2,7 @@ package finance.project.api.spec;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import finance.project.api.model.PythonSpec;
 import finance.project.api.model.run.RunRequestInput;
 import finance.project.api.spec.builders.BacktestSpecBuilder;
@@ -13,7 +14,8 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class BacktestSpecBuilderGoldenTest {
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .disable(DeserializationFeature.FAIL_ON_MISSING_EXTERNAL_TYPE_ID_PROPERTY);
 
     @Test
     void buildsMinimalBacktestSpec() throws Exception {
