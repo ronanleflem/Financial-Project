@@ -1,0 +1,19 @@
+{
+  "specType": "market_stats",
+  "catalogVersion": "2026-02-02",
+  "runType": "market_stats",
+  "data": {
+    "symbol": "SPY",
+    "timeframe": "1d",
+    "lookback": 1500,
+    "statsPack": "Volatility",
+    "session": "Full",
+    "includeWeekends": false
+  },
+  "stats": {
+    "event": { "id": "k_consecutive", "params": {} },
+    "condition": { "id": "htf_trend", "params": {} },
+    "target": { "id": "continuation_n", "params": {} }
+  }
+}
+

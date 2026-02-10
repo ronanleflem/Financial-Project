@@ -8,6 +8,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public record StressScenarioSpec(
         String type,
         Double shockPct,
+        Double volMultiplier,
+        Double drawdownPct,
         Integer window,
         String index
 ) {

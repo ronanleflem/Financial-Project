@@ -1,0 +1,32 @@
+{
+  "spec_type": "market_stats",
+  "data": {
+    "symbols": ["SPY"],
+    "timeframe": "1d",
+    "lookback": 1200,
+    "stats_pack": "Liquidity",
+    "session": "RTH",
+    "include_weekends": true
+  },
+  "stats": {
+    "event": {
+      "id": "gap_up",
+      "params": { "gap_pct": 1.5, "window": 3 }
+    },
+    "condition": {
+      "id": "session",
+      "params": { "session": "RTH" }
+    },
+    "target": {
+      "id": "retracement_probability",
+      "params": { "horizon": 5 }
+    },
+    "validation": {
+      "train_months": 12,
+      "test_months": 3,
+      "folds": 3,
+      "embargo_days": 5
+    }
+  }
+}
+

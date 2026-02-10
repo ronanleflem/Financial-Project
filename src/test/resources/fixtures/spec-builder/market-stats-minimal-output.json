@@ -1,0 +1,17 @@
+{
+  "spec_type": "market_stats",
+  "data": {
+    "symbols": ["SPY"],
+    "timeframe": "1d",
+    "lookback": 1500,
+    "stats_pack": "Volatility",
+    "session": "Full",
+    "include_weekends": false
+  },
+  "stats": {
+    "event": { "id": "k_consecutive", "params": {} },
+    "condition": { "id": "htf_trend", "params": {} },
+    "target": { "id": "continuation_n", "params": {} }
+  }
+}
+

@@ -6,7 +6,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import finance.project.api.config.RunValidationErrorHandler;
+import finance.project.api.observability.RunMetrics;
 import finance.project.api.services.PythonSpecService;
+import finance.project.api.services.RunRequestService;
+import finance.project.api.services.RunResultService;
+import finance.project.api.services.RunStatusService;
 import finance.project.api.spec.DefaultSpecBuilderFactory;
 import finance.project.api.spec.builders.BacktestSpecBuilder;
 import finance.project.api.validation.RunRequestValidator;
@@ -29,6 +33,18 @@ class RunControllerInvalidSpecTypeTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private RunRequestService runRequestService;
+
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private RunStatusService runStatusService;
+
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private RunResultService runResultService;
+
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private RunMetrics runMetrics;
 
     @Test
     void returnsInvalidSpecTypeError() throws Exception {

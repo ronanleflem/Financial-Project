@@ -1,0 +1,35 @@
+{
+  "spec_type": "seasonality",
+  "data": {
+    "symbols": ["SPY"],
+    "timeframe": "1d",
+    "window": "Monthly",
+    "start_year": 2010,
+    "end_year": 2024,
+    "filter": "All",
+    "normalize": true
+  },
+  "profile": {
+    "id": "by_month",
+    "measure": "ret",
+    "ret_horizon": 5,
+    "min_samples_bin": 30,
+    "params": {}
+  },
+  "signal": {
+    "method": "zscore",
+    "threshold": 1.0,
+    "topk": 3,
+    "dims": ["month"],
+    "combine": "mean"
+  },
+  "compute": {
+    "max_trials": 50,
+    "search_space": "default"
+  },
+  "execution": {
+    "risk_model": "fixed",
+    "tp_sl": "default"
+  }
+}
+

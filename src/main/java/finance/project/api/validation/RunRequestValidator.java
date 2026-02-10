@@ -9,15 +9,22 @@ import finance.project.api.model.run.MonteCarloStressTests;
 import finance.project.api.model.run.PerformanceBlock;
 import finance.project.api.model.run.RunRequestInput;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.springframework.stereotype.Component;
 
 @Component
 public class RunRequestValidator {
-    private static final Set<String> MONTE_CARLO_METHODS = Set.of("monte_carlo");
+    private static final Set<String> STRESS_TEST_METHODS = Set.of("monte_carlo", "block", "block_bootstrap");
+    private final RunLimitsProperties limits;
+
+    public RunRequestValidator(Optional<RunLimitsProperties> limits) {
+        this.limits = limits.orElse(new RunLimitsProperties());
+    }
 
     public List<ValidationErrorItem> validate(RunRequestInput input) {
         List<ValidationErrorItem> errors = new ArrayList<>();
@@ -52,6 +59,11 @@ public class RunRequestValidator {
             LocalDate end = LocalDate.parse(endDate);
             if (start.isAfter(end)) {
                 errors.add(new ValidationErrorItem(fieldPrefix, "must be before data.endDate"));
+                return;
+            }
+            long days = ChronoUnit.DAYS.between(start, end);
+            if (days > limits.getMaxDateRangeDays()) {
+                errors.add(new ValidationErrorItem("data.endDate", "range must be <= " + limits.getMaxDateRangeDays() + " days"));
             }
         } catch (DateTimeParseException ignored) {
             // Bean validation should cover format if required.
@@ -105,12 +117,20 @@ public class RunRequestValidator {
 
         if (stressTests.nSims() == null || stressTests.nSims() <= 0) {
             errors.add(new ValidationErrorItem("performance.stressTests.nSims", "must be > 0"));
+        } else if (stressTests.nSims() > limits.getMaxStressTestSims()) {
+            errors.add(new ValidationErrorItem("performance.stressTests.nSims", "must be <= " + limits.getMaxStressTestSims()));
         }
-        if (stressTests.method() == null || !MONTE_CARLO_METHODS.contains(stressTests.method())) {
-            errors.add(new ValidationErrorItem("performance.stressTests.method", "must be one of: monte_carlo"));
+        if (stressTests.method() == null || !STRESS_TEST_METHODS.contains(stressTests.method())) {
+            errors.add(new ValidationErrorItem("performance.stressTests.method", "must be one of: monte_carlo, block, block_bootstrap"));
         }
         if (stressTests.seed() == null || stressTests.seed() < 0) {
             errors.add(new ValidationErrorItem("performance.stressTests.seed", "must be >= 0"));
+        }
+
+        if ("block".equals(stressTests.method()) || "block_bootstrap".equals(stressTests.method())) {
+            if (stressTests.blockSize() == null || stressTests.blockSize() < 1) {
+                errors.add(new ValidationErrorItem("performance.stressTests.blockSize", "must be >= 1"));
+            }
         }
     }
 }

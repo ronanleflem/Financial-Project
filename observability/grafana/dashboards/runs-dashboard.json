@@ -1,0 +1,62 @@
+{
+  "title": "Runs (minimal)",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Runs created (rate)",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(runs_created_total[5m])) by (specType)",
+          "legendFormat": "{{specType}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Runs failed (rate)",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(runs_failed_total[5m])) by (reason)",
+          "legendFormat": "{{reason}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Dispatch failed (rate)",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(dispatch_failed_total[5m])",
+          "legendFormat": "dispatch_failed_total"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Endpoint latencies (p95)",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(runs_preview_latency_ms_bucket[5m])) by (le))",
+          "legendFormat": "preview_p95_ms"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(runs_dispatch_latency_ms_bucket[5m])) by (le))",
+          "legendFormat": "dispatch_p95_ms"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(runs_status_latency_ms_bucket[5m])) by (le))",
+          "legendFormat": "status_p95_ms"
+        }
+      ]
+    }
+  ]
+}
+

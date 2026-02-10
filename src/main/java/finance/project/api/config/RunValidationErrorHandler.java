@@ -1,9 +1,11 @@
 package finance.project.api.config;
 
 import finance.project.api.controllers.RunController;
+import finance.project.api.controllers.PreviewTimeoutException;
 import finance.project.api.model.ValidationErrorItem;
 import finance.project.api.model.ValidationErrorResponse;
 import finance.project.api.spec.InvalidSpecTypeException;
+import finance.project.api.services.RunRequestNotFoundException;
 import finance.project.api.validation.RunRequestValidationException;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +46,20 @@ public class RunValidationErrorHandler {
         ValidationErrorItem error = new ValidationErrorItem("specType", ex.getMessage());
         return ResponseEntity.badRequest()
                 .body(new ValidationErrorResponse("INVALID_SPEC_TYPE", List.of(error)));
+    }
+
+    @ExceptionHandler(RunRequestNotFoundException.class)
+    public ResponseEntity<ValidationErrorResponse> handleRunNotFound(RunRequestNotFoundException ex) {
+        ValidationErrorItem error = new ValidationErrorItem("requestId", "Unknown requestId");
+        return ResponseEntity.status(404)
+                .body(new ValidationErrorResponse("NOT_FOUND", List.of(error)));
+    }
+
+    @ExceptionHandler(PreviewTimeoutException.class)
+    public ResponseEntity<ValidationErrorResponse> handlePreviewTimeout(PreviewTimeoutException ex) {
+        ValidationErrorItem error = new ValidationErrorItem("preview", "timeout after " + ex.getTimeoutMillis() + "ms");
+        return ResponseEntity.status(504)
+                .body(new ValidationErrorResponse("TIMEOUT", List.of(error)));
     }
 
     private ValidationErrorItem toErrorItem(FieldError error) {

@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "nSims": 500,
+  "seed": 1,
+  "method": "block_bootstrap",
+  "blockSize": 20,
+  "overlapping": true,
+  "timeDistribution": { "mode": "calendar", "seed": 7 },
+  "paramDrift": { "mode": "linear", "dist": "normal", "mu": 0, "sigma": 0.2 },
+  "sizing": { "dist": "normal", "mu": 1, "sigma": 0.1 },
+  "output": { "mode": "summary", "maxCurves": 10, "curveStride": 5 },
+  "scenarios": [
+    { "type": "crash", "shockPct": 20, "window": 30, "index": "SPX" }
+  ],
+  "multiAsset": { "aggregation": "weighted", "weights": [0.5,0.3,0.2], "timestampAlignment": "asof" }
+}
+

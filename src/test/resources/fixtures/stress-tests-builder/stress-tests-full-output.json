@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "monte_carlo": {
+    "n_sims": 500,
+    "seed": 1,
+    "method": "block_bootstrap",
+    "block_size": 20,
+    "overlapping": true
+  },
+  "time_distribution": { "mode": "calendar", "seed": 7 },
+  "param_drift": { "mode": "linear", "dist": "normal", "mu": 0.0, "sigma": 0.2 },
+  "sizing": { "dist": "normal", "mu": 1.0, "sigma": 0.1 },
+  "output": { "mode": "summary", "max_curves": 10, "curve_stride": 5 },
+  "scenarios": [
+    { "type": "crash", "shock_pct": 20.0, "window": 30, "index": "SPX" }
+  ],
+  "multi_asset": { "aggregation": "weighted", "weights": [0.5,0.3,0.2], "timestamp_alignment": "asof" }
+}

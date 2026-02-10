@@ -1,0 +1,29 @@
+{
+  "specType": "seasonality",
+  "catalogVersion": "2026-02-02",
+  "runType": "seasonality",
+  "data": {
+    "symbol": "SPY",
+    "timeframe": "1d",
+    "window": "Monthly",
+    "startYear": 2010,
+    "endYear": 2024,
+    "filter": "All",
+    "normalize": true
+  },
+  "seasonality": {
+    "profile": {
+      "id": "by_month",
+      "measure": "ret",
+      "retHorizon": 5,
+      "minSamplesBin": 30,
+      "params": {}
+    },
+    "signal": {
+      "method": "zscore",
+      "dims": ["month"],
+      "combine": "mean"
+    }
+  }
+}
+

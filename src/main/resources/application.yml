@@ -6,6 +6,20 @@ app:
       hmacSecretEnv: LIVE_HMAC_SECRET
     sse:
       heartbeatMillis: 15000
+spring:
+  flyway:
+    enabled: false
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: financial-project
 delta:
   #base-uri: ${DELTA_BASE_URI:./delta-tables}
   base-uri: ${DELTA_BASE_URI:s3a://quant-delta-dev/delta}

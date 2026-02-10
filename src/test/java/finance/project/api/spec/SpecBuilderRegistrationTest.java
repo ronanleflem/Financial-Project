@@ -8,10 +8,16 @@ import finance.project.api.model.run.DcaDataBlock;
 import finance.project.api.model.run.DcaEquityParams;
 import finance.project.api.model.run.DcaStrategyCore;
 import finance.project.api.model.run.DcaStrategyType;
+import finance.project.api.model.run.MarketConditionSpec;
+import finance.project.api.model.run.MarketEventSpec;
 import finance.project.api.model.run.MarketStatsDataBlock;
+import finance.project.api.model.run.MarketTargetSpec;
 import finance.project.api.model.run.RunRequestInput;
 import finance.project.api.model.run.RunType;
+import finance.project.api.model.run.SeasonalityBlock;
 import finance.project.api.model.run.SeasonalityDataBlock;
+import finance.project.api.model.run.SeasonalityProfile;
+import finance.project.api.model.run.SeasonalitySignal;
 import finance.project.api.model.run.StressTestsDataBlock;
 import finance.project.api.spec.builders.BacktestSpecBuilder;
 import finance.project.api.spec.builders.MarketStatsSpecBuilder;
@@ -87,7 +93,14 @@ class SpecBuilderRegistrationTest {
                 new MarketStatsDataBlock("SPY", "1d", 1500, "Volatility", "Full", false),
                 null,
                 null,
-                null,
+                new finance.project.api.model.run.MarketStatsBlock(
+                        new MarketEventSpec("k_consecutive", java.util.Map.of()),
+                        new MarketConditionSpec("htf_trend", java.util.Map.of()),
+                        new MarketTargetSpec("continuation_n", java.util.Map.of()),
+                        null,
+                        null,
+                        null
+                ),
                 null,
                 null,
                 null,
@@ -113,7 +126,17 @@ class SpecBuilderRegistrationTest {
                 null,
                 null,
                 null,
-                null,
+                new SeasonalityBlock(
+                        new SeasonalityProfile("by_month", "ret", 5, 30, java.util.Map.of()),
+                        new SeasonalitySignal("zscore", null, null, java.util.List.of("month"), "mean"),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                ),
                 null,
                 null,
                 null,

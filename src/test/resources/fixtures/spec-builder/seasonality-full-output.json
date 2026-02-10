@@ -1,0 +1,43 @@
+{
+  "spec_type": "seasonality",
+  "data": {
+    "symbols": ["SPY"],
+    "timeframe": "1d",
+    "window": "Intraday",
+    "start_year": 2005,
+    "end_year": 2020,
+    "filter": "Bull",
+    "normalize": false
+  },
+  "profile": {
+    "id": "by_hour",
+    "measure": "ret",
+    "ret_horizon": 3,
+    "min_samples_bin": 50,
+    "params": { "tz": "UTC", "bin_size": 2 }
+  },
+  "signal": {
+    "method": "percentile",
+    "threshold": 0.8,
+    "topk": 5,
+    "dims": ["hour", "dow"],
+    "combine": "vote"
+  },
+  "compute": {
+    "max_trials": 80,
+    "search_space": "wide"
+  },
+  "execution": {
+    "risk_model": "dynamic",
+    "tp_sl": "tight"
+  },
+  "risk": {
+    "max_drawdown": 0.2,
+    "risk_per_trade": 0.01
+  },
+  "tp_sl": {
+    "tp_pct": 2.0,
+    "sl_pct": 1.0
+  }
+}
+

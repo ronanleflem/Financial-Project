@@ -1,0 +1,7 @@
+{
+  "enabled": true,
+  "nSims": 0,
+  "seed": 42,
+  "method": "monte_carlo"
+}
+

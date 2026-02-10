@@ -11,12 +11,9 @@ import finance.project.api.model.run.DcaStrategyType;
 import finance.project.api.model.run.FilterRuleSpec;
 import finance.project.api.model.run.FilterSpec;
 import finance.project.api.model.run.FiltersBlock;
-import finance.project.api.model.run.MonteCarloStressTests;
 import finance.project.api.model.run.PerformanceBlock;
 import finance.project.api.model.run.RulesConfig;
 import finance.project.api.model.run.RunRequestInput;
-import finance.project.api.model.run.StressOutputSpec;
-import finance.project.api.model.run.StressScenarioSpec;
 import finance.project.api.spec.InvalidSpecTypeException;
 import finance.project.api.spec.PythonSpecBuilder;
 import finance.project.api.validation.RunRequestValidationException;
@@ -28,6 +25,15 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class StrategyBacktestSpecBuilder implements PythonSpecBuilder {
+    private final StressTestsBuilder stressTestsBuilder;
+
+    public StrategyBacktestSpecBuilder() {
+        this(new StressTestsBuilder());
+    }
+
+    public StrategyBacktestSpecBuilder(StressTestsBuilder stressTestsBuilder) {
+        this.stressTestsBuilder = stressTestsBuilder;
+    }
 
     @Override
     public PythonSpec build(RunRequestInput input) {
@@ -166,7 +172,7 @@ public class StrategyBacktestSpecBuilder implements PythonSpecBuilder {
         return configSpec;
     }
 
-    private static Map<String, Object> buildPerformance(PerformanceBlock performance) {
+    private Map<String, Object> buildPerformance(PerformanceBlock performance) {
         if (performance == null) {
             return Map.of();
         }
@@ -176,64 +182,10 @@ public class StrategyBacktestSpecBuilder implements PythonSpecBuilder {
         addIfNotNull(performanceSpec, "capital_per_unit", normalizeNumber(performance.capitalPerUnit()));
         addIfNotNull(performanceSpec, "max_capital_per_trade", normalizeNumber(performance.maxCapitalPerTrade()));
 
-        Map<String, Object> stressTests = buildStressTests(performance.stressTests());
+        Map<String, Object> stressTests = stressTestsBuilder.build(performance.stressTests());
         addIfNotEmpty(performanceSpec, "stress_tests", stressTests);
 
         return performanceSpec;
-    }
-
-    private static Map<String, Object> buildStressTests(MonteCarloStressTests stressTests) {
-        if (stressTests == null || !Boolean.TRUE.equals(stressTests.enabled())) {
-            return Map.of();
-        }
-
-        Map<String, Object> stressTestsSpec = new LinkedHashMap<>();
-        stressTestsSpec.put("enabled", true);
-
-        Map<String, Object> monteCarlo = new LinkedHashMap<>();
-        addIfNotNull(monteCarlo, "n_sims", stressTests.nSims());
-        addIfNotNull(monteCarlo, "seed", stressTests.seed());
-        addIfNotNull(monteCarlo, "method", stressTests.method());
-        addIfNotEmpty(stressTestsSpec, "monte_carlo", monteCarlo);
-
-        Map<String, Object> output = buildStressOutput(stressTests.output());
-        addIfNotEmpty(stressTestsSpec, "output", output);
-
-        if (stressTests.scenarios() != null) {
-            stressTestsSpec.put("scenarios", buildStressScenarios(stressTests.scenarios()));
-        }
-
-        return stressTestsSpec;
-    }
-
-    private static Map<String, Object> buildStressOutput(StressOutputSpec output) {
-        if (output == null) {
-            return Map.of();
-        }
-        Map<String, Object> outputSpec = new LinkedHashMap<>();
-        addIfNotNull(outputSpec, "mode", output.mode());
-        return outputSpec;
-    }
-
-    private static List<Map<String, Object>> buildStressScenarios(List<StressScenarioSpec> scenarios) {
-        if (scenarios == null) {
-            return List.of();
-        }
-        List<Map<String, Object>> entries = new ArrayList<>();
-        for (StressScenarioSpec scenario : scenarios) {
-            if (scenario == null) {
-                continue;
-            }
-            Map<String, Object> entry = new LinkedHashMap<>();
-            addIfNotNull(entry, "type", scenario.type());
-            addIfNotNull(entry, "shock_pct", scenario.shockPct());
-            addIfNotNull(entry, "window", scenario.window());
-            addIfNotNull(entry, "index", scenario.index());
-            if (!entry.isEmpty()) {
-                entries.add(entry);
-            }
-        }
-        return entries;
     }
 
     private static void validate(DcaStrategyCore strategy) {
