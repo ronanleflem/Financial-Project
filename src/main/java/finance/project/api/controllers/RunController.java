@@ -10,6 +10,7 @@ import finance.project.api.services.RunResultService;
 import finance.project.api.services.RunStatusService;
 import finance.project.api.services.PythonCanonicalRunService;
 import finance.project.api.validation.RunRequestValidationException;
+import finance.project.api.validation.RunTechnicalValidationException;
 import finance.project.api.validation.RunRequestValidator;
 import finance.project.api.validation.RunLimitsProperties;
 import finance.project.api.services.PythonSpecService;
@@ -21,6 +22,7 @@ import jakarta.validation.ConstraintViolation;
 import java.util.Optional;
 import java.util.ArrayList;
 import java.util.List;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Set;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -42,6 +44,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api")
 public class RunController {
+    private static final int MAX_CANONICAL_PAYLOAD_BYTES = 1_000_000;
     private final RunRequestValidator runRequestValidator;
     private final PythonSpecService pythonSpecService;
     private final PythonCanonicalRunService pythonCanonicalRunService;
@@ -82,6 +85,7 @@ public class RunController {
     public ResponseEntity<?> submit(@RequestBody String rawPayload,
                                     @RequestHeader(value = "X-Correlation-Id", required = false) String correlationIdHeader) {
         if (isPythonCanonicalMode()) {
+            validateCanonicalTechnicalPayload(rawPayload);
             String correlationId = normalizeCorrelationId(correlationIdHeader);
             return pythonCanonicalRunService.submit(rawPayload, correlationId);
         }
@@ -248,7 +252,34 @@ public class RunController {
         try {
             return objectMapper.readValue(rawPayload, RunRequestInput.class);
         } catch (JsonProcessingException ex) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Malformed run payload", ex);
+            throw new RunTechnicalValidationException(List.of(
+                    new ValidationErrorItem("request", "malformed JSON payload")
+            ));
+        }
+    }
+
+    private void validateCanonicalTechnicalPayload(String rawPayload) {
+        if (rawPayload == null || rawPayload.trim().isEmpty()) {
+            throw new RunTechnicalValidationException(List.of(
+                    new ValidationErrorItem("request", "payload must not be empty")
+            ));
+        }
+        if (rawPayload.length() > MAX_CANONICAL_PAYLOAD_BYTES) {
+            throw new RunTechnicalValidationException(List.of(
+                    new ValidationErrorItem("request", "payload too large")
+            ));
+        }
+        try {
+            JsonNode node = objectMapper.readTree(rawPayload);
+            if (node == null || !node.isObject()) {
+                throw new RunTechnicalValidationException(List.of(
+                        new ValidationErrorItem("request", "payload must be a JSON object")
+                ));
+            }
+        } catch (JsonProcessingException ex) {
+            throw new RunTechnicalValidationException(List.of(
+                    new ValidationErrorItem("request", "malformed JSON payload")
+            ));
         }
     }
 

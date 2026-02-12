@@ -69,7 +69,7 @@ class PythonCanonicalRunServiceTest {
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
 
         String payload = "{\"specType\":\"backtest\"}";
-        String errorBody = "{\"errors\":[{\"field\":\"signal.fast\",\"code\":\"INVALID\",\"message\":\"must be >= 1\"}]}";
+        String errorBody = "{\"run_id\":\"run_py\",\"errors\":[{\"field\":\"signal.fast\",\"code\":\"INVALID\",\"message\":\"must be >= 1\"}]}";
         server.expect(once(), requestTo("http://python.local/runs"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withStatus(HttpStatus.UNPROCESSABLE_ENTITY)
@@ -81,6 +81,8 @@ class PythonCanonicalRunServiceTest {
 
         assertEquals(422, response.getStatusCode().value());
         JsonNode body = (JsonNode) response.getBody();
+        assertEquals("run_py", body.get("run_id").asText());
+        org.junit.jupiter.api.Assertions.assertNull(body.get("requestId"));
         assertEquals("signal.fast", body.get("errors").get(0).get("field").asText());
         assertEquals("INVALID", body.get("errors").get(0).get("code").asText());
         server.verify();

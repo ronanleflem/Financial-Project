@@ -7,6 +7,7 @@ import finance.project.api.model.ValidationErrorResponse;
 import finance.project.api.spec.InvalidSpecTypeException;
 import finance.project.api.services.RunRequestNotFoundException;
 import finance.project.api.validation.RunRequestValidationException;
+import finance.project.api.validation.RunTechnicalValidationException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,6 +40,11 @@ public class RunValidationErrorHandler {
     @ExceptionHandler(RunRequestValidationException.class)
     public ResponseEntity<ValidationErrorResponse> handleRunRequestErrors(RunRequestValidationException ex) {
         return ResponseEntity.badRequest().body(new ValidationErrorResponse(VALIDATION_ERROR, ex.getErrors()));
+    }
+
+    @ExceptionHandler(RunTechnicalValidationException.class)
+    public ResponseEntity<ValidationErrorResponse> handleRunTechnicalErrors(RunTechnicalValidationException ex) {
+        return ResponseEntity.badRequest().body(new ValidationErrorResponse("INVALID_REQUEST", ex.getErrors()));
     }
 
     @ExceptionHandler(InvalidSpecTypeException.class)

@@ -123,7 +123,7 @@ public class PythonCanonicalRunService {
                     .body(mapped);
         } catch (HttpStatusCodeException ex) {
             httpStatus = ex.getStatusCode().value();
-            Object errorBody = mapErrorBody(ex.getResponseBodyAsString(), mapRunIdField);
+            Object errorBody = parseJsonOrRaw(ex.getResponseBodyAsString());
             requestId = firstNonBlank(
                     requestId,
                     extractText(errorBody, "requestId"),
@@ -180,14 +180,6 @@ public class PythonCanonicalRunService {
             return objectMapper.createObjectNode();
         }
         return source;
-    }
-
-    private Object mapErrorBody(String body, boolean mapRunIdField) {
-        Object parsed = parseJsonOrRaw(body);
-        if (parsed instanceof ObjectNode node) {
-            return mapRunIdField(node, mapRunIdField);
-        }
-        return parsed;
     }
 
     private ObjectNode mapRunIdField(ObjectNode node, boolean mapRunIdField) {

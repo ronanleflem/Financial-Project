@@ -92,9 +92,19 @@ class RunControllerRunsPythonCanonicalTest {
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString());
 
+        String json = """
+                {
+                  "specType": "backtest",
+                  "catalogVersion": "2026-02-02",
+                  "runType": "backtest",
+                  "data": {"symbol":"SPY"},
+                  "signal": {"type":"ema_cross","fast":0,"slow":2,"requireCrossing":true}
+                }
+                """;
+
         mockMvc.perform(post("/api/runs")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"specType\":\"backtest\"}"))
+                        .content(json))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.errors[0].field", is("signal.fast")))
                 .andExpect(jsonPath("$.errors[0].code", is("INVALID")));
@@ -132,5 +142,29 @@ class RunControllerRunsPythonCanonicalTest {
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.argThat(value -> value != null && !value.isBlank())
         );
+    }
+
+    @Test
+    void returnsTechnicalErrorWhenPayloadIsMalformedJson() throws Exception {
+        mockMvc.perform(post("/api/runs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"specType\":"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code", is("INVALID_REQUEST")))
+                .andExpect(jsonPath("$.errors[0].field", is("request")));
+
+        org.mockito.Mockito.verifyNoInteractions(pythonCanonicalRunService);
+    }
+
+    @Test
+    void returnsTechnicalErrorWhenPayloadIsEmpty() throws Exception {
+        mockMvc.perform(post("/api/runs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(" "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code", is("INVALID_REQUEST")))
+                .andExpect(jsonPath("$.errors[0].field", is("request")));
+
+        org.mockito.Mockito.verifyNoInteractions(pythonCanonicalRunService);
     }
 }
