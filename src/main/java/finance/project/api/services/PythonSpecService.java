@@ -7,7 +7,11 @@ import finance.project.api.spec.SpecBuilderFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
-@Deprecated
+/**
+ * Legacy Java spec-building service.
+ * Target removal date: 2026-06-30.
+ */
+@Deprecated(forRemoval = true, since = "X-3")
 @Service
 @ConditionalOnProperty(name = "run.engine.mode", havingValue = "LEGACY")
 public class PythonSpecService {

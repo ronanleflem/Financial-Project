@@ -18,7 +18,11 @@ import java.util.Set;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-@Deprecated
+/**
+ * Legacy business validator. Canonical mode delegates business validation to Python.
+ * Target removal date: 2026-06-30.
+ */
+@Deprecated(forRemoval = true, since = "X-3")
 @Component
 @ConditionalOnProperty(name = "run.engine.mode", havingValue = "LEGACY")
 public class RunRequestValidator {

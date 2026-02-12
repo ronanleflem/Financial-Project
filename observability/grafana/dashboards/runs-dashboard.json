@@ -1,62 +1,86 @@
 {
-  "title": "Runs (minimal)",
+  "title": "Runs Canonical Operations",
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "10s",
   "panels": [
     {
       "type": "timeseries",
-      "title": "Runs created (rate)",
+      "title": "Canonical Traffic by Status Family (rps)",
       "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
       "targets": [
         {
-          "expr": "sum(rate(runs_created_total[5m])) by (specType)",
-          "legendFormat": "{{specType}}"
+          "expr": "sum(rate(runs_canonical_proxy_calls_total[5m])) by (statusFamily)",
+          "legendFormat": "{{statusFamily}}"
         }
       ]
     },
     {
       "type": "timeseries",
-      "title": "Runs failed (rate)",
+      "title": "Canonical Timeout Count (rps)",
       "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
       "targets": [
         {
-          "expr": "sum(rate(runs_failed_total[5m])) by (reason)",
-          "legendFormat": "{{reason}}"
+          "expr": "sum(rate(runs_canonical_proxy_timeouts_total[5m])) by (endpoint)",
+          "legendFormat": "{{endpoint}}"
         }
       ]
     },
     {
       "type": "timeseries",
-      "title": "Dispatch failed (rate)",
+      "title": "Latency p95 by Endpoint (ms)",
       "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
       "targets": [
         {
-          "expr": "rate(dispatch_failed_total[5m])",
-          "legendFormat": "dispatch_failed_total"
+          "expr": "histogram_quantile(0.95, sum(rate(runs_canonical_proxy_latency_ms_bucket[5m])) by (le, endpoint))",
+          "legendFormat": "{{endpoint}}"
         }
       ]
     },
     {
       "type": "timeseries",
-      "title": "Endpoint latencies (p95)",
+      "title": "Latency p99 by Endpoint (ms)",
       "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(runs_preview_latency_ms_bucket[5m])) by (le))",
-          "legendFormat": "preview_p95_ms"
-        },
+          "expr": "histogram_quantile(0.99, sum(rate(runs_canonical_proxy_latency_ms_bucket[5m])) by (le, endpoint))",
+          "legendFormat": "{{endpoint}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Submit Success Rate (%)",
+      "gridPos": { "x": 0, "y": 16, "w": 8, "h": 8 },
+      "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(runs_dispatch_latency_ms_bucket[5m])) by (le))",
-          "legendFormat": "dispatch_p95_ms"
-        },
+          "expr": "100 * (sum(rate(runs_canonical_proxy_outcomes_total{endpoint=\"POST /runs\", outcome=\"success\"}[10m])) / clamp_min(sum(rate(runs_canonical_proxy_outcomes_total{endpoint=\"POST /runs\"}[10m])), 0.001))",
+          "legendFormat": "submit_success_rate"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Cancel Success Rate (%)",
+      "gridPos": { "x": 8, "y": 16, "w": 8, "h": 8 },
+      "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(runs_status_latency_ms_bucket[5m])) by (le))",
-          "legendFormat": "status_p95_ms"
+          "expr": "100 * (sum(rate(runs_canonical_proxy_outcomes_total{endpoint=\"POST /runs/{id}/cancel\", outcome=\"success\"}[10m])) / clamp_min(sum(rate(runs_canonical_proxy_outcomes_total{endpoint=\"POST /runs/{id}/cancel\"}[10m])), 0.001))",
+          "legendFormat": "cancel_success_rate"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Result Success Rate (%)",
+      "gridPos": { "x": 16, "y": 16, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "100 * (sum(rate(runs_canonical_proxy_outcomes_total{endpoint=\"GET /runs/{id}/result\", outcome=\"success\"}[10m])) / clamp_min(sum(rate(runs_canonical_proxy_outcomes_total{endpoint=\"GET /runs/{id}/result\"}[10m])), 0.001))",
+          "legendFormat": "result_success_rate"
         }
       ]
     }
   ]
 }
-

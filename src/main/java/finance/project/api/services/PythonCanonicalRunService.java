@@ -146,6 +146,9 @@ public class PythonCanonicalRunService {
             boolean timeout = cause instanceof SocketTimeoutException || ex.getMessage().toLowerCase().contains("timed out");
             boolean connectIssue = cause instanceof ConnectException;
             httpStatus = timeout ? 504 : 502;
+            if (timeout) {
+                runMetrics.incrementCanonicalProxyTimeouts(endpoint);
+            }
             Map<String, Object> body = timeout
                     ? infraErrorBody("PYTHON_TIMEOUT", "Python upstream timeout", endpoint)
                     : infraErrorBody("PYTHON_UNAVAILABLE",
@@ -166,6 +169,7 @@ public class PythonCanonicalRunService {
             long latencyMs = (System.nanoTime() - startNs) / 1_000_000;
             runMetrics.recordCanonicalProxyLatencyMillis(endpoint, latencyMs);
             runMetrics.incrementCanonicalProxyCalls(endpoint, statusFamily(httpStatus));
+            runMetrics.incrementCanonicalProxyOutcome(endpoint, httpStatus);
             log.info(
                     "run_proxy requestId={} correlationId={} endpoint={} status={} latency_ms={} specType={}",
                     requestId,

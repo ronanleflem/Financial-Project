@@ -34,6 +34,9 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .orElse(null);
+        if (requestId == null) {
+            requestId = extractRequestIdFromRunsEndpoint(endpoint);
+        }
         if (requestId != null) {
             MDC.put("requestId", requestId);
         }
@@ -49,6 +52,13 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         try {
             filterChain.doFilter(request, response);
         } finally {
+            String responseCorrelationId = Optional.ofNullable(response.getHeader("X-Correlation-Id"))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .orElse(null);
+            if (responseCorrelationId != null) {
+                MDC.put("correlationId", responseCorrelationId);
+            }
             long latencyMs = (System.nanoTime() - startNs) / 1_000_000;
             MDC.put("status", String.valueOf(response.getStatus()));
             MDC.put("latency_ms", String.valueOf(latencyMs));
@@ -60,5 +70,23 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             MDC.remove("requestId");
             MDC.remove("endpoint");
         }
+    }
+
+    private static String extractRequestIdFromRunsEndpoint(String endpoint) {
+        if (endpoint == null || endpoint.isBlank()) {
+            return null;
+        }
+        String[] parts = endpoint.split("/");
+        if (parts.length < 4) {
+            return null;
+        }
+        if (!"api".equalsIgnoreCase(parts[1]) || !"runs".equalsIgnoreCase(parts[2])) {
+            return null;
+        }
+        String candidate = parts[3];
+        if (candidate.isBlank() || "specs".equalsIgnoreCase(candidate)) {
+            return null;
+        }
+        return candidate;
     }
 }

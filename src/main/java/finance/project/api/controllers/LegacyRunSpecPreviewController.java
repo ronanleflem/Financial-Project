@@ -25,7 +25,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Deprecated
+/**
+ * Legacy preview endpoint kept temporarily for migration support.
+ * Target removal date: 2026-06-30.
+ */
+@Deprecated(forRemoval = true, since = "X-3")
 @RestController
 @RequestMapping("/api")
 @ConditionalOnProperty(name = "run.engine.mode", havingValue = "LEGACY")

@@ -1,0 +1,52 @@
+groups:
+  - name: runs-canonical-alerts
+    rules:
+      - alert: RunsCanonicalHigh5xxRate
+        expr: |
+          (
+            sum(rate(runs_canonical_proxy_calls_total{statusFamily="5xx"}[5m]))
+            /
+            clamp_min(sum(rate(runs_canonical_proxy_calls_total[5m])), 0.001)
+          ) > 0.02
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Runs canonical 5xx rate is high"
+          description: "5xx ratio > 2% for 5m on canonical proxy."
+
+      - alert: RunsCanonicalLatencyP95High
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(runs_canonical_proxy_latency_ms_bucket[5m])) by (le, endpoint)
+          ) > 3000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Runs canonical p95 latency high"
+          description: "Endpoint {{ $labels.endpoint }} p95 latency > 3000ms for 10m."
+
+      - alert: RunsCanonicalTimeoutSpike
+        expr: sum(rate(runs_canonical_proxy_timeouts_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Runs canonical timeout spike"
+          description: "Timeout rate exceeds 0.05 req/s over 5m."
+
+      - alert: RunsSubmitSuccessRateDrop
+        expr: |
+          (
+            sum(rate(runs_canonical_proxy_outcomes_total{endpoint="POST /runs", outcome="success"}[10m]))
+            /
+            clamp_min(sum(rate(runs_canonical_proxy_outcomes_total{endpoint="POST /runs"}[10m])), 0.001)
+          ) < 0.95
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Runs submit success rate dropped"
+          description: "Submit success rate < 95% for 10m."

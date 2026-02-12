@@ -3,6 +3,7 @@ services:
     image: prom/prometheus:v2.51.2
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alerts-runs.yml:/etc/prometheus/alerts-runs.yml:ro
     ports:
       - "9090:9090"
 
@@ -19,4 +20,3 @@ services:
       - "3000:3000"
     depends_on:
       - prometheus
-

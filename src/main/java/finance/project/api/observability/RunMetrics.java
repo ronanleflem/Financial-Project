@@ -70,6 +70,7 @@ public class RunMetrics {
         Timer.builder("runs_canonical_proxy_latency_ms")
                 .tags(Tags.of("endpoint", safeTag(endpoint)))
                 .publishPercentileHistogram()
+                .publishPercentiles(0.95, 0.99)
                 .register(registry)
                 .record(Duration.ofMillis(latencyMillis));
     }
@@ -82,6 +83,29 @@ public class RunMetrics {
                 .tags(Tags.of(
                         "endpoint", safeTag(endpoint),
                         "statusFamily", safeTag(statusFamily)
+                ))
+                .register(registry)
+                .increment();
+    }
+
+    public void incrementCanonicalProxyTimeouts(String endpoint) {
+        if (registry == null) {
+            return;
+        }
+        Counter.builder("runs_canonical_proxy_timeouts_total")
+                .tags(Tags.of("endpoint", safeTag(endpoint)))
+                .register(registry)
+                .increment();
+    }
+
+    public void incrementCanonicalProxyOutcome(String endpoint, int httpStatus) {
+        if (registry == null) {
+            return;
+        }
+        Counter.builder("runs_canonical_proxy_outcomes_total")
+                .tags(Tags.of(
+                        "endpoint", safeTag(endpoint),
+                        "outcome", outcome(httpStatus)
                 ))
                 .register(registry)
                 .increment();
@@ -102,5 +126,12 @@ public class RunMetrics {
             return "unknown";
         }
         return value;
+    }
+
+    private static String outcome(int httpStatus) {
+        if (httpStatus >= 200 && httpStatus < 300) {
+            return "success";
+        }
+        return "error";
     }
 }

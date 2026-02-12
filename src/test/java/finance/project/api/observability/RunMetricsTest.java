@@ -21,10 +21,18 @@ class RunMetricsTest {
         metrics.incrementRunsCreated("backtest");
         metrics.incrementRunsFailed("dispatch");
         metrics.incrementDispatchFailed();
+        metrics.incrementCanonicalProxyCalls("POST /runs", "2xx");
+        metrics.incrementCanonicalProxyTimeouts("POST /runs");
+        metrics.incrementCanonicalProxyOutcome("POST /runs", 200);
+        metrics.incrementCanonicalProxyOutcome("POST /runs", 504);
+        metrics.recordCanonicalProxyLatencyMillis("POST /runs", 120);
 
         assertTrue(registry.find("runs_created_total").counter() != null);
         assertTrue(registry.find("runs_failed_total").counter() != null);
         assertTrue(registry.find("dispatch_failed_total").counter() != null);
+        assertTrue(registry.find("runs_canonical_proxy_calls_total").counter() != null);
+        assertTrue(registry.find("runs_canonical_proxy_timeouts_total").counter() != null);
+        assertTrue(registry.find("runs_canonical_proxy_outcomes_total").counter() != null);
+        assertTrue(registry.find("runs_canonical_proxy_latency_ms").timer() != null);
     }
 }
-
