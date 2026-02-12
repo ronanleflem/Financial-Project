@@ -21,9 +21,12 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+@Deprecated
 @Component
+@ConditionalOnProperty(name = "run.engine.mode", havingValue = "LEGACY")
 public class StrategyBacktestSpecBuilder implements PythonSpecBuilder {
     private final StressTestsBuilder stressTestsBuilder;
 

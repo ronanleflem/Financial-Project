@@ -1,6 +1,7 @@
 package finance.project.api.controllers;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -8,11 +9,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import finance.project.api.config.RunValidationErrorHandler;
 import finance.project.api.observability.RunMetrics;
 import finance.project.api.services.PythonSpecService;
-import finance.project.api.services.PythonCanonicalRunService;
-import finance.project.api.services.CanonicalRunAuditService;
-import finance.project.api.services.RunRequestService;
-import finance.project.api.services.RunResultService;
-import finance.project.api.services.RunStatusService;
 import finance.project.api.spec.DefaultSpecBuilderFactory;
 import finance.project.api.spec.builders.BacktestSpecBuilder;
 import finance.project.api.spec.builders.SeasonalitySpecBuilder;
@@ -31,7 +27,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-@WebMvcTest(RunController.class)
+@WebMvcTest(value = LegacyRunSpecPreviewController.class, properties = "run.engine.mode=LEGACY")
 @Import({
         RunRequestValidator.class,
         RunValidationErrorHandler.class,
@@ -46,21 +42,6 @@ class RunControllerPreviewTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    @org.springframework.boot.test.mock.mockito.MockBean
-    private RunRequestService runRequestService;
-
-    @org.springframework.boot.test.mock.mockito.MockBean
-    private PythonCanonicalRunService pythonCanonicalRunService;
-
-    @org.springframework.boot.test.mock.mockito.MockBean
-    private CanonicalRunAuditService canonicalRunAuditService;
-
-    @org.springframework.boot.test.mock.mockito.MockBean
-    private RunStatusService runStatusService;
-
-    @org.springframework.boot.test.mock.mockito.MockBean
-    private RunResultService runResultService;
 
     @org.springframework.boot.test.mock.mockito.MockBean
     private RunMetrics runMetrics;
@@ -86,11 +67,23 @@ class RunControllerPreviewTest {
         assertEquals(expected, actual);
     }
 
+    @Test
+    void previewLegacyAliasRunsSpecsPreviewIsSupported() throws Exception {
+        String body = readFixture("fixtures/spec-builder/backtest-full-input.json");
+
+        mockMvc.perform(post("/api/runs/specs/preview")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Deprecation", "true"));
+    }
+
     private JsonNode callPreview(String jsonBody) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/specs/preview")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonBody))
                 .andExpect(status().isOk())
+                .andExpect(header().string("Deprecation", "true"))
                 .andReturn();
         return MAPPER.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
     }

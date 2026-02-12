@@ -24,7 +24,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(RunController.class)
+@WebMvcTest(value = RunController.class, properties = "run.engine.mode=LEGACY")
 @Import({RunRequestValidator.class, RunValidationErrorHandler.class})
 class RunControllerRunsTest {
 
@@ -84,6 +84,8 @@ class RunControllerRunsTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.requestId", is("run_20260209_001")))
                 .andExpect(jsonPath("$.status", is("PENDING")));
+
+        org.mockito.Mockito.verifyNoInteractions(pythonCanonicalRunService);
     }
 
     @Test

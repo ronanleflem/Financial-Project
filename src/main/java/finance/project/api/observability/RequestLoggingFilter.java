@@ -38,6 +38,14 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             MDC.put("requestId", requestId);
         }
 
+        String correlationId = Optional.ofNullable(request.getHeader("X-Correlation-Id"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .orElse(null);
+        if (correlationId != null) {
+            MDC.put("correlationId", correlationId);
+        }
+
         try {
             filterChain.doFilter(request, response);
         } finally {
@@ -48,9 +56,9 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             MDC.remove("latency_ms");
             MDC.remove("status");
             MDC.remove("specType");
+            MDC.remove("correlationId");
             MDC.remove("requestId");
             MDC.remove("endpoint");
         }
     }
 }
-

@@ -63,6 +63,30 @@ public class RunMetrics {
         recordTimerMillis("runs_status_latency_ms", latencyMillis);
     }
 
+    public void recordCanonicalProxyLatencyMillis(String endpoint, long latencyMillis) {
+        if (registry == null) {
+            return;
+        }
+        Timer.builder("runs_canonical_proxy_latency_ms")
+                .tags(Tags.of("endpoint", safeTag(endpoint)))
+                .publishPercentileHistogram()
+                .register(registry)
+                .record(Duration.ofMillis(latencyMillis));
+    }
+
+    public void incrementCanonicalProxyCalls(String endpoint, String statusFamily) {
+        if (registry == null) {
+            return;
+        }
+        Counter.builder("runs_canonical_proxy_calls_total")
+                .tags(Tags.of(
+                        "endpoint", safeTag(endpoint),
+                        "statusFamily", safeTag(statusFamily)
+                ))
+                .register(registry)
+                .increment();
+    }
+
     private void recordTimerMillis(String name, long latencyMillis) {
         if (registry == null) {
             return;
@@ -80,4 +104,3 @@ public class RunMetrics {
         return value;
     }
 }
-

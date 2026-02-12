@@ -15,9 +15,12 @@ import finance.project.api.validation.RunRequestValidationException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+@Deprecated
 @Component
+@ConditionalOnProperty(name = "run.engine.mode", havingValue = "LEGACY")
 public class SeasonalitySpecBuilder implements PythonSpecBuilder {
     private static final int DEFAULT_SIGNAL_TOPK = 3;
     private static final double DEFAULT_SIGNAL_THRESHOLD = 1.0;

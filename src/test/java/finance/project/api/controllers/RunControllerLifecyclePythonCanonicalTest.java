@@ -78,6 +78,25 @@ class RunControllerLifecyclePythonCanonicalTest {
     }
 
     @Test
+    void generatesCorrelationIdForStatusWhenHeaderMissing() throws Exception {
+        ResponseEntity<?> statusResponse = ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of("requestId", "run_1", "status", "RUNNING"));
+        org.mockito.Mockito.doReturn(statusResponse).when(pythonCanonicalRunService).getStatus(
+                org.mockito.ArgumentMatchers.eq("run_1"),
+                org.mockito.ArgumentMatchers.anyString()
+        );
+
+        mockMvc.perform(get("/api/runs/run_1"))
+                .andExpect(status().isOk());
+
+        org.mockito.Mockito.verify(pythonCanonicalRunService).getStatus(
+                org.mockito.ArgumentMatchers.eq("run_1"),
+                org.mockito.ArgumentMatchers.argThat(value -> value != null && !value.isBlank())
+        );
+    }
+
+    @Test
     void resultTerminalAndNonTerminal() throws Exception {
         ResponseEntity<?> doneResponse = ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_JSON)

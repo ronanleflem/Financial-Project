@@ -4,11 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import finance.project.api.config.PythonDispatchProperties;
+import finance.project.api.observability.RunMetrics;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Map;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.web.client.RestTemplateBuilder;
@@ -31,12 +33,15 @@ public class PythonCanonicalRunService {
     private final RestTemplate restTemplate;
     private final PythonDispatchProperties props;
     private final ObjectMapper objectMapper;
+    private final RunMetrics runMetrics;
 
     public PythonCanonicalRunService(RestTemplateBuilder builder,
                                      PythonDispatchProperties props,
-                                     ObjectMapper objectMapper) {
+                                     ObjectMapper objectMapper,
+                                     RunMetrics runMetrics) {
         this.props = props;
         this.objectMapper = objectMapper;
+        this.runMetrics = runMetrics;
         this.restTemplate = builder
                 .setConnectTimeout(Duration.ofMillis(props.getConnectTimeoutMillis()))
                 .setReadTimeout(Duration.ofMillis(props.getReadTimeoutMillis()))
@@ -45,10 +50,12 @@ public class PythonCanonicalRunService {
 
     PythonCanonicalRunService(RestTemplate restTemplate,
                               PythonDispatchProperties props,
-                              ObjectMapper objectMapper) {
+                              ObjectMapper objectMapper,
+                              RunMetrics runMetrics) {
         this.restTemplate = restTemplate;
         this.props = props;
         this.objectMapper = objectMapper;
+        this.runMetrics = runMetrics;
     }
 
     public ResponseEntity<?> submit(String rawPayload, String correlationId) {
@@ -98,6 +105,7 @@ public class PythonCanonicalRunService {
                                         String correlationId,
                                         boolean mapRunIdField) {
         long startNs = System.nanoTime();
+        String normalizedCorrelationId = normalizeCorrelationId(correlationId);
         String specType = extractText(rawPayload, "specType");
         String requestId = extractRequestIdFromPath(upstreamPath);
         int httpStatus = 500;
@@ -105,7 +113,7 @@ public class PythonCanonicalRunService {
             URI uri = URI.create(trimTrailingSlash(props.getBaseUrl()) + upstreamPath);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.add(CORRELATION_HEADER, correlationId);
+            headers.add(CORRELATION_HEADER, normalizedCorrelationId);
             HttpEntity<String> entity = new HttpEntity<>(rawPayload, headers);
 
             ResponseEntity<String> pythonResponse = restTemplate.exchange(uri, method, entity, String.class);
@@ -118,7 +126,7 @@ public class PythonCanonicalRunService {
                     extractText(mapped, "run_id")
             );
             return ResponseEntity.status(pythonResponse.getStatusCode())
-                    .header(CORRELATION_HEADER, correlationId)
+                    .header(CORRELATION_HEADER, normalizedCorrelationId)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(mapped);
         } catch (HttpStatusCodeException ex) {
@@ -130,45 +138,52 @@ public class PythonCanonicalRunService {
                     extractText(errorBody, "run_id")
             );
             return ResponseEntity.status(ex.getStatusCode())
-                    .header(CORRELATION_HEADER, correlationId)
+                    .header(CORRELATION_HEADER, normalizedCorrelationId)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(errorBody);
         } catch (ResourceAccessException ex) {
             Throwable cause = rootCause(ex);
-            boolean timeout = cause instanceof SocketTimeoutException;
+            boolean timeout = cause instanceof SocketTimeoutException || ex.getMessage().toLowerCase().contains("timed out");
             boolean connectIssue = cause instanceof ConnectException;
             httpStatus = timeout ? 504 : 502;
             Map<String, Object> body = timeout
-                    ? Map.of("code", "PYTHON_TIMEOUT", "message", "Timeout while calling Python " + endpoint)
-                    : Map.of("code", "PYTHON_UNAVAILABLE",
-                    "message", connectIssue
-                            ? "Python service unavailable while calling " + endpoint
-                            : "Python upstream error while calling " + endpoint);
+                    ? infraErrorBody("PYTHON_TIMEOUT", "Python upstream timeout", endpoint)
+                    : infraErrorBody("PYTHON_UNAVAILABLE",
+                    connectIssue ? "Python upstream unavailable" : "Python upstream unavailable",
+                    endpoint);
             return ResponseEntity.status(httpStatus)
-                    .header(CORRELATION_HEADER, correlationId)
+                    .header(CORRELATION_HEADER, normalizedCorrelationId)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body);
         } catch (RestClientException ex) {
             httpStatus = 502;
-            Map<String, Object> body = Map.of(
-                    "code", "PYTHON_UPSTREAM_ERROR",
-                    "message", "Error while calling Python " + endpoint + ": " + safeMessage(ex)
-            );
+            Map<String, Object> body = infraErrorBody("PYTHON_UNAVAILABLE", "Python upstream unavailable", endpoint);
             return ResponseEntity.status(httpStatus)
-                    .header(CORRELATION_HEADER, correlationId)
+                    .header(CORRELATION_HEADER, normalizedCorrelationId)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body);
         } finally {
             long latencyMs = (System.nanoTime() - startNs) / 1_000_000;
+            runMetrics.recordCanonicalProxyLatencyMillis(endpoint, latencyMs);
+            runMetrics.incrementCanonicalProxyCalls(endpoint, statusFamily(httpStatus));
             log.info(
-                    "run_proxy requestId={} endpoint={} status={} latency_ms={} specType={}",
+                    "run_proxy requestId={} correlationId={} endpoint={} status={} latency_ms={} specType={}",
                     requestId,
+                    normalizedCorrelationId,
                     endpoint,
                     httpStatus,
                     latencyMs,
                     specType
             );
         }
+    }
+
+    private static Map<String, Object> infraErrorBody(String code, String message, String endpoint) {
+        return Map.of(
+                "code", code,
+                "message", message,
+                "endpoint", endpoint
+        );
     }
 
     private Object mapSuccessBody(String body, boolean mapRunIdField) {
@@ -246,9 +261,24 @@ public class PythonCanonicalRunService {
         return current;
     }
 
-    private static String safeMessage(Throwable throwable) {
-        String message = throwable.getMessage();
-        return message == null || message.isBlank() ? throwable.getClass().getSimpleName() : message;
+    private static String statusFamily(int httpStatus) {
+        if (httpStatus >= 500) {
+            return "5xx";
+        }
+        if (httpStatus >= 400) {
+            return "4xx";
+        }
+        if (httpStatus >= 200) {
+            return "2xx";
+        }
+        return "other";
+    }
+
+    private static String normalizeCorrelationId(String correlationId) {
+        if (correlationId == null || correlationId.trim().isEmpty()) {
+            return UUID.randomUUID().toString();
+        }
+        return correlationId.trim();
     }
 
     private static String normalizeRequestId(String requestId) {

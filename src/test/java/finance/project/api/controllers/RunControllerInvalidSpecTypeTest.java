@@ -8,11 +8,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import finance.project.api.config.RunValidationErrorHandler;
 import finance.project.api.observability.RunMetrics;
 import finance.project.api.services.PythonSpecService;
-import finance.project.api.services.PythonCanonicalRunService;
-import finance.project.api.services.CanonicalRunAuditService;
-import finance.project.api.services.RunRequestService;
-import finance.project.api.services.RunResultService;
-import finance.project.api.services.RunStatusService;
 import finance.project.api.spec.DefaultSpecBuilderFactory;
 import finance.project.api.spec.builders.BacktestSpecBuilder;
 import finance.project.api.validation.RunRequestValidator;
@@ -23,7 +18,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(RunController.class)
+@WebMvcTest(value = LegacyRunSpecPreviewController.class, properties = "run.engine.mode=LEGACY")
 @Import({
         RunRequestValidator.class,
         RunValidationErrorHandler.class,
@@ -35,21 +30,6 @@ class RunControllerInvalidSpecTypeTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    @org.springframework.boot.test.mock.mockito.MockBean
-    private RunRequestService runRequestService;
-
-    @org.springframework.boot.test.mock.mockito.MockBean
-    private PythonCanonicalRunService pythonCanonicalRunService;
-
-    @org.springframework.boot.test.mock.mockito.MockBean
-    private CanonicalRunAuditService canonicalRunAuditService;
-
-    @org.springframework.boot.test.mock.mockito.MockBean
-    private RunStatusService runStatusService;
-
-    @org.springframework.boot.test.mock.mockito.MockBean
-    private RunResultService runResultService;
 
     @org.springframework.boot.test.mock.mockito.MockBean
     private RunMetrics runMetrics;

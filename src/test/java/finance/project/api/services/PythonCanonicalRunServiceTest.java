@@ -3,6 +3,7 @@ package finance.project.api.services;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import finance.project.api.config.PythonDispatchProperties;
+import finance.project.api.observability.RunMetrics;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,14 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 class PythonCanonicalRunServiceTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final RunMetrics NOOP_METRICS = new RunMetrics(
+            java.util.Optional.empty(),
+            new finance.project.api.observability.RunAlertingService(
+                    new finance.project.api.observability.RunAlertingProperties(),
+                    (type, message) -> {
+                    }
+            )
+    );
 
     @Test
     void forwardsRawPayloadAndMapsSuccessContract() {
@@ -49,7 +58,7 @@ class PythonCanonicalRunServiceTest {
                         MediaType.APPLICATION_JSON
                 ));
 
-        PythonCanonicalRunService service = new PythonCanonicalRunService(restTemplate, props, MAPPER);
+        PythonCanonicalRunService service = new PythonCanonicalRunService(restTemplate, props, MAPPER, NOOP_METRICS);
         var response = service.submit(payload, "corr-1");
 
         assertEquals(200, response.getStatusCode().value());
@@ -76,7 +85,7 @@ class PythonCanonicalRunServiceTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(errorBody));
 
-        PythonCanonicalRunService service = new PythonCanonicalRunService(restTemplate, props, MAPPER);
+        PythonCanonicalRunService service = new PythonCanonicalRunService(restTemplate, props, MAPPER, NOOP_METRICS);
         var response = service.submit(payload, "corr-422");
 
         assertEquals(422, response.getStatusCode().value());
@@ -100,13 +109,15 @@ class PythonCanonicalRunServiceTest {
 
         PythonDispatchProperties props = new PythonDispatchProperties();
         props.setBaseUrl("http://python.local");
-        PythonCanonicalRunService service = new PythonCanonicalRunService(restTemplate, props, MAPPER);
+        PythonCanonicalRunService service = new PythonCanonicalRunService(restTemplate, props, MAPPER, NOOP_METRICS);
 
         var response = service.submit("{\"specType\":\"backtest\"}", "corr-timeout");
 
         assertEquals(504, response.getStatusCode().value());
         JsonNode body = MAPPER.valueToTree(response.getBody());
         assertEquals("PYTHON_TIMEOUT", body.get("code").asText());
+        assertEquals("Python upstream timeout", body.get("message").asText());
+        assertEquals("POST /runs", body.get("endpoint").asText());
     }
 
     @Test
@@ -121,13 +132,15 @@ class PythonCanonicalRunServiceTest {
 
         PythonDispatchProperties props = new PythonDispatchProperties();
         props.setBaseUrl("http://python.local");
-        PythonCanonicalRunService service = new PythonCanonicalRunService(restTemplate, props, MAPPER);
+        PythonCanonicalRunService service = new PythonCanonicalRunService(restTemplate, props, MAPPER, NOOP_METRICS);
 
         var response = service.submit("{\"specType\":\"backtest\"}", "corr-unavailable");
 
         assertEquals(502, response.getStatusCode().value());
         JsonNode body = MAPPER.valueToTree(response.getBody());
         assertEquals("PYTHON_UNAVAILABLE", body.get("code").asText());
+        assertEquals("Python upstream unavailable", body.get("message").asText());
+        assertEquals("POST /runs", body.get("endpoint").asText());
     }
 
     @Test
@@ -136,7 +149,7 @@ class PythonCanonicalRunServiceTest {
         props.setBaseUrl("http://python.local");
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
-        PythonCanonicalRunService service = new PythonCanonicalRunService(restTemplate, props, MAPPER);
+        PythonCanonicalRunService service = new PythonCanonicalRunService(restTemplate, props, MAPPER, NOOP_METRICS);
 
         server.expect(once(), requestTo("http://python.local/runs/run_1"))
                 .andExpect(method(HttpMethod.GET))
@@ -175,7 +188,7 @@ class PythonCanonicalRunServiceTest {
         props.setBaseUrl("http://python.local");
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
-        PythonCanonicalRunService service = new PythonCanonicalRunService(restTemplate, props, MAPPER);
+        PythonCanonicalRunService service = new PythonCanonicalRunService(restTemplate, props, MAPPER, NOOP_METRICS);
 
         server.expect(once(), requestTo("http://python.local/runs/missing"))
                 .andExpect(method(HttpMethod.GET))

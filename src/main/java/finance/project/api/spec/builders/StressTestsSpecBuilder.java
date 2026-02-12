@@ -4,9 +4,12 @@ import finance.project.api.model.PythonSpec;
 import finance.project.api.model.run.RunRequestInput;
 import finance.project.api.spec.PythonSpecBuilder;
 import java.util.Map;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+@Deprecated
 @Component
+@ConditionalOnProperty(name = "run.engine.mode", havingValue = "LEGACY")
 public class StressTestsSpecBuilder implements PythonSpecBuilder {
     @Override
     public PythonSpec build(RunRequestInput input) {

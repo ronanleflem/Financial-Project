@@ -9,9 +9,12 @@ import finance.project.api.repositories.RunRequestRepository;
 import finance.project.api.runs.PythonDispatchException;
 import finance.project.api.runs.PythonJobStatus;
 import finance.project.api.runs.PythonJobStatusClient;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
+@Deprecated
 @Service
+@ConditionalOnProperty(name = "run.engine.mode", havingValue = "LEGACY")
 public class RunStatusService {
     private final RunRequestRepository runRequestRepository;
     private final RunExecutionRepository runExecutionRepository;

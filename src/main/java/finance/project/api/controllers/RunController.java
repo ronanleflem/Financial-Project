@@ -1,8 +1,6 @@
 package finance.project.api.controllers;
 
 import finance.project.api.model.run.RunRequestInput;
-import finance.project.api.model.PythonSpec;
-import finance.project.api.model.PreviewResponse;
 import finance.project.api.model.ValidationErrorItem;
 import finance.project.api.observability.RunMetrics;
 import finance.project.api.services.RunRequestService;
@@ -13,27 +11,19 @@ import finance.project.api.services.CanonicalRunAuditService;
 import finance.project.api.validation.RunRequestValidationException;
 import finance.project.api.validation.RunTechnicalValidationException;
 import finance.project.api.validation.RunRequestValidator;
-import finance.project.api.validation.RunLimitsProperties;
-import finance.project.api.services.PythonSpecService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import jakarta.validation.Valid;
 import jakarta.validation.Validator;
 import jakarta.validation.ConstraintViolation;
-import java.util.Optional;
-import java.util.ArrayList;
 import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Set;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.UUID;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -47,40 +37,34 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 public class RunController {
     private static final int MAX_CANONICAL_PAYLOAD_BYTES = 1_000_000;
-    private final RunRequestValidator runRequestValidator;
-    private final PythonSpecService pythonSpecService;
     private final PythonCanonicalRunService pythonCanonicalRunService;
     private final CanonicalRunAuditService canonicalRunAuditService;
-    private final RunRequestService runRequestService;
-    private final RunStatusService runStatusService;
-    private final RunResultService runResultService;
+    private final ObjectProvider<RunRequestValidator> runRequestValidator;
+    private final ObjectProvider<RunRequestService> runRequestService;
+    private final ObjectProvider<RunStatusService> runStatusService;
+    private final ObjectProvider<RunResultService> runResultService;
     private final RunMetrics runMetrics;
-    private final RunLimitsProperties limits;
     private final ObjectMapper objectMapper;
     private final Validator validator;
     private final String runEngineMode;
 
-    public RunController(RunRequestValidator runRequestValidator,
-                         PythonSpecService pythonSpecService,
+    public RunController(ObjectProvider<RunRequestValidator> runRequestValidator,
                          PythonCanonicalRunService pythonCanonicalRunService,
                          CanonicalRunAuditService canonicalRunAuditService,
-                         RunRequestService runRequestService,
-                         RunStatusService runStatusService,
-                         RunResultService runResultService,
+                         ObjectProvider<RunRequestService> runRequestService,
+                         ObjectProvider<RunStatusService> runStatusService,
+                         ObjectProvider<RunResultService> runResultService,
                          RunMetrics runMetrics,
-                         Optional<RunLimitsProperties> limits,
                          ObjectMapper objectMapper,
                          Validator validator,
-                         @Value("${run.engine.mode:LEGACY}") String runEngineMode) {
+                         @Value("${run.engine.mode:PYTHON_CANONICAL}") String runEngineMode) {
         this.runRequestValidator = runRequestValidator;
-        this.pythonSpecService = pythonSpecService;
         this.pythonCanonicalRunService = pythonCanonicalRunService;
         this.canonicalRunAuditService = canonicalRunAuditService;
         this.runRequestService = runRequestService;
         this.runStatusService = runStatusService;
         this.runResultService = runResultService;
         this.runMetrics = runMetrics;
-        this.limits = limits.orElse(new RunLimitsProperties());
         this.objectMapper = objectMapper;
         this.validator = validator;
         this.runEngineMode = runEngineMode;
@@ -103,7 +87,7 @@ public class RunController {
         }
         validateBeanConstraints(input);
         validate(input);
-        return ResponseEntity.ok(runRequestService.submit(input));
+        return ResponseEntity.ok(requireLegacyBean(runRequestService, "RunRequestService").submit(input));
     }
 
     @org.springframework.web.bind.annotation.GetMapping("/runs/{requestId}")
@@ -120,7 +104,7 @@ public class RunController {
                 canonicalRunAuditService.recordLifecycle(requestId, correlationId, resolveActor(request), response);
                 return response;
             }
-            return ResponseEntity.ok(runStatusService.getStatus(requestId));
+            return ResponseEntity.ok(requireLegacyBean(runStatusService, "RunStatusService").getStatus(requestId));
         } finally {
             runMetrics.recordStatusLatencyMillis((System.nanoTime() - startNs) / 1_000_000);
         }
@@ -140,7 +124,7 @@ public class RunController {
                 canonicalRunAuditService.recordLifecycle(requestId, correlationId, resolveActor(request), response);
                 return response;
             }
-            return ResponseEntity.ok(runResultService.getResult(requestId));
+            return ResponseEntity.ok(requireLegacyBean(runResultService, "RunResultService").getResult(requestId));
         } finally {
             runMetrics.recordStatusLatencyMillis((System.nanoTime() - startNs) / 1_000_000);
         }
@@ -161,41 +145,8 @@ public class RunController {
         throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Cancel endpoint is not available in legacy mode");
     }
 
-    @PostMapping("/specs/preview")
-    public ResponseEntity<PreviewResponse> preview(@Valid @RequestBody RunRequestInput input) {
-        long startNs = System.nanoTime();
-        if (input != null) {
-            MDC.put("specType", input.specType());
-        }
-        validate(input);
-        try {
-            PythonSpec spec = buildSpecWithTimeout(input);
-            List<String> normalizedFields = detectNormalizedFields(input);
-            return ResponseEntity.ok(new PreviewResponse(spec, List.of(), normalizedFields));
-        } finally {
-            runMetrics.recordPreviewLatencyMillis((System.nanoTime() - startNs) / 1_000_000);
-        }
-    }
-
-    private PythonSpec buildSpecWithTimeout(RunRequestInput input) {
-        try {
-            return CompletableFuture.supplyAsync(() -> pythonSpecService.buildSpec(input))
-                    .orTimeout(limits.getPreviewTimeoutMillis(), TimeUnit.MILLISECONDS)
-                    .join();
-        } catch (CompletionException ex) {
-            Throwable cause = ex.getCause();
-            if (cause instanceof TimeoutException) {
-                throw new PreviewTimeoutException(limits.getPreviewTimeoutMillis());
-            }
-            if (cause instanceof RuntimeException re) {
-                throw re;
-            }
-            throw ex;
-        }
-    }
-
     private void validate(RunRequestInput input) {
-        List<ValidationErrorItem> errors = runRequestValidator.validate(input);
+        List<ValidationErrorItem> errors = requireLegacyBean(runRequestValidator, "RunRequestValidator").validate(input);
         if (!errors.isEmpty()) {
             throw new RunRequestValidationException(errors);
         }
@@ -221,48 +172,6 @@ public class RunController {
                 })
                 .toList();
         throw new RunRequestValidationException(errors);
-    }
-
-    private static List<String> detectNormalizedFields(RunRequestInput input) {
-        if (input == null) {
-            return List.of();
-        }
-        if (!"seasonality".equals(input.specType())) {
-            return List.of();
-        }
-        if (input.seasonality() == null) {
-            return List.of();
-        }
-
-        List<String> fields = new ArrayList<>();
-
-        finance.project.api.model.run.SeasonalitySignal signal = input.seasonality().signal();
-        if (signal != null) {
-            if (signal.threshold() == null) {
-                fields.add("seasonality.signal.threshold");
-            }
-            if (signal.topk() == null) {
-                fields.add("seasonality.signal.topk");
-            }
-        }
-
-        finance.project.api.model.run.SeasonalityCompute compute = input.seasonality().compute();
-        if (compute == null || compute.maxTrials() == null) {
-            fields.add("seasonality.compute.maxTrials");
-        }
-        if (compute == null || compute.searchSpace() == null || compute.searchSpace().trim().isEmpty()) {
-            fields.add("seasonality.compute.searchSpace");
-        }
-
-        finance.project.api.model.run.SeasonalityExecution execution = input.seasonality().execution();
-        if (execution == null || execution.riskModel() == null || execution.riskModel().trim().isEmpty()) {
-            fields.add("seasonality.execution.riskModel");
-        }
-        if (execution == null || execution.tpSl() == null || execution.tpSl().trim().isEmpty()) {
-            fields.add("seasonality.execution.tpSl");
-        }
-
-        return fields;
     }
 
     private RunRequestInput parseRunRequestInput(String rawPayload) {
@@ -324,5 +233,16 @@ public class RunController {
             return actorHeader.trim();
         }
         return null;
+    }
+
+    private static <T> T requireLegacyBean(ObjectProvider<T> provider, String beanName) {
+        T bean = provider.getIfAvailable();
+        if (bean == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "Legacy run engine component unavailable: " + beanName
+            );
+        }
+        return bean;
     }
 }

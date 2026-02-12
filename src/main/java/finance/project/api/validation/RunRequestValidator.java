@@ -15,9 +15,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+@Deprecated
 @Component
+@ConditionalOnProperty(name = "run.engine.mode", havingValue = "LEGACY")
 public class RunRequestValidator {
     private static final Set<String> STRESS_TEST_METHODS = Set.of("monte_carlo", "block", "block_bootstrap");
     private final RunLimitsProperties limits;

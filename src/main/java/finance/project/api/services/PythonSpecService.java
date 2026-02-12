@@ -4,9 +4,12 @@ import finance.project.api.model.PythonSpec;
 import finance.project.api.model.run.RunRequestInput;
 import finance.project.api.spec.PythonSpecBuilder;
 import finance.project.api.spec.SpecBuilderFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
+@Deprecated
 @Service
+@ConditionalOnProperty(name = "run.engine.mode", havingValue = "LEGACY")
 public class PythonSpecService {
     private final SpecBuilderFactory builderFactory;
 

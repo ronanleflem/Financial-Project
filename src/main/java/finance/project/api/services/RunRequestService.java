@@ -23,10 +23,13 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Deprecated
 @Service
+@ConditionalOnProperty(name = "run.engine.mode", havingValue = "LEGACY")
 public class RunRequestService {
     private static final Logger log = LoggerFactory.getLogger(RunRequestService.class);
     private static final DateTimeFormatter REQUEST_ID_FMT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS")

@@ -9,11 +9,6 @@ import finance.project.api.config.RunValidationErrorHandler;
 import finance.project.api.model.PythonSpec;
 import finance.project.api.observability.RunMetrics;
 import finance.project.api.services.PythonSpecService;
-import finance.project.api.services.PythonCanonicalRunService;
-import finance.project.api.services.CanonicalRunAuditService;
-import finance.project.api.services.RunRequestService;
-import finance.project.api.services.RunResultService;
-import finance.project.api.services.RunStatusService;
 import finance.project.api.validation.RunRequestValidator;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,7 +18,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(RunController.class)
+@WebMvcTest(value = LegacyRunSpecPreviewController.class, properties = "run.engine.mode=LEGACY")
 @Import({RunRequestValidator.class, RunValidationErrorHandler.class})
 class RunControllerPreviewTimeoutTest {
 
@@ -32,21 +27,6 @@ class RunControllerPreviewTimeoutTest {
 
     @MockBean
     private PythonSpecService pythonSpecService;
-
-    @MockBean
-    private PythonCanonicalRunService pythonCanonicalRunService;
-
-    @MockBean
-    private CanonicalRunAuditService canonicalRunAuditService;
-
-    @MockBean
-    private RunRequestService runRequestService;
-
-    @MockBean
-    private RunStatusService runStatusService;
-
-    @MockBean
-    private RunResultService runResultService;
 
     @MockBean
     private RunMetrics runMetrics;

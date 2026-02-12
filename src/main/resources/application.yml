@@ -11,7 +11,12 @@ spring:
     enabled: false
 run:
   engine:
-    mode: ${RUN_ENGINE_MODE:LEGACY}
+    mode: ${RUN_ENGINE_MODE:PYTHON_CANONICAL}
+python:
+  dispatch:
+    base-url: ${PYTHON_DISPATCH_BASE_URL:http://127.0.0.1:8000}
+    connect-timeout-millis: ${PYTHON_DISPATCH_CONNECT_TIMEOUT_MS:2000}
+    read-timeout-millis: ${PYTHON_DISPATCH_READ_TIMEOUT_MS:5000}
 management:
   endpoints:
     web:

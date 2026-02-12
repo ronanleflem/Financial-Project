@@ -15,9 +15,12 @@ import finance.project.api.validation.RunRequestValidationException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+@Deprecated
 @Component
+@ConditionalOnProperty(name = "run.engine.mode", havingValue = "LEGACY")
 public class MarketStatsSpecBuilder implements PythonSpecBuilder {
     @Override
     public PythonSpec build(RunRequestInput input) {

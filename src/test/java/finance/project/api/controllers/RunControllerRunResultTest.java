@@ -27,7 +27,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(RunController.class)
+@WebMvcTest(value = RunController.class, properties = "run.engine.mode=LEGACY")
 @Import({RunRequestValidator.class, RunValidationErrorHandler.class})
 class RunControllerRunResultTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();

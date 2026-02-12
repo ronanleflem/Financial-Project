@@ -3,9 +3,12 @@ package finance.project.api.spec;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+@Deprecated
 @Component
+@ConditionalOnProperty(name = "run.engine.mode", havingValue = "LEGACY")
 public class DefaultSpecBuilderFactory implements SpecBuilderFactory {
 
     private final Map<String, PythonSpecBuilder> builders;

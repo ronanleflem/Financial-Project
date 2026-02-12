@@ -1,6 +1,7 @@
 package finance.project.api.config;
 
 import finance.project.api.controllers.RunController;
+import finance.project.api.controllers.LegacyRunSpecPreviewController;
 import finance.project.api.controllers.PreviewTimeoutException;
 import finance.project.api.model.ValidationErrorItem;
 import finance.project.api.model.ValidationErrorResponse;
@@ -20,7 +21,7 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 
 @Order(Ordered.HIGHEST_PRECEDENCE)
-@RestControllerAdvice(assignableTypes = RunController.class)
+@RestControllerAdvice(assignableTypes = {RunController.class, LegacyRunSpecPreviewController.class})
 public class RunValidationErrorHandler {
 
     private static final String VALIDATION_ERROR = "VALIDATION_ERROR";

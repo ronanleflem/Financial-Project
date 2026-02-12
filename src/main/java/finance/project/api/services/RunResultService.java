@@ -18,9 +18,12 @@ import finance.project.api.runs.PythonDispatchException;
 import finance.project.api.runs.PythonJobResultClient;
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
+@Deprecated
 @Service
+@ConditionalOnProperty(name = "run.engine.mode", havingValue = "LEGACY")
 public class RunResultService {
     private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
     };
@@ -202,4 +205,3 @@ public class RunResultService {
     ) {
     }
 }
-
