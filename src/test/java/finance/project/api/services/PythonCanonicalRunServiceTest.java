@@ -71,6 +71,30 @@ class PythonCanonicalRunServiceTest {
     }
 
     @Test
+    void keepsAcceptedStatusFromPythonOnSubmit() {
+        PythonDispatchProperties props = new PythonDispatchProperties();
+        props.setBaseUrl("http://python.local");
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+
+        String payload = "{\"specType\":\"backtest\"}";
+        server.expect(once(), requestTo("http://python.local/runs"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.ACCEPTED)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"run_id\":\"run_202\",\"status\":\"QUEUED\"}"));
+
+        PythonCanonicalRunService service = new PythonCanonicalRunService(restTemplate, props, MAPPER, NOOP_METRICS);
+        var response = service.submit(payload, "corr-202");
+
+        assertEquals(202, response.getStatusCode().value());
+        JsonNode body = (JsonNode) response.getBody();
+        assertEquals("run_202", body.get("requestId").asText());
+        assertEquals("QUEUED", body.get("status").asText());
+        server.verify();
+    }
+
+    @Test
     void keepsPython422Body() {
         PythonDispatchProperties props = new PythonDispatchProperties();
         props.setBaseUrl("http://python.local");
@@ -213,6 +237,33 @@ class PythonCanonicalRunServiceTest {
         assertEquals(404, notFound.getStatusCode().value());
         assertEquals(409, conflict.getStatusCode().value());
         assertEquals(422, validation.getStatusCode().value());
+        server.verify();
+    }
+
+    @Test
+    void generatesAndPropagatesCorrelationIdWhenMissing() {
+        PythonDispatchProperties props = new PythonDispatchProperties();
+        props.setBaseUrl("http://python.local");
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+
+        String payload = "{\"specType\":\"backtest\"}";
+        server.expect(once(), requestTo("http://python.local/runs"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(request -> {
+                    String correlationId = request.getHeaders().getFirst("X-Correlation-Id");
+                    assertTrue(correlationId != null && !correlationId.isBlank());
+                })
+                .andRespond(withSuccess("{\"run_id\":\"run_abc\",\"status\":\"PENDING\"}", MediaType.APPLICATION_JSON));
+
+        PythonCanonicalRunService service = new PythonCanonicalRunService(restTemplate, props, MAPPER, NOOP_METRICS);
+        var response = service.submit(payload, null);
+
+        assertEquals(200, response.getStatusCode().value());
+        String propagated = response.getHeaders().getFirst("X-Correlation-Id");
+        assertTrue(propagated != null && !propagated.isBlank());
+        JsonNode body = (JsonNode) response.getBody();
+        assertEquals("run_abc", body.get("requestId").asText());
         server.verify();
     }
 }

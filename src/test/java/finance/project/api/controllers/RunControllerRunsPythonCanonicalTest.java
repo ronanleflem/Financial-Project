@@ -121,6 +121,44 @@ class RunControllerRunsPythonCanonicalTest {
     }
 
     @Test
+    void doesNotApplyBusinessFieldValidationInCanonicalMode() throws Exception {
+        ResponseEntity<?> response = ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of(
+                        "errors", java.util.List.of(
+                                java.util.Map.of("field", "signal.fast", "code", "INVALID", "message", "must be < signal.slow")
+                        )
+                ));
+        org.mockito.Mockito.doReturn(response).when(pythonCanonicalRunService).submit(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString());
+
+        String json = """
+                {
+                  "specType": "backtest",
+                  "catalogVersion": "2026-02-02",
+                  "runType": "backtest",
+                  "data": {"symbol":"SPY"},
+                  "signal": {"type":"ema_cross","fast":10,"slow":5,"requireCrossing":true}
+                }
+                """;
+
+        mockMvc.perform(post("/api/runs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.errors[0].field", is("signal.fast")))
+                .andExpect(jsonPath("$.errors[0].code", is("INVALID")))
+                .andExpect(jsonPath("$.errors[0].message", is("must be < signal.slow")));
+
+        org.mockito.Mockito.verify(pythonCanonicalRunService).submit(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString()
+        );
+        org.mockito.Mockito.verifyNoInteractions(runRequestService);
+    }
+
+    @Test
     void returnsGatewayTimeoutWhenPythonUnavailable() throws Exception {
         ResponseEntity<?> response = ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
                 .contentType(MediaType.APPLICATION_JSON)
