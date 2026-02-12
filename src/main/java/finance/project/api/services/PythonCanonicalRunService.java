@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -35,6 +36,7 @@ public class PythonCanonicalRunService {
     private final ObjectMapper objectMapper;
     private final RunMetrics runMetrics;
 
+    @Autowired
     public PythonCanonicalRunService(RestTemplateBuilder builder,
                                      PythonDispatchProperties props,
                                      ObjectMapper objectMapper,

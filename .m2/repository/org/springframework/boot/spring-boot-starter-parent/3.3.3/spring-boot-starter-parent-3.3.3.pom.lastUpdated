@@ -1,0 +1,6 @@
+#NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+#Thu Feb 12 19:19:08 CET 2026
+@default-central-https\://repo.maven.apache.org/maven2/.lastUpdated=1770920348235
+@default-dukascopy-public-https\://www.dukascopy.com/client/jforexlib/publicrepo/.lastUpdated=1770920220355
+https\://repo.maven.apache.org/maven2/.error=Could not transfer artifact org.springframework.boot\:spring-boot-starter-parent\:pom\:3.3.3 from/to central (https\://repo.maven.apache.org/maven2)\: Permission denied\: getsockopt
+https\://www.dukascopy.com/client/jforexlib/publicrepo/.error=Could not transfer artifact org.springframework.boot\:spring-boot-starter-parent\:pom\:3.3.3 from/to dukascopy-public (https\://www.dukascopy.com/client/jforexlib/publicrepo/)\: Permission denied\: getsockopt
