@@ -9,6 +9,7 @@ import finance.project.api.config.RunValidationErrorHandler;
 import finance.project.api.model.PythonSpec;
 import finance.project.api.observability.RunMetrics;
 import finance.project.api.services.PythonSpecService;
+import finance.project.api.services.PythonCanonicalRunService;
 import finance.project.api.services.RunRequestService;
 import finance.project.api.services.RunResultService;
 import finance.project.api.services.RunStatusService;
@@ -30,6 +31,9 @@ class RunControllerPreviewTimeoutTest {
 
     @MockBean
     private PythonSpecService pythonSpecService;
+
+    @MockBean
+    private PythonCanonicalRunService pythonCanonicalRunService;
 
     @MockBean
     private RunRequestService runRequestService;
@@ -80,4 +84,3 @@ class RunControllerPreviewTimeoutTest {
                 .andExpect(jsonPath("$.errors[0].field", is("preview")));
     }
 }
-

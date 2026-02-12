@@ -9,6 +9,9 @@ app:
 spring:
   flyway:
     enabled: false
+run:
+  engine:
+    mode: ${RUN_ENGINE_MODE:LEGACY}
 management:
   endpoints:
     web:

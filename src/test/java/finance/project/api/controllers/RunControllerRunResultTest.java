@@ -12,6 +12,7 @@ import finance.project.api.model.RunResultResponse;
 import finance.project.api.model.RunStatusResponse;
 import finance.project.api.observability.RunMetrics;
 import finance.project.api.services.PythonSpecService;
+import finance.project.api.services.PythonCanonicalRunService;
 import finance.project.api.services.RunRequestNotFoundException;
 import finance.project.api.services.RunRequestService;
 import finance.project.api.services.RunResultService;
@@ -35,6 +36,9 @@ class RunControllerRunResultTest {
 
     @MockBean
     private PythonSpecService pythonSpecService;
+
+    @MockBean
+    private PythonCanonicalRunService pythonCanonicalRunService;
 
     @MockBean
     private RunRequestService runRequestService;

@@ -10,6 +10,7 @@ import finance.project.api.entities.run.RunLifecycleStatus;
 import finance.project.api.model.RunSubmitResponse;
 import finance.project.api.observability.RunMetrics;
 import finance.project.api.services.PythonSpecService;
+import finance.project.api.services.PythonCanonicalRunService;
 import finance.project.api.services.RunRequestService;
 import finance.project.api.services.RunResultService;
 import finance.project.api.services.RunStatusService;
@@ -31,6 +32,9 @@ class RunControllerRunsTest {
 
     @MockBean
     private PythonSpecService pythonSpecService;
+
+    @MockBean
+    private PythonCanonicalRunService pythonCanonicalRunService;
 
     @MockBean
     private RunRequestService runRequestService;

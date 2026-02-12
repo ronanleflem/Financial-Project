@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import finance.project.api.config.RunValidationErrorHandler;
 import finance.project.api.observability.RunMetrics;
 import finance.project.api.services.PythonSpecService;
+import finance.project.api.services.PythonCanonicalRunService;
 import finance.project.api.services.RunRequestService;
 import finance.project.api.services.RunResultService;
 import finance.project.api.services.RunStatusService;
@@ -47,6 +48,9 @@ class RunControllerPreviewTest {
 
     @org.springframework.boot.test.mock.mockito.MockBean
     private RunRequestService runRequestService;
+
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private PythonCanonicalRunService pythonCanonicalRunService;
 
     @org.springframework.boot.test.mock.mockito.MockBean
     private RunStatusService runStatusService;
