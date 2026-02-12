@@ -10,6 +10,7 @@ import finance.project.api.config.RunValidationErrorHandler;
 import finance.project.api.observability.RunMetrics;
 import finance.project.api.services.PythonCanonicalRunService;
 import finance.project.api.services.PythonSpecService;
+import finance.project.api.services.CanonicalRunAuditService;
 import finance.project.api.services.RunRequestService;
 import finance.project.api.services.RunResultService;
 import finance.project.api.services.RunStatusService;
@@ -36,6 +37,9 @@ class RunControllerRunsPythonCanonicalTest {
 
     @MockBean
     private PythonCanonicalRunService pythonCanonicalRunService;
+
+    @MockBean
+    private CanonicalRunAuditService canonicalRunAuditService;
 
     @MockBean
     private RunRequestService runRequestService;
@@ -77,6 +81,12 @@ class RunControllerRunsPythonCanonicalTest {
                 .andExpect(jsonPath("$.reused", is(true)));
 
         org.mockito.Mockito.verifyNoInteractions(runRequestService);
+        org.mockito.Mockito.verify(canonicalRunAuditService).recordSubmit(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.eq("corr-1"),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.any()
+        );
     }
 
     @Test
@@ -154,6 +164,7 @@ class RunControllerRunsPythonCanonicalTest {
                 .andExpect(jsonPath("$.errors[0].field", is("request")));
 
         org.mockito.Mockito.verifyNoInteractions(pythonCanonicalRunService);
+        org.mockito.Mockito.verifyNoInteractions(canonicalRunAuditService);
     }
 
     @Test
@@ -166,5 +177,6 @@ class RunControllerRunsPythonCanonicalTest {
                 .andExpect(jsonPath("$.errors[0].field", is("request")));
 
         org.mockito.Mockito.verifyNoInteractions(pythonCanonicalRunService);
+        org.mockito.Mockito.verifyNoInteractions(canonicalRunAuditService);
     }
 }

@@ -11,6 +11,7 @@ import finance.project.api.config.RunValidationErrorHandler;
 import finance.project.api.observability.RunMetrics;
 import finance.project.api.services.PythonCanonicalRunService;
 import finance.project.api.services.PythonSpecService;
+import finance.project.api.services.CanonicalRunAuditService;
 import finance.project.api.services.RunRequestService;
 import finance.project.api.services.RunResultService;
 import finance.project.api.services.RunStatusService;
@@ -39,6 +40,9 @@ class RunControllerLifecyclePythonCanonicalTest {
     private PythonCanonicalRunService pythonCanonicalRunService;
 
     @MockBean
+    private CanonicalRunAuditService canonicalRunAuditService;
+
+    @MockBean
     private RunRequestService runRequestService;
 
     @MockBean
@@ -64,6 +68,13 @@ class RunControllerLifecyclePythonCanonicalTest {
                 .andExpect(header().string("X-Correlation-Id", "corr-status"))
                 .andExpect(jsonPath("$.requestId", is("run_1")))
                 .andExpect(jsonPath("$.status", is("RUNNING")));
+
+        org.mockito.Mockito.verify(canonicalRunAuditService).recordLifecycle(
+                org.mockito.ArgumentMatchers.eq("run_1"),
+                org.mockito.ArgumentMatchers.eq("corr-status"),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.any()
+        );
     }
 
     @Test

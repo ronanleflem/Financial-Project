@@ -9,6 +9,7 @@ import finance.project.api.services.RunRequestService;
 import finance.project.api.services.RunResultService;
 import finance.project.api.services.RunStatusService;
 import finance.project.api.services.PythonCanonicalRunService;
+import finance.project.api.services.CanonicalRunAuditService;
 import finance.project.api.validation.RunRequestValidationException;
 import finance.project.api.validation.RunTechnicalValidationException;
 import finance.project.api.validation.RunRequestValidator;
@@ -30,6 +31,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.UUID;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -48,6 +50,7 @@ public class RunController {
     private final RunRequestValidator runRequestValidator;
     private final PythonSpecService pythonSpecService;
     private final PythonCanonicalRunService pythonCanonicalRunService;
+    private final CanonicalRunAuditService canonicalRunAuditService;
     private final RunRequestService runRequestService;
     private final RunStatusService runStatusService;
     private final RunResultService runResultService;
@@ -60,6 +63,7 @@ public class RunController {
     public RunController(RunRequestValidator runRequestValidator,
                          PythonSpecService pythonSpecService,
                          PythonCanonicalRunService pythonCanonicalRunService,
+                         CanonicalRunAuditService canonicalRunAuditService,
                          RunRequestService runRequestService,
                          RunStatusService runStatusService,
                          RunResultService runResultService,
@@ -71,6 +75,7 @@ public class RunController {
         this.runRequestValidator = runRequestValidator;
         this.pythonSpecService = pythonSpecService;
         this.pythonCanonicalRunService = pythonCanonicalRunService;
+        this.canonicalRunAuditService = canonicalRunAuditService;
         this.runRequestService = runRequestService;
         this.runStatusService = runStatusService;
         this.runResultService = runResultService;
@@ -83,11 +88,14 @@ public class RunController {
 
     @PostMapping("/runs")
     public ResponseEntity<?> submit(@RequestBody String rawPayload,
-                                    @RequestHeader(value = "X-Correlation-Id", required = false) String correlationIdHeader) {
+                                    @RequestHeader(value = "X-Correlation-Id", required = false) String correlationIdHeader,
+                                    HttpServletRequest request) {
         if (isPythonCanonicalMode()) {
             validateCanonicalTechnicalPayload(rawPayload);
             String correlationId = normalizeCorrelationId(correlationIdHeader);
-            return pythonCanonicalRunService.submit(rawPayload, correlationId);
+            ResponseEntity<?> response = pythonCanonicalRunService.submit(rawPayload, correlationId);
+            canonicalRunAuditService.recordSubmit(rawPayload, correlationId, resolveActor(request), response);
+            return response;
         }
         RunRequestInput input = parseRunRequestInput(rawPayload);
         if (input != null) {
@@ -101,13 +109,16 @@ public class RunController {
     @org.springframework.web.bind.annotation.GetMapping("/runs/{requestId}")
     public ResponseEntity<?> status(
             @org.springframework.web.bind.annotation.PathVariable String requestId,
-            @RequestHeader(value = "X-Correlation-Id", required = false) String correlationIdHeader
+            @RequestHeader(value = "X-Correlation-Id", required = false) String correlationIdHeader,
+            HttpServletRequest request
     ) {
         long startNs = System.nanoTime();
         try {
             if (isPythonCanonicalMode()) {
                 String correlationId = normalizeCorrelationId(correlationIdHeader);
-                return pythonCanonicalRunService.getStatus(requestId, correlationId);
+                ResponseEntity<?> response = pythonCanonicalRunService.getStatus(requestId, correlationId);
+                canonicalRunAuditService.recordLifecycle(requestId, correlationId, resolveActor(request), response);
+                return response;
             }
             return ResponseEntity.ok(runStatusService.getStatus(requestId));
         } finally {
@@ -118,13 +129,16 @@ public class RunController {
     @org.springframework.web.bind.annotation.GetMapping("/runs/{requestId}/result")
     public ResponseEntity<?> result(
             @org.springframework.web.bind.annotation.PathVariable String requestId,
-            @RequestHeader(value = "X-Correlation-Id", required = false) String correlationIdHeader
+            @RequestHeader(value = "X-Correlation-Id", required = false) String correlationIdHeader,
+            HttpServletRequest request
     ) {
         long startNs = System.nanoTime();
         try {
             if (isPythonCanonicalMode()) {
                 String correlationId = normalizeCorrelationId(correlationIdHeader);
-                return pythonCanonicalRunService.getResult(requestId, correlationId);
+                ResponseEntity<?> response = pythonCanonicalRunService.getResult(requestId, correlationId);
+                canonicalRunAuditService.recordLifecycle(requestId, correlationId, resolveActor(request), response);
+                return response;
             }
             return ResponseEntity.ok(runResultService.getResult(requestId));
         } finally {
@@ -135,11 +149,14 @@ public class RunController {
     @PostMapping("/runs/{requestId}/cancel")
     public ResponseEntity<?> cancel(
             @org.springframework.web.bind.annotation.PathVariable String requestId,
-            @RequestHeader(value = "X-Correlation-Id", required = false) String correlationIdHeader
+            @RequestHeader(value = "X-Correlation-Id", required = false) String correlationIdHeader,
+            HttpServletRequest request
     ) {
         String correlationId = normalizeCorrelationId(correlationIdHeader);
         if (isPythonCanonicalMode()) {
-            return pythonCanonicalRunService.cancel(requestId, correlationId);
+            ResponseEntity<?> response = pythonCanonicalRunService.cancel(requestId, correlationId);
+            canonicalRunAuditService.recordLifecycle(requestId, correlationId, resolveActor(request), response);
+            return response;
         }
         throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Cancel endpoint is not available in legacy mode");
     }
@@ -292,5 +309,20 @@ public class RunController {
             return UUID.randomUUID().toString();
         }
         return correlationIdHeader.trim();
+    }
+
+    private static String resolveActor(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        String remoteUser = request.getRemoteUser();
+        if (remoteUser != null && !remoteUser.trim().isEmpty()) {
+            return remoteUser.trim();
+        }
+        String actorHeader = request.getHeader("X-Actor");
+        if (actorHeader != null && !actorHeader.trim().isEmpty()) {
+            return actorHeader.trim();
+        }
+        return null;
     }
 }
