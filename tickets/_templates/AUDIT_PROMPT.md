@@ -1,48 +1,33 @@
-Audit checklist for Spring Boot tickets
+# FILE: tickets/_templates/AUDIT_PROMPT.md
+# Ticket Audit Prompt (Spring + BMAD)
 
-Scope & clarity
-- [ ] Objective is clear and user-facing outcome is stated
-- [ ] Ticket is testable and has measurable success criteria
-- [ ] Ticket is scoped to a single change set (no broad refactor)
+## PM gate
+- [ ] Goal is clear and testable.
+- [ ] Scope and non-goals are explicit.
+- [ ] DoD is measurable.
 
-API impact
-- [ ] Endpoints impacted are listed (method + path)
-- [ ] Request/response DTOs and schemas are specified
-- [ ] Status codes and error format are defined
+## Architect gate
+- [ ] Impacted controllers/services/repos/DTOs identified.
+- [ ] API contract and error mapping are coherent.
+- [ ] Risks and rollback strategy documented.
 
-Project conventions
-- [ ] Naming conventions align with existing codebase
-- [ ] Timezone handling is specified (UTC unless stated)
-- [ ] Monetary values use BigDecimal with scale/rounding rules
-- [ ] Validation annotations and error response format included
+## Dev gate
+- [ ] Steps are small and reviewable.
+- [ ] Tests and validation commands are explicit.
+- [ ] Compatibility constraints are explicit.
 
-Error handling
-- [ ] Exception mapping strategy is defined
-- [ ] Not found / invalid input cases are covered
+## Reviewer gate
+- [ ] Review criteria are explicit and blocking.
+- [ ] Regression risks are identified.
+- [ ] Acceptance can be decided from evidence.
 
-Testing strategy
-- [ ] Unit tests specified (service, mapping)
-- [ ] Integration tests specified (controller)
-- [ ] Data setup/fixtures described if needed
+## Cross-repo gate (if applicable)
+- [ ] `Cross-Repo Initiative` is set (`INIT-xxx`).
+- [ ] External dependencies are explicit.
+- [ ] Contract/version reference is explicit and testable.
+- [ ] Scope remains local to Spring repo.
 
-Validation commands
-- [ ] `$env:JAVA_HOME="C:\Users\ronan\.jdks\corretto-21.0.4"`
-- [ ] `$env:Path="$env:JAVA_HOME\bin;$env:Path"`
-- [ ] `java -version`
-- [ ] `./mvnw test`
-- [ ] `./mvnw spring-boot:run`
-
-Risks
-- [ ] Breaking API changes identified
-- [ ] Performance or DB impact noted
-- [ ] Backward compatibility considered
-
-Task decomposition
-- [ ] Ticket can be split into sub-tasks
-- [ ] Implementation plan steps are clear
-
-Agent constraints (must NOT do)
-- [ ] No schema/DB migration changes without a dedicated ticket
-- [ ] No broad refactors or renaming across the codebase
-- [ ] No dependency upgrades unless explicitly required
-- [ ] No silent breaking changes to existing APIs
+## Context7 check (required only if needed)
+- [ ] New or uncertain external API/library/framework involved.
+- [ ] Version-specific behavior may affect implementation.
+- [ ] If no, Context7 is intentionally skipped.

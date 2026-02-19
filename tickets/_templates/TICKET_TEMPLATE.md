@@ -1,71 +1,74 @@
-Title
-- [Short, action-oriented title, e.g., "Add GET /orders/{id} endpoint"]
+# FILE: tickets/_templates/TICKET_TEMPLATE.md
+# Ticket Template (Spring)
 
-Goal
-- [One sentence describing user-facing outcome and why it matters]
+## Title
+- [Short, actionable title]
 
-Context / Entry points
-- Controller: [Class name + package or path]
-- Service: [Class name + package or path]
-- Repository: [Interface name + package or path]
-- DTO: [Request/Response DTOs + package or path]
-- Related endpoints: [List any existing endpoints impacted]
+## Ticket type
+- [Type A: Audit/Discovery | Type B: Implementation]
 
-Constraints & conventions
-- REST: [HTTP method, path, status codes, error format]
-- Naming: [Endpoint names, DTO naming, method naming]
-- Timezones: [Use UTC unless specified; document any conversion]
-- Numbers: [Use BigDecimal for monetary values; scale/rounding rules]
-- Validation: [Bean Validation annotations + error response format]
-- Pagination/sorting (if applicable): [Conventions]
+## BMAD Stage
+- [PM | Architect | Dev | Reviewer]
 
-Definition of Done
-- [ ] Endpoint added/updated with correct HTTP semantics
-- [ ] DTOs added/updated with validation annotations
-- [ ] Service logic wired (no business logic changes unless specified)
-- [ ] Error handling follows project conventions
-- [ ] Unit tests for service/mapping
-- [ ] Integration tests for controller (happy + error paths)
-- [ ] Documentation updated (if applicable)
-- [ ] Validation commands pass
+## Cross-Repo Coordination
+- Cross-Repo Initiative: [INIT-xxx or N/A]
+- Repo Owner: [financial-project-spring]
+- Upstream Dependencies: [ticket/PR ids or None]
+- Contract Version: [version/tag/commit or N/A]
 
-Implementation plan
-1) [Step 1: update Controller method signature / routing]
-2) [Step 2: DTOs and validation annotations]
-3) [Step 3: Service method addition + mapping]
-4) [Step 4: Repository call (if needed)]
-5) [Step 5: Tests]
+## Goal
+- [Observable and testable outcome]
 
-Tests
+## Context / Entry points
+- Controller:
+- Service:
+- Repository:
+- DTO:
+- Related endpoints:
+
+## BMAD Handover In
+- [Required artifacts from previous stage]
+
+## BMAD Handover Out
+- [Artifacts produced for next stage]
+
+## Context7 Decision
+- Required: [Yes/No]
+- Reason: [One short justification]
+
+## Constraints & conventions
+- Preserve existing REST/error conventions.
+- Use BigDecimal for monetary values.
+- Use UTC for datetime fields unless specified otherwise.
+
+## Definition of Done
+- [ ] Endpoint behavior implemented per goal.
+- [ ] DTO validation and mapping covered.
+- [ ] Unit and integration tests added or updated.
+- [ ] Validation commands pass.
+
+## Implementation plan
+1. [Step 1]
+2. [Step 2]
+3. [Step 3]
+
+## Tests
 - Unit tests:
-  - [Service behavior]
-  - [DTO/mapper behavior]
 - Integration tests:
-  - [Controller endpoint, success case]
-  - [Controller endpoint, validation error]
-  - [Controller endpoint, not found / error mapping]
 
-Validation commands
-- [ ] `$env:JAVA_HOME="C:\Users\ronan\.jdks\corretto-21.0.4"`
-- [ ] `$env:Path="$env:JAVA_HOME\bin;$env:Path"`
-- [ ] `java -version`
-- [ ] `./mvnw test`
-- [ ] `./mvnw spring-boot:run`
+## Validation commands
+- `$env:JAVA_HOME="C:\Users\ronan\.jdks\corretto-21.0.4"`
+- `$env:Path="$env:JAVA_HOME\bin;$env:Path"`
+- `./mvnw test`
 
-Non-goals / Out of scope
-- [Explicitly list what is not being changed]
+## Reviewer Gate
+- [ ] Scope matches ticket and DoD.
+- [ ] Architecture constraints respected.
+- [ ] Tests are meaningful and pass.
+- [ ] No regression risk left unaddressed.
 
-Notes / pitfalls
-- Transactions: [If needed, clarify boundaries]
-- Mapping: [DTO/entity mapping, avoid leaking entities]
-- Error handling: [Exception mapping strategy]
-- Performance: [Any known risks]
+## Non-goals / Out of scope
+- [Explicit list]
 
-- Impacts externes (EIC)
-Repo(s) impacté(s) : [ ] Spring Boot [ ] Angular [ ] Autre
-API impact : oui/non
-Endpoints à créer/modifier : …
-DTO/Schema : …
-UI impact : oui/non
-Écrans/composants : …
-Acceptance criteria E2E : …
+## Notes / pitfalls
+- [Error mapping, transaction boundaries, compatibility]
