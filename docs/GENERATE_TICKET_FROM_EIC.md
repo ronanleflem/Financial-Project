@@ -1,25 +1,18 @@
 # FILE: docs/GENERATE_TICKET_FROM_EIC.md
-# GENERATE_TICKET_FROM_EIC.md (Spring + BMAD)
+# GENERATE_TICKET_FROM_EIC.md (Spring local translator)
 
-Use `tickets/_templates/TICKET_TEMPLATE.md` and `tickets/_templates/AUDIT_PROMPT.md`.
+Purpose: convert an external contract (EIC) into one Spring local ticket.
 
-## Objectives
-- Translate EIC into one Spring ticket.
+This file does NOT orchestrate multiple repositories.
+Cross-repo orchestration is handled only by the coordination repository.
+
+Use:
+- `tickets/_templates/TICKET_TEMPLATE.md`
+- `tickets/_templates/AUDIT_PROMPT.md`
+
+Requirements:
+- Output one Spring ticket in `tickets/active/`.
 - Keep scope Spring-only.
-- Define tests and validation commands.
-
-## Mandatory BMAD alignment
-Set `BMAD Stage` to `PM` and include handover fields.
-
-## Cross-repo rule
-- Set `Cross-Repo Initiative` (`INIT-xxx`).
-- Add explicit `Upstream Dependencies` and `Contract Version`.
-
-## Context7 rule
-Set `Context7 Decision` to Yes only if external docs are needed.
-
-## Output format
-FILE: tickets/active/<FILENAME>.md
-<full ticket content>
-
-Ticket must be in French and include all template sections.
+- Include: BMAD Stage, Cross-Repo Initiative, Upstream Dependencies, Contract Version, Context7 Decision.
+- Do not generate code.
+- Ticket language: French.
