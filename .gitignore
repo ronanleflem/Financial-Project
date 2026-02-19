@@ -42,6 +42,8 @@ database/*.db
 *.db
 /database/
 
+logs/
+
 ### Local property overrides ###
 # Ignore custom copies of application.properties that may contain secrets
 *application*.properties

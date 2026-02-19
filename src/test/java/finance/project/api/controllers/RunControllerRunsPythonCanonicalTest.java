@@ -121,6 +121,51 @@ class RunControllerRunsPythonCanonicalTest {
     }
 
     @Test
+    void returnsUnsupportedFieldAsNotImplementedYetFromPython() throws Exception {
+        ResponseEntity<?> response = ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of(
+                        "errors", java.util.List.of(
+                                java.util.Map.of(
+                                        "field", "strategy.tpSl.dynamicSl.mode",
+                                        "code", "UNSUPPORTED_FIELD",
+                                        "message", "Not implemented yet"
+                                )
+                        )
+                ));
+        org.mockito.Mockito.doReturn(response).when(pythonCanonicalRunService).submit(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString());
+
+        String json = """
+                {
+                  "specType": "backtest",
+                  "catalogVersion": "2026-02-02",
+                  "runType": "backtest",
+                  "data": {"symbol":"SPY"},
+                  "strategy": {
+                    "name": "Breakout",
+                    "tpSl": {
+                      "dynamicSl": {
+                        "enabled": true,
+                        "mode": "atr_trailing"
+                      }
+                    }
+                  },
+                  "signal": {"type":"ema_cross","fast":10,"slow":30,"requireCrossing":true}
+                }
+                """;
+
+        mockMvc.perform(post("/api/runs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.errors[0].field", is("strategy.tpSl.dynamicSl.mode")))
+                .andExpect(jsonPath("$.errors[0].code", is("UNSUPPORTED_FIELD")))
+                .andExpect(jsonPath("$.errors[0].message", is("Not implemented yet")));
+    }
+
+    @Test
     void doesNotApplyBusinessFieldValidationInCanonicalMode() throws Exception {
         ResponseEntity<?> response = ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -216,5 +261,68 @@ class RunControllerRunsPythonCanonicalTest {
 
         org.mockito.Mockito.verifyNoInteractions(pythonCanonicalRunService);
         org.mockito.Mockito.verifyNoInteractions(canonicalRunAuditService);
+    }
+
+    @Test
+    void returnsTechnicalErrorWhenPayloadIsNotJsonObject() throws Exception {
+        mockMvc.perform(post("/api/runs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[1,2,3]"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code", is("INVALID_REQUEST")))
+                .andExpect(jsonPath("$.errors[0].field", is("request")))
+                .andExpect(jsonPath("$.errors[0].message", is("payload must be a JSON object")));
+
+        org.mockito.Mockito.verifyNoInteractions(pythonCanonicalRunService);
+        org.mockito.Mockito.verifyNoInteractions(canonicalRunAuditService);
+    }
+
+    @Test
+    void returnsTechnicalErrorWhenPayloadIsTooLarge() throws Exception {
+        String oversized = "{\"payload\":\"" + "a".repeat(1_000_001) + "\"}";
+
+        mockMvc.perform(post("/api/runs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(oversized))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code", is("INVALID_REQUEST")))
+                .andExpect(jsonPath("$.errors[0].field", is("request")))
+                .andExpect(jsonPath("$.errors[0].message", is("payload too large")));
+
+        org.mockito.Mockito.verifyNoInteractions(pythonCanonicalRunService);
+        org.mockito.Mockito.verifyNoInteractions(canonicalRunAuditService);
+    }
+
+    @Test
+    void forwardsUnknownFieldsToPythonInCanonicalMode() throws Exception {
+        ResponseEntity<?> response = ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of("requestId", "run_unknown", "status", "PENDING"));
+        org.mockito.Mockito.doReturn(response).when(pythonCanonicalRunService).submit(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString());
+
+        String json = """
+                {
+                  "specType": "backtest",
+                  "catalogVersion": "2026-02-02",
+                  "runType": "backtest",
+                  "data": {"symbol":"SPY"},
+                  "experimentalOption": {"enabled": true},
+                  "signal": {"type":"ema_cross","fast":10,"slow":30,"requireCrossing":true}
+                }
+                """;
+
+        mockMvc.perform(post("/api/runs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.requestId", is("run_unknown")));
+
+        org.mockito.Mockito.verify(pythonCanonicalRunService).submit(
+                org.mockito.ArgumentMatchers.eq(json),
+                org.mockito.ArgumentMatchers.anyString()
+        );
+        org.mockito.Mockito.verifyNoInteractions(runRequestService);
     }
 }
