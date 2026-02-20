@@ -6,7 +6,7 @@ Ces tickets couvrent une partie seulement de l'audit pour garder un decoupage fi
 ## Liste
 - `AUD-101 [DONE]` - Nettoyer la vague 1 de classes vides
 - `AUD-102` - Supprimer `VolumeBasedRolloverServiceNew` et clarifier le naming rollover
-- `AUD-103` - Decommission du package `filters/old`
+- `AUD-103 [DONE]` - Decommission du package `filters/old`
 - `AUD-104` - Resoudre les doublons de strategies homonymes
 - `AUD-105` - Nettoyer `CandleServiceJPA` des branches rollover legacy commentees
 - `AUD-106` - Sortir `CsvMonthlySplitter` du package `controllers`

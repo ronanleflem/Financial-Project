@@ -1,4 +1,4 @@
-# AUD-103 - Decommission du package `filters/old`
+# AUD-103 [DONE] - Decommission du package `filters/old`
 
 ## Type
 Implementation
@@ -18,3 +18,7 @@ Supprimer le package legacy `filters/old` (non reference) pour clarifier le chem
 
 ## Hors scope
 - Refacto des filtres actifs actuels.
+
+## Statut
+- DONE le 2026-02-20.
+- Les 3 classes du package `filters/old` ont ete supprimees.

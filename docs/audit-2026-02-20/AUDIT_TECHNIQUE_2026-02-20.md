@@ -19,7 +19,7 @@ Limite:
 Tickets crees dans `docs/audit-2026-02-20/jira/`.
 
 Couverture par section:
-- 3.A Inutilise probable: `AUD-101 [DONE]`, `AUD-102`, `AUD-103`, `AUD-111`
+- 3.A Inutilise probable: `AUD-101 [DONE]`, `AUD-102`, `AUD-103 [DONE]`, `AUD-111`
 - 3.B Redondances / doublons: `AUD-104`, `AUD-102`
 - 3.C Fragilites architecture: `AUD-105`, `AUD-106`, `AUD-107`, `AUD-110`
 - 3.D Build/dependances: `AUD-109`, `AUD-107`
@@ -33,7 +33,7 @@ Sujets volontairement non couverts dans cette vague:
 ## 3. Constats detailles
 
 ### A. Inutilise probable (confiance elevee)
-Tickets associes: `AUD-101 [DONE]`, `AUD-102`, `AUD-103`, `AUD-111`
+Tickets associes: `AUD-101 [DONE]`, `AUD-102`, `AUD-103 [DONE]`, `AUD-111`
 
 1. Classes vides, sans logique metier.
 Exemples:
@@ -153,6 +153,10 @@ Fichiers/artefacts locaux actuellement versionnes:
   - Supprime: `CandleLiveService`, `ComparisonLiveService`, `LiveExecutionService`, `SymbolLiveService`
   - Supprime: `RiskManagementService`, `TradeExecutionService`
 - Decoupage complementaire cree: `AUD-111` pour retirer proprement `MarketData` des signatures legacy avant suppression de l'entite.
+- `AUD-103 [DONE]` execute le 2026-02-20:
+  - Supprime: `src/main/java/finance/project/api/filters/old/MarketConditionsFilter.java`
+  - Supprime: `src/main/java/finance/project/api/filters/old/TrendFilter.java`
+  - Supprime: `src/main/java/finance/project/api/filters/old/VolumeFilter.java`
 
 ## 5. Plan de nettoyage recommande
 
