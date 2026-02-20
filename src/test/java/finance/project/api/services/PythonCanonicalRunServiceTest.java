@@ -302,6 +302,7 @@ class PythonCanonicalRunServiceTest {
         String payload = """
                 {
                   "spec_type":"dca",
+                  "filters":{"supported_ids":["ema_cross","rsi"],"rules_modes":["strict","advisory"],"rules_weights":{"ema_cross":2,"rsi":1}},
                   "fields":{"supported":["entryPrice","frequency"],"accepted_but_not_wired":["slippage"]},
                   "presets":{"supported":{"safe":{"mode":"conservative"}},"not_supported":{}},
                   "legacy_dca":{"fields":{"supported_in_legacy_runner":["legacyGridStep","legacySafetyOrder"],"canonical_passthrough_supported":["legacySafetyOrder"]}}
@@ -318,6 +319,9 @@ class PythonCanonicalRunServiceTest {
         assertEquals(200, response.getStatusCode().value());
         JsonNode body = (JsonNode) response.getBody();
         assertEquals("dca", body.get("spec_type").asText());
+        assertEquals("ema_cross", body.get("filters").get("supported_ids").get(0).asText());
+        assertEquals("strict", body.get("filters").get("rules_modes").get(0).asText());
+        assertEquals(2, body.get("filters").get("rules_weights").get("ema_cross").asInt());
         assertEquals(2, body.get("fields").get("supported").size());
         assertEquals(1, body.get("fields").get("accepted_but_not_wired").size());
         assertEquals("legacyGridStep", body.get("legacy_dca").get("fields").get("supported_in_legacy_runner").get(0).asText());

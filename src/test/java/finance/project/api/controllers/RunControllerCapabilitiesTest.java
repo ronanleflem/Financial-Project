@@ -62,6 +62,11 @@ class RunControllerCapabilitiesTest {
                 .body(java.util.Map.of(
                         "spec_type", "dca",
                         "catalog_version", "2026-02-02",
+                        "filters", java.util.Map.of(
+                                "supported_ids", java.util.List.of("ema_cross", "rsi"),
+                                "rules_modes", java.util.List.of("strict", "advisory"),
+                                "rules_weights", java.util.Map.of("ema_cross", 2, "rsi", 1)
+                        ),
                         "fields", java.util.Map.of(
                                 "supported", java.util.List.of("entryPrice", "frequency"),
                                 "accepted_but_not_wired", java.util.List.of("slippage")
@@ -88,6 +93,10 @@ class RunControllerCapabilitiesTest {
                 .andExpect(header().string("X-Correlation-Id", "corr-cap"))
                 .andExpect(jsonPath("$.spec_type", is("dca")))
                 .andExpect(jsonPath("$.catalog_version", is("2026-02-02")))
+                .andExpect(jsonPath("$.filters.supported_ids", hasSize(2)))
+                .andExpect(jsonPath("$.filters.supported_ids[0]", is("ema_cross")))
+                .andExpect(jsonPath("$.filters.rules_modes", hasSize(2)))
+                .andExpect(jsonPath("$.filters.rules_weights.ema_cross", is(2)))
                 .andExpect(jsonPath("$.fields.supported", hasSize(2)))
                 .andExpect(jsonPath("$.fields.supported[0]", is("entryPrice")))
                 .andExpect(jsonPath("$.fields.accepted_but_not_wired", hasSize(1)))
