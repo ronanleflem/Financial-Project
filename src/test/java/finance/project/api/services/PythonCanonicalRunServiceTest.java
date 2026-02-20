@@ -266,4 +266,63 @@ class PythonCanonicalRunServiceTest {
         assertEquals("run_abc", body.get("requestId").asText());
         server.verify();
     }
+
+    @Test
+    void forwardsCapabilitiesQueryParamWithoutTransformingSpecType() {
+        PythonDispatchProperties props = new PythonDispatchProperties();
+        props.setBaseUrl("http://python.local");
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+
+        server.expect(once(), requestTo("http://python.local/runs/capabilities?spec_type=dca"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("X-Correlation-Id", "corr-cap"))
+                .andRespond(withSuccess(
+                        "{\"spec_type\":\"dca\",\"catalog_version\":\"2026-02-02\"}",
+                        MediaType.APPLICATION_JSON
+                ));
+
+        PythonCanonicalRunService service = new PythonCanonicalRunService(restTemplate, props, MAPPER, NOOP_METRICS);
+        var response = service.getCapabilities("dca", "corr-cap");
+
+        assertEquals(200, response.getStatusCode().value());
+        JsonNode body = (JsonNode) response.getBody();
+        assertEquals("dca", body.get("spec_type").asText());
+        assertEquals("2026-02-02", body.get("catalog_version").asText());
+        server.verify();
+    }
+
+    @Test
+    void keepsLegacyDcaPayloadAndArraysOnCapabilitiesProxy() {
+        PythonDispatchProperties props = new PythonDispatchProperties();
+        props.setBaseUrl("http://python.local");
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+
+        String payload = """
+                {
+                  "spec_type":"dca",
+                  "fields":{"supported":["entryPrice","frequency"],"accepted_but_not_wired":["slippage"]},
+                  "presets":{"supported":{"safe":{"mode":"conservative"}},"not_supported":{}},
+                  "legacy_dca":{"fields":{"supported_in_legacy_runner":["legacyGridStep","legacySafetyOrder"],"canonical_passthrough_supported":["legacySafetyOrder"]}}
+                }
+                """;
+
+        server.expect(once(), requestTo("http://python.local/runs/capabilities?spec_type=dca"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(payload, MediaType.APPLICATION_JSON));
+
+        PythonCanonicalRunService service = new PythonCanonicalRunService(restTemplate, props, MAPPER, NOOP_METRICS);
+        var response = service.getCapabilities("dca", "corr-cap-legacy");
+
+        assertEquals(200, response.getStatusCode().value());
+        JsonNode body = (JsonNode) response.getBody();
+        assertEquals("dca", body.get("spec_type").asText());
+        assertEquals(2, body.get("fields").get("supported").size());
+        assertEquals(1, body.get("fields").get("accepted_but_not_wired").size());
+        assertEquals("legacyGridStep", body.get("legacy_dca").get("fields").get("supported_in_legacy_runner").get(0).asText());
+        assertEquals("legacySafetyOrder", body.get("legacy_dca").get("fields").get("supported_in_legacy_runner").get(1).asText());
+        assertEquals("legacySafetyOrder", body.get("legacy_dca").get("fields").get("canonical_passthrough_supported").get(0).asText());
+        server.verify();
+    }
 }

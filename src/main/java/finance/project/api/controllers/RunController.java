@@ -2,6 +2,7 @@ package finance.project.api.controllers;
 
 import finance.project.api.model.run.RunRequestInput;
 import finance.project.api.model.ValidationErrorItem;
+import finance.project.api.model.ValidationErrorResponse;
 import finance.project.api.observability.RunMetrics;
 import finance.project.api.services.RunRequestService;
 import finance.project.api.services.RunResultService;
@@ -32,6 +33,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api")
@@ -143,6 +146,29 @@ public class RunController {
             return response;
         }
         throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Cancel endpoint is not available in legacy mode");
+    }
+
+    @GetMapping("/runs/capabilities")
+    public ResponseEntity<?> capabilities(
+            @RequestParam(value = "spec_type", required = false) String specType,
+            @RequestHeader(value = "X-Correlation-Id", required = false) String correlationIdHeader
+    ) {
+        if (specType == null || specType.trim().isEmpty()) {
+            ValidationErrorItem error = new ValidationErrorItem("spec_type", "must not be blank");
+            return ResponseEntity.unprocessableEntity()
+                    .body(new ValidationErrorResponse("INVALID_REQUEST", List.of(error)));
+        }
+
+        String correlationId = normalizeCorrelationId(correlationIdHeader);
+        ResponseEntity<?> upstream = pythonCanonicalRunService.getCapabilities(specType.trim(), correlationId);
+
+        if (upstream.getStatusCode().value() == HttpStatus.GATEWAY_TIMEOUT.value()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .headers(upstream.getHeaders())
+                    .body(upstream.getBody());
+        }
+
+        return upstream;
     }
 
     private void validate(RunRequestInput input) {

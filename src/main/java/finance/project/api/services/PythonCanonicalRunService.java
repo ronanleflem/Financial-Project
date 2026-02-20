@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import finance.project.api.config.PythonDispatchProperties;
 import finance.project.api.observability.RunMetrics;
 import java.net.ConnectException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.time.Duration;
@@ -97,6 +99,18 @@ public class PythonCanonicalRunService {
                 null,
                 correlationId,
                 true
+        );
+    }
+
+    public ResponseEntity<?> getCapabilities(String specType, String correlationId) {
+        String encodedSpecType = URLEncoder.encode(specType == null ? "" : specType, StandardCharsets.UTF_8);
+        return proxyRuns(
+                "GET /runs/capabilities",
+                "/runs/capabilities?spec_type=" + encodedSpecType,
+                HttpMethod.GET,
+                null,
+                correlationId,
+                false
         );
     }
 
