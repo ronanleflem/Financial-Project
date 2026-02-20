@@ -18,6 +18,7 @@ import io.delta.standalone.types.StructType;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.ZoneOffset;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -60,6 +61,15 @@ public class DeltaLakeExporter {
             new StructField("symbol", new StringType(), true),
             new StructField("jobId", new StringType(), true)
     });
+    private static final StructType RANGE_AUDIT_SCHEMA = new StructType(new StructField[]{
+            new StructField("symbol", new StringType(), false),
+            new StructField("insertedType", new StringType(), false),
+            new StructField("startDateEpochMs", new LongType(), false),
+            new StructField("endDateEpochMs", new LongType(), false),
+            new StructField("timeframe", new StringType(), false),
+            new StructField("insertedAtEpochMs", new LongType(), false),
+            new StructField("jobId", new StringType(), true)
+    });
 
     private static final Schema AVRO_SCHEMA = SchemaBuilder.record("candle")
             .namespace("finance.project.delta")
@@ -74,6 +84,17 @@ public class DeltaLakeExporter {
             .name("sourceType").type().stringType().noDefault()
             .name("timeframe").type().stringType().noDefault()
             .name("symbol").type().stringType().noDefault()
+            .name("jobId").type().stringType().noDefault()
+            .endRecord();
+    private static final Schema RANGE_AUDIT_AVRO_SCHEMA = SchemaBuilder.record("ingestion_range_audit")
+            .namespace("finance.project.delta")
+            .fields()
+            .name("symbol").type().stringType().noDefault()
+            .name("insertedType").type().stringType().noDefault()
+            .name("startDateEpochMs").type().longType().noDefault()
+            .name("endDateEpochMs").type().longType().noDefault()
+            .name("timeframe").type().stringType().noDefault()
+            .name("insertedAtEpochMs").type().longType().noDefault()
             .name("jobId").type().stringType().noDefault()
             .endRecord();
 
@@ -164,8 +185,72 @@ public class DeltaLakeExporter {
 
             txn.commit(actions, operation, job.getId());
             log.info("[Delta] Exported {} candles for job {} to {}", candles.size(), job.getId(), effectiveTablePath);
+            appendIngestionRangeAudit(conf, job, candles, resolveInsertedType(job, assetCategory));
         } catch (Exception e) {
             log.error("[Delta] Failed to export candles for job {}: {}", job.getId(), e.getMessage(), e);
+        }
+    }
+
+    private void appendIngestionRangeAudit(Configuration conf,
+                                           DataImportJob job,
+                                           List<Candle> candles,
+                                           String insertedType) {
+        try {
+            LocalDateTime minDate = candles.stream()
+                    .map(Candle::getDate)
+                    .filter(java.util.Objects::nonNull)
+                    .min(LocalDateTime::compareTo)
+                    .orElse(null);
+            LocalDateTime maxDate = candles.stream()
+                    .map(Candle::getDate)
+                    .filter(java.util.Objects::nonNull)
+                    .max(LocalDateTime::compareTo)
+                    .orElse(null);
+            if (minDate == null || maxDate == null) {
+                return;
+            }
+
+            String auditTablePath = stripTrailingSlash(deltaLakeConfig.getBaseUri()) + "/data";
+            DeltaLog deltaLog = DeltaLog.forTable(conf, auditTablePath);
+            OptimisticTransaction txn = deltaLog.startTransaction();
+
+            if (!deltaLog.tableExists()) {
+                Metadata metadataAction = Metadata.builder()
+                        .schema(RANGE_AUDIT_SCHEMA)
+                        .name("INGESTION_RANGE_AUDIT")
+                        .description("Ingestion ranges for Delta inserts")
+                        .build();
+                txn.updateMetadata(metadataAction);
+            }
+
+            Path tableRoot = new Path(auditTablePath);
+            Path dataDir = new Path(tableRoot, "data");
+            Path dataFile = new Path(dataDir, "part-" + UUID.randomUUID() + ".parquet");
+            writeRangeAuditParquet(conf, dataFile, job, insertedType, minDate, maxDate);
+
+            FileSystem fs = dataFile.getFileSystem(conf);
+            FileStatus status = fs.getFileStatus(dataFile);
+            String relativePath = relativize(tableRoot, dataFile);
+
+            AddFile addFile = new AddFile(
+                    relativePath,
+                    Collections.emptyMap(),
+                    status.getLen(),
+                    System.currentTimeMillis(),
+                    true,
+                    null,
+                    Collections.emptyMap()
+            );
+
+            Operation operation = new Operation(
+                    Operation.Name.WRITE,
+                    Map.of("mode", "\"APPEND\"", "source", "\"INGESTION_RANGE_AUDIT\""),
+                    Collections.emptyMap()
+            );
+            txn.commit(List.of(addFile), operation, job.getId());
+            log.info("[Delta] Appended ingestion range audit for job {} at {}", job.getId(), auditTablePath);
+        } catch (Exception ex) {
+            log.warn("[Delta] Failed to append ingestion range audit for job {}: {}", job.getId(), ex.getMessage());
         }
     }
 
@@ -199,6 +284,35 @@ public class DeltaLakeExporter {
                 record.put("jobId", defaultString(job.getId()));
                 writer.write(record);
             }
+        }
+    }
+
+    private void writeRangeAuditParquet(Configuration conf,
+                                        Path dataFile,
+                                        DataImportJob job,
+                                        String insertedType,
+                                        LocalDateTime startDate,
+                                        LocalDateTime endDate) throws IOException {
+        FileSystem fs = dataFile.getFileSystem(conf);
+        if (!fs.exists(dataFile.getParent())) {
+            fs.mkdirs(dataFile.getParent());
+        }
+
+        HadoopOutputFile outputFile = HadoopOutputFile.fromPath(dataFile, conf);
+        try (ParquetWriter<GenericRecord> writer = AvroParquetWriter.<GenericRecord>builder(outputFile)
+                .withSchema(RANGE_AUDIT_AVRO_SCHEMA)
+                .withConf(conf)
+                .withCompressionCodec(CompressionCodecName.SNAPPY)
+                .build()) {
+            GenericRecord record = new GenericData.Record(RANGE_AUDIT_AVRO_SCHEMA);
+            record.put("symbol", defaultString(job.getSymbol()));
+            record.put("insertedType", normalizeInsertedType(insertedType));
+            record.put("startDateEpochMs", startDate.toInstant(ZoneOffset.UTC).toEpochMilli());
+            record.put("endDateEpochMs", endDate.toInstant(ZoneOffset.UTC).toEpochMilli());
+            record.put("timeframe", defaultString(job.getTimeframe()));
+            record.put("insertedAtEpochMs", System.currentTimeMillis());
+            record.put("jobId", defaultString(job.getId()));
+            writer.write(record);
         }
     }
 
@@ -306,5 +420,37 @@ public class DeltaLakeExporter {
 
         log.info("[Delta] Unable to classify asset for symbol={}, defaulting to STOCK", job.getSymbol());
         return "STOCK";
+    }
+
+    private String resolveInsertedType(DataImportJob job, String assetCategory) {
+        String normalizedCategory = defaultString(assetCategory).toUpperCase(Locale.ROOT);
+        if (normalizedCategory.contains("CRYPTO")) {
+            return "CRYPTO";
+        }
+        if (normalizedCategory.contains("ETF")) {
+            return "ETF";
+        }
+        if (normalizedCategory.contains("FOREX") || normalizedCategory.equals("FX")) {
+            return "FOREX";
+        }
+        String assetClass = defaultString(job.getAssetClass()).toUpperCase(Locale.ROOT);
+        if (assetClass.contains("FOREX") || assetClass.equals("FX")) {
+            return "FOREX";
+        }
+        if (assetClass.contains("ETF")) {
+            return "ETF";
+        }
+        if (assetClass.contains("CRYPTO")) {
+            return "CRYPTO";
+        }
+        return "STOCK";
+    }
+
+    private String normalizeInsertedType(String value) {
+        String normalized = defaultString(value).toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "CRYPTO", "ETF", "FOREX", "STOCK" -> normalized;
+            default -> "STOCK";
+        };
     }
 }
