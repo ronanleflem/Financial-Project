@@ -151,4 +151,48 @@ class RunControllerCapabilitiesTest {
         org.mockito.Mockito.verify(pythonCanonicalRunService)
                 .getCapabilities(org.mockito.ArgumentMatchers.eq("market_stats"), org.mockito.ArgumentMatchers.anyString());
     }
+
+    @Test
+    void returnsCapabilitiesForBacktestSpecType() throws Exception {
+        ResponseEntity<?> response = ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of(
+                        "spec_type", "backtest",
+                        "runtime_rules", java.util.Map.of(
+                                "data_source_resolution", java.util.Map.of(
+                                        "modes", java.util.List.of("auto", "manual"),
+                                        "default_mode", "auto"
+                                )
+                        ),
+                        "fields", java.util.Map.of("supported", java.util.List.of("symbol", "timeframe"))
+                ));
+        org.mockito.Mockito.when(pythonCanonicalRunService.getCapabilities(org.mockito.ArgumentMatchers.eq("backtest"), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(response);
+
+        mockMvc.perform(get("/api/runs/capabilities").param("spec_type", "backtest"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.spec_type", is("backtest")))
+                .andExpect(jsonPath("$.runtime_rules.data_source_resolution.default_mode", is("auto")))
+                .andExpect(jsonPath("$.runtime_rules.data_source_resolution.modes[0]", is("auto")))
+                .andExpect(jsonPath("$.fields.supported[0]", is("symbol")));
+    }
+
+    @Test
+    void preservesPython422BodyForCapabilities() throws Exception {
+        ResponseEntity<?> response = ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of(
+                        "errors", java.util.List.of(
+                                java.util.Map.of("field", "filters.rules_weights", "code", "INVALID", "message", "must be positive")
+                        )
+                ));
+        org.mockito.Mockito.when(pythonCanonicalRunService.getCapabilities(org.mockito.ArgumentMatchers.eq("dca"), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(response);
+
+        mockMvc.perform(get("/api/runs/capabilities").param("spec_type", "dca"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.errors[0].field", is("filters.rules_weights")))
+                .andExpect(jsonPath("$.errors[0].code", is("INVALID")))
+                .andExpect(jsonPath("$.errors[0].message", is("must be positive")));
+    }
 }

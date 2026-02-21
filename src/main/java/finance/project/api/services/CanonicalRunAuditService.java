@@ -24,19 +24,17 @@ public class CanonicalRunAuditService {
 
     public void recordSubmit(String rawPayload, String correlationId, String actor, ResponseEntity<?> response) {
         String requestId = firstNonBlank(
-                extractText(response.getBody(), "requestId"),
-                extractText(response.getBody(), "run_id"),
-                extractText(rawPayload, "requestId")
+                extractFirstText(response.getBody(), "request_id", "requestId", "run_id"),
+                extractFirstText(rawPayload, "request_id", "requestId")
         );
-        String specType = extractText(rawPayload, "specType");
+        String specType = extractFirstText(rawPayload, "spec_type", "specType");
         String status = extractText(response.getBody(), "status");
         upsertBestEffort(requestId, actor, specType, status, correlationId);
     }
 
     public void recordLifecycle(String pathRequestId, String correlationId, String actor, ResponseEntity<?> response) {
         String requestId = firstNonBlank(
-                extractText(response.getBody(), "requestId"),
-                extractText(response.getBody(), "run_id"),
+                extractFirstText(response.getBody(), "request_id", "requestId", "run_id"),
                 normalize(pathRequestId)
         );
         String status = extractText(response.getBody(), "status");
@@ -86,6 +84,19 @@ public class CanonicalRunAuditService {
         }
     }
 
+    private String extractFirstText(String rawPayload, String... fieldNames) {
+        if (fieldNames == null) {
+            return null;
+        }
+        for (String fieldName : fieldNames) {
+            String value = extractText(rawPayload, fieldName);
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
+    }
+
     private String extractText(Object body, String fieldName) {
         if (body == null) {
             return null;
@@ -96,6 +107,19 @@ public class CanonicalRunAuditService {
         } catch (Exception ex) {
             return null;
         }
+    }
+
+    private String extractFirstText(Object body, String... fieldNames) {
+        if (fieldNames == null) {
+            return null;
+        }
+        for (String fieldName : fieldNames) {
+            String value = extractText(body, fieldName);
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private static String textOrNull(JsonNode node) {

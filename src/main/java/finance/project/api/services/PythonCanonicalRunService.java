@@ -122,7 +122,7 @@ public class PythonCanonicalRunService {
                                         boolean mapRunIdField) {
         long startNs = System.nanoTime();
         String normalizedCorrelationId = normalizeCorrelationId(correlationId);
-        String specType = extractText(rawPayload, "specType");
+        String specType = extractFirstText(rawPayload, "spec_type", "specType");
         String requestId = extractRequestIdFromPath(upstreamPath);
         int httpStatus = 500;
         try {
@@ -138,8 +138,7 @@ public class PythonCanonicalRunService {
             Object mapped = mapSuccessBody(pythonResponse.getBody(), mapRunIdField);
             requestId = firstNonBlank(
                     requestId,
-                    extractText(mapped, "requestId"),
-                    extractText(mapped, "run_id")
+                    extractFirstText(mapped, "request_id", "requestId", "run_id")
             );
             return ResponseEntity.status(pythonResponse.getStatusCode())
                     .header(CORRELATION_HEADER, normalizedCorrelationId)
@@ -150,8 +149,7 @@ public class PythonCanonicalRunService {
             Object errorBody = parseJsonOrRaw(ex.getResponseBodyAsString());
             requestId = firstNonBlank(
                     requestId,
-                    extractText(errorBody, "requestId"),
-                    extractText(errorBody, "run_id")
+                    extractFirstText(errorBody, "request_id", "requestId", "run_id")
             );
             return ResponseEntity.status(ex.getStatusCode())
                     .header(CORRELATION_HEADER, normalizedCorrelationId)
@@ -258,9 +256,35 @@ public class PythonCanonicalRunService {
         }
     }
 
+    private String extractFirstText(String rawPayload, String... fieldNames) {
+        if (fieldNames == null) {
+            return null;
+        }
+        for (String fieldName : fieldNames) {
+            String value = extractText(rawPayload, fieldName);
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
+    }
+
     private String extractText(Object body, String fieldName) {
         if (body instanceof JsonNode node) {
             return textOrNull(node.get(fieldName));
+        }
+        return null;
+    }
+
+    private String extractFirstText(Object body, String... fieldNames) {
+        if (fieldNames == null) {
+            return null;
+        }
+        for (String fieldName : fieldNames) {
+            String value = extractText(body, fieldName);
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
         }
         return null;
     }

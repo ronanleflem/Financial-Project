@@ -71,6 +71,33 @@ class PythonCanonicalRunServiceTest {
     }
 
     @Test
+    void supportsSnakeCaseSpecTypeAndRequestIdWithoutUnexpectedMapping() {
+        PythonDispatchProperties props = new PythonDispatchProperties();
+        props.setBaseUrl("http://python.local");
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+
+        String payload = """
+                {"spec_type":"backtest","catalog_version":"2026-02-02","data":{"symbol":"SPY"}}
+                """;
+        server.expect(once(), requestTo("http://python.local/runs"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess(
+                        "{\"request_id\":\"run_reqid_1\",\"status\":\"PENDING\"}",
+                        MediaType.APPLICATION_JSON
+                ));
+
+        PythonCanonicalRunService service = new PythonCanonicalRunService(restTemplate, props, MAPPER, NOOP_METRICS);
+        var response = service.submit(payload, "corr-snake");
+
+        assertEquals(200, response.getStatusCode().value());
+        JsonNode body = (JsonNode) response.getBody();
+        assertEquals("run_reqid_1", body.get("request_id").asText());
+        org.junit.jupiter.api.Assertions.assertNull(body.get("requestId"));
+        server.verify();
+    }
+
+    @Test
     void keepsAcceptedStatusFromPythonOnSubmit() {
         PythonDispatchProperties props = new PythonDispatchProperties();
         props.setBaseUrl("http://python.local");
@@ -327,6 +354,32 @@ class PythonCanonicalRunServiceTest {
         assertEquals("legacyGridStep", body.get("legacy_dca").get("fields").get("supported_in_legacy_runner").get(0).asText());
         assertEquals("legacySafetyOrder", body.get("legacy_dca").get("fields").get("supported_in_legacy_runner").get(1).asText());
         assertEquals("legacySafetyOrder", body.get("legacy_dca").get("fields").get("canonical_passthrough_supported").get(0).asText());
+        server.verify();
+    }
+
+    @Test
+    void preservesCapabilities422BodyWithoutTransformation() {
+        PythonDispatchProperties props = new PythonDispatchProperties();
+        props.setBaseUrl("http://python.local");
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        String upstreamBody = """
+                {"errors":[{"field":"filters.rules_weights","code":"INVALID","message":"must be positive"}]}
+                """;
+
+        server.expect(once(), requestTo("http://python.local/runs/capabilities?spec_type=backtest"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(upstreamBody));
+
+        PythonCanonicalRunService service = new PythonCanonicalRunService(restTemplate, props, MAPPER, NOOP_METRICS);
+        var response = service.getCapabilities("backtest", "corr-cap-422");
+
+        assertEquals(422, response.getStatusCode().value());
+        JsonNode body = (JsonNode) response.getBody();
+        assertEquals("filters.rules_weights", body.get("errors").get(0).get("field").asText());
+        assertEquals("INVALID", body.get("errors").get(0).get("code").asText());
         server.verify();
     }
 }

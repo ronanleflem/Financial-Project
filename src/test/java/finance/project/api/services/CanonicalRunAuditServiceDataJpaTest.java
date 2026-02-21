@@ -68,6 +68,25 @@ class CanonicalRunAuditServiceDataJpaTest {
     }
 
     @Test
+    void supportsSnakeCaseSpecTypeAndRequestIdFields() {
+        String payload = """
+                {"spec_type":"dca","request_id":"req-snake-id"}
+                """;
+        ResponseEntity<?> submitResponse = ResponseEntity.ok(java.util.Map.of(
+                "request_id", "run_snake_1",
+                "status", "PENDING"
+        ));
+
+        service.recordSubmit(payload, "corr-snake", "bob", submitResponse);
+
+        CanonicalRunAuditEntity created = repository.findByRequestId("run_snake_1").orElseThrow();
+        assertEquals("bob", created.getActor());
+        assertEquals("dca", created.getSpecType());
+        assertEquals("PENDING", created.getStatus());
+        assertEquals("corr-snake", created.getCorrelationId());
+    }
+
+    @Test
     void usesPathRequestIdWhenBodyHasNoRequestId() {
         ResponseEntity<?> response = ResponseEntity.ok(java.util.Map.of("status", "CANCELLING"));
         service.recordLifecycle("run_from_path", "corr-path", null, response);

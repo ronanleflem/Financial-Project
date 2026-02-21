@@ -325,4 +325,75 @@ class RunControllerRunsPythonCanonicalTest {
         );
         org.mockito.Mockito.verifyNoInteractions(runRequestService);
     }
+
+    @Test
+    void forwardsBacktestAutoSourceModeWithoutFiltering() throws Exception {
+        ResponseEntity<?> response = ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of("request_id", "run_bt_auto", "status", "PENDING"));
+        org.mockito.Mockito.doReturn(response).when(pythonCanonicalRunService).submit(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString());
+
+        String json = """
+                {
+                  "spec_type": "backtest",
+                  "catalog_version": "2026-02-02",
+                  "run_type": "backtest",
+                  "runtime_rules": {
+                    "data_source_resolution": {
+                      "mode": "auto"
+                    }
+                  },
+                  "data": {"symbol":"SPY","timeframe":"1d"}
+                }
+                """;
+
+        mockMvc.perform(post("/api/runs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.request_id", is("run_bt_auto")))
+                .andExpect(jsonPath("$.status", is("PENDING")));
+
+        org.mockito.Mockito.verify(pythonCanonicalRunService).submit(
+                org.mockito.ArgumentMatchers.eq(json),
+                org.mockito.ArgumentMatchers.anyString()
+        );
+        org.mockito.Mockito.verifyNoInteractions(runRequestService);
+    }
+
+    @Test
+    void preservesNoSourceAvailableErrorFromPython() throws Exception {
+        ResponseEntity<?> response = ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of(
+                        "errors", java.util.List.of(
+                                java.util.Map.of(
+                                        "field", "runtime_rules.data_source_resolution",
+                                        "code", "NO_SOURCE_AVAILABLE",
+                                        "message", "no source available for symbol/timeframe/date range"
+                                )
+                        )
+                ));
+        org.mockito.Mockito.doReturn(response).when(pythonCanonicalRunService).submit(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString());
+
+        String json = """
+                {
+                  "spec_type": "backtest",
+                  "runtime_rules": {"data_source_resolution": {"mode": "auto"}},
+                  "data": {"symbol":"UNKNOWN","timeframe":"1d"}
+                }
+                """;
+
+        mockMvc.perform(post("/api/runs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.errors[0].field", is("runtime_rules.data_source_resolution")))
+                .andExpect(jsonPath("$.errors[0].code", is("NO_SOURCE_AVAILABLE")))
+                .andExpect(jsonPath("$.errors[0].message", is("no source available for symbol/timeframe/date range")));
+    }
 }
