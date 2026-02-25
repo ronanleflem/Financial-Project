@@ -396,4 +396,91 @@ class RunControllerRunsPythonCanonicalTest {
                 .andExpect(jsonPath("$.errors[0].code", is("NO_SOURCE_AVAILABLE")))
                 .andExpect(jsonPath("$.errors[0].message", is("no source available for symbol/timeframe/date range")));
     }
+
+    @Test
+    void acceptsSymbolsOnlyPayloadForMarketStatsAndReturnsQueued() throws Exception {
+        ResponseEntity<?> response = ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of("request_id", "run_ms_symbols", "status", "QUEUED"));
+        org.mockito.Mockito.doReturn(response).when(pythonCanonicalRunService).submit(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString());
+
+        String json = """
+                {
+                  "spec_type": "market_stats",
+                  "data": {"symbols":["SPY","QQQ"],"timeframe":"1d"}
+                }
+                """;
+
+        mockMvc.perform(post("/api/runs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.request_id", is("run_ms_symbols")))
+                .andExpect(jsonPath("$.status", is("QUEUED")));
+
+        org.mockito.Mockito.verify(pythonCanonicalRunService).submit(
+                org.mockito.ArgumentMatchers.eq(json),
+                org.mockito.ArgumentMatchers.anyString()
+        );
+    }
+
+    @Test
+    void acceptsSymbolsOnlyPayloadForSeasonalityAndReturnsQueued() throws Exception {
+        ResponseEntity<?> response = ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of("request_id", "run_seas_symbols", "status", "QUEUED"));
+        org.mockito.Mockito.doReturn(response).when(pythonCanonicalRunService).submit(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString());
+
+        String json = """
+                {
+                  "spec_type": "seasonality",
+                  "data": {"symbols":["AAPL","MSFT"],"timezone":"UTC"}
+                }
+                """;
+
+        mockMvc.perform(post("/api/runs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.request_id", is("run_seas_symbols")))
+                .andExpect(jsonPath("$.status", is("QUEUED")));
+
+        org.mockito.Mockito.verify(pythonCanonicalRunService).submit(
+                org.mockito.ArgumentMatchers.eq(json),
+                org.mockito.ArgumentMatchers.anyString()
+        );
+    }
+
+    @Test
+    void preservesPython422BodyForInvalidSymbolsPayload() throws Exception {
+        ResponseEntity<?> response = ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of(
+                        "errors", java.util.List.of(
+                                java.util.Map.of("field", "data.symbols", "code", "INVALID", "message", "must not be empty")
+                        )
+                ));
+        org.mockito.Mockito.doReturn(response).when(pythonCanonicalRunService).submit(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString());
+
+        String json = """
+                {
+                  "spec_type": "market_stats",
+                  "data": {"symbols":[]}
+                }
+                """;
+
+        mockMvc.perform(post("/api/runs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.errors[0].field", is("data.symbols")))
+                .andExpect(jsonPath("$.errors[0].code", is("INVALID")))
+                .andExpect(jsonPath("$.errors[0].message", is("must not be empty")));
+    }
 }

@@ -44,6 +44,9 @@ database/*.db
 
 logs/
 
+# Local Maven cache in project workspace
+.m2/
+
 ### Local property overrides ###
 # Ignore custom copies of application.properties that may contain secrets
 *application*.properties

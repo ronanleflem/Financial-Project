@@ -9,6 +9,9 @@ app:
 spring:
   flyway:
     enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
 run:
   engine:
     mode: ${RUN_ENGINE_MODE:PYTHON_CANONICAL}
@@ -43,8 +46,8 @@ dukascopy:
   jnlp-url: ${DUKASCOPY_JNLP_URL:http://platform.dukascopy.com/demo_3/jforex_3.jnlp}
   #username: ${DUKASCOPY_USERNAME:Espe20}
   #password: ${DUKASCOPY_PASSWORD:EwqMf7w8JJN7Lay)}
-  username: ${DUKASCOPY_USERNAME:DEMO2MpUmT}
-  password: ${DUKASCOPY_PASSWORD:MpUmT}
+  username: ${DUKASCOPY_USERNAME:DEMO210037EcTzdEU}
+  password: ${DUKASCOPY_PASSWORD:EcTzd}
   connect-timeout-millis: 15000
   history-timeout-millis: 30000
   offer-side: BID
@@ -61,4 +64,3 @@ external:
   eodhd:
     base-url: https://eodhd.com/api/eod
     api-key: ${EODHD_API_KEY:demo}
-

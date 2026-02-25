@@ -195,4 +195,56 @@ class RunControllerCapabilitiesTest {
                 .andExpect(jsonPath("$.errors[0].code", is("INVALID")))
                 .andExpect(jsonPath("$.errors[0].message", is("must be positive")));
     }
+
+    @Test
+    void keepsMarketStatsSymbolsAndPriorityRuleFromPythonCapabilities() throws Exception {
+        ResponseEntity<?> response = ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of(
+                        "spec_type", "market_stats",
+                        "fields", java.util.Map.of(
+                                "supported", java.util.List.of("data.symbol", "data.symbols", "data.timeframe")
+                        ),
+                        "runtime_rules", java.util.Map.of(
+                                "symbol_resolution", java.util.Map.of(
+                                        "priority", java.util.List.of("data.symbols", "data.symbol")
+                                )
+                        )
+                ));
+        org.mockito.Mockito.when(pythonCanonicalRunService.getCapabilities(org.mockito.ArgumentMatchers.eq("market_stats"), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(response);
+
+        mockMvc.perform(get("/api/runs/capabilities").param("spec_type", "market_stats"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.spec_type", is("market_stats")))
+                .andExpect(jsonPath("$.fields.supported[1]", is("data.symbols")))
+                .andExpect(jsonPath("$.runtime_rules.symbol_resolution.priority[0]", is("data.symbols")))
+                .andExpect(jsonPath("$.runtime_rules.symbol_resolution.priority[1]", is("data.symbol")));
+    }
+
+    @Test
+    void keepsSeasonalitySymbolsAndPriorityRuleFromPythonCapabilities() throws Exception {
+        ResponseEntity<?> response = ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of(
+                        "spec_type", "seasonality",
+                        "fields", java.util.Map.of(
+                                "supported", java.util.List.of("data.symbol", "data.symbols", "data.timezone")
+                        ),
+                        "runtime_rules", java.util.Map.of(
+                                "symbol_resolution", java.util.Map.of(
+                                        "priority", java.util.List.of("data.symbols", "data.symbol")
+                                )
+                        )
+                ));
+        org.mockito.Mockito.when(pythonCanonicalRunService.getCapabilities(org.mockito.ArgumentMatchers.eq("seasonality"), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(response);
+
+        mockMvc.perform(get("/api/runs/capabilities").param("spec_type", "seasonality"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.spec_type", is("seasonality")))
+                .andExpect(jsonPath("$.fields.supported[1]", is("data.symbols")))
+                .andExpect(jsonPath("$.runtime_rules.symbol_resolution.priority[0]", is("data.symbols")))
+                .andExpect(jsonPath("$.runtime_rules.symbol_resolution.priority[1]", is("data.symbol")));
+    }
 }
