@@ -50,7 +50,7 @@ public class MarketStatsEntity {
     @Column(name = "timeframe", nullable = false, length = 64)
     private String timeframe;
 
-    @Column(name = "event", nullable = false)
+    @Column(name = "`event`", nullable = false)
     private String event;
 
     @Column(name = "condition_name")
@@ -62,7 +62,7 @@ public class MarketStatsEntity {
     @Column(name = "target", nullable = false)
     private String target;
 
-    @Column(name = "split", nullable = false, length = 64)
+    @Column(name = "`split`", nullable = false, length = 64)
     private String split;
 
     @Column(name = "n", nullable = false)
@@ -83,10 +83,10 @@ public class MarketStatsEntity {
     @Column(name = "lift", nullable = false)
     private Double lift;
 
-    @Column(name = "start", nullable = false)
+    @Column(name = "`start`", nullable = false)
     private String start;
 
-    @Column(name = "end", nullable = false)
+    @Column(name = "`end`", nullable = false)
     private String end;
 
     @Column(name = "spec_id")

@@ -45,11 +45,11 @@ public class ExperimentRunEntity {
     private String status;
 
     @Lob
-    @Column(name = "objective")
+    @Column(name = "objective", columnDefinition = "LONGTEXT")
     private String objective;
 
     @Lob
-    @Column(name = "out_dir")
+    @Column(name = "out_dir", columnDefinition = "LONGTEXT")
     private String outDir;
 
     @Column(name = "started_at", updatable = false, insertable = false)

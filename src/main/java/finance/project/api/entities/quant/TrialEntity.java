@@ -43,7 +43,7 @@ public class TrialEntity {
     private Integer trialNumber;
 
     @Lob
-    @Column(name = "params_json")
+    @Column(name = "params_json", columnDefinition = "LONGTEXT")
     private String paramsJson;
 
     @Column(name = "objective_value")

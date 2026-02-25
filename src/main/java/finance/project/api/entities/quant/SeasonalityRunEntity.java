@@ -42,14 +42,14 @@ public class SeasonalityRunEntity {
     private String datasetId;
 
     @Lob
-    @Column(name = "out_dir")
+    @Column(name = "out_dir", columnDefinition = "LONGTEXT")
     private String outDir;
 
     @Column(name = "status", nullable = false, length = 64)
     private String status;
 
     @Lob
-    @Column(name = "best_summary")
+    @Column(name = "best_summary", columnDefinition = "LONGTEXT")
     private String bestSummary;
 
     @Column(name = "created_at", updatable = false, insertable = false)

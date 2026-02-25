@@ -14,7 +14,7 @@ public interface MarketStatsRepository extends JpaRepository<MarketStatsEntity, 
     @Query(
             value = """
                     INSERT INTO market_stats (
-                        symbol, timeframe, event, condition_name, condition_value,
+                        symbol, timeframe, `event`, condition_name, condition_value,
                         target, `split`, n, successes, p_hat, ci_low, ci_high, lift,
                         `start`, `end`, spec_id, dataset_id, created_at
                     ) VALUES (

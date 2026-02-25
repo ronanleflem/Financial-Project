@@ -46,15 +46,15 @@ public class ApiJobEntity {
     private String status;
 
     @Lob
-    @Column(name = "payload_json")
+    @Column(name = "payload_json", columnDefinition = "LONGTEXT")
     private String payloadJson;
 
     @Lob
-    @Column(name = "result_json")
+    @Column(name = "result_json", columnDefinition = "LONGTEXT")
     private String resultJson;
 
     @Lob
-    @Column(name = "error_message")
+    @Column(name = "error_message", columnDefinition = "LONGTEXT")
     private String errorMessage;
 
     @Column(name = "attempts", nullable = false)
@@ -67,7 +67,7 @@ public class ApiJobEntity {
     private Integer timeoutSeconds;
 
     @Lob
-    @Column(name = "progress_json")
+    @Column(name = "progress_json", columnDefinition = "LONGTEXT")
     private String progressJson;
 
     @Builder.Default

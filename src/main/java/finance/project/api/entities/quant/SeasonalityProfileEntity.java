@@ -70,7 +70,7 @@ public class SeasonalityProfileEntity {
     private Double lift;
 
     @Lob
-    @Column(name = "metrics")
+    @Column(name = "metrics", columnDefinition = "LONGTEXT")
     private String metrics;
 
     @Column(name = "start")
