@@ -1,6 +1,7 @@
 package finance.project.api.controllers;
 
 import finance.project.api.model.run.RunRequestInput;
+import finance.project.api.model.run.StressSourceRunsResponse;
 import finance.project.api.model.ValidationErrorItem;
 import finance.project.api.model.ValidationErrorResponse;
 import finance.project.api.observability.RunMetrics;
@@ -9,11 +10,18 @@ import finance.project.api.services.RunResultService;
 import finance.project.api.services.RunStatusService;
 import finance.project.api.services.PythonCanonicalRunService;
 import finance.project.api.services.CanonicalRunAuditService;
+import finance.project.api.services.StressSourceRunService;
 import finance.project.api.validation.RunRequestValidationException;
 import finance.project.api.validation.RunTechnicalValidationException;
 import finance.project.api.validation.RunRequestValidator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Validator;
 import jakarta.validation.ConstraintViolation;
 import java.util.List;
@@ -46,6 +54,7 @@ public class RunController {
     private final ObjectProvider<RunRequestService> runRequestService;
     private final ObjectProvider<RunStatusService> runStatusService;
     private final ObjectProvider<RunResultService> runResultService;
+    private final ObjectProvider<StressSourceRunService> stressSourceRunService;
     private final RunMetrics runMetrics;
     private final ObjectMapper objectMapper;
     private final Validator validator;
@@ -57,6 +66,7 @@ public class RunController {
                          ObjectProvider<RunRequestService> runRequestService,
                          ObjectProvider<RunStatusService> runStatusService,
                          ObjectProvider<RunResultService> runResultService,
+                         ObjectProvider<StressSourceRunService> stressSourceRunService,
                          RunMetrics runMetrics,
                          ObjectMapper objectMapper,
                          Validator validator,
@@ -67,6 +77,7 @@ public class RunController {
         this.runRequestService = runRequestService;
         this.runStatusService = runStatusService;
         this.runResultService = runResultService;
+        this.stressSourceRunService = stressSourceRunService;
         this.runMetrics = runMetrics;
         this.objectMapper = objectMapper;
         this.validator = validator;
@@ -169,6 +180,37 @@ public class RunController {
         }
 
         return upstream;
+    }
+
+    @Operation(summary = "List eligible source runs for stress test launch")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Eligible canonical source runs",
+                    content = @Content(schema = @Schema(implementation = StressSourceRunsResponse.class))
+            ),
+            @ApiResponse(responseCode = "422", description = "Invalid request")
+    })
+    @GetMapping("/runs/stress/sources")
+    public ResponseEntity<?> listStressSourceRuns(
+            @Parameter(description = "Page size (default 20, max 100)")
+            @RequestParam(value = "limit", required = false) Integer limit,
+            @Parameter(description = "Pagination cursor from previous response")
+            @RequestParam(value = "cursor", required = false) String cursor,
+            @Parameter(description = "Optional filter: dca or backtest")
+            @RequestParam(value = "strategyType", required = false) String strategyType
+    ) {
+        if (strategyType != null && !strategyType.isBlank()) {
+            String normalized = strategyType.trim().toLowerCase();
+            if (!"dca".equals(normalized) && !"backtest".equals(normalized)) {
+                ValidationErrorItem error = new ValidationErrorItem("strategyType", "must be one of: dca, backtest");
+                return ResponseEntity.unprocessableEntity()
+                        .body(new ValidationErrorResponse("INVALID_REQUEST", List.of(error)));
+            }
+        }
+        StressSourceRunsResponse response = requireLegacyBean(stressSourceRunService, "StressSourceRunService")
+                .listEligibleSources(limit, cursor, strategyType);
+        return ResponseEntity.ok(response);
     }
 
     private void validate(RunRequestInput input) {
