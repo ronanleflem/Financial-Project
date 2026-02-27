@@ -239,7 +239,15 @@ public class DeltaLakeExporter {
                     System.currentTimeMillis(),
                     true,
                     null,
-                    Collections.emptyMap()
+                    Map.of(
+                            "symbol", defaultString(job.getSymbol()),
+                            "insertedType", normalizeInsertedType(insertedType),
+                            "timeframe", defaultString(job.getTimeframe()),
+                            "startDateEpochMs", String.valueOf(minDate.toInstant(ZoneOffset.UTC).toEpochMilli()),
+                            "endDateEpochMs", String.valueOf(maxDate.toInstant(ZoneOffset.UTC).toEpochMilli()),
+                            "insertedAtEpochMs", String.valueOf(System.currentTimeMillis()),
+                            "jobId", defaultString(job.getId())
+                    )
             );
 
             Operation operation = new Operation(
