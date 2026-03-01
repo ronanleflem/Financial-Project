@@ -52,6 +52,11 @@ public class DatabentoCsvImportService {
         candleService.saveCandlesToDatabase(baseCandles, symbol, timeframe);
         deltaLakeExporter.exportCandlesToDelta(job, mapForDelta(baseCandles, timeframe));
 
+        if (!isOneMinuteTimeframe(timeframe)) {
+            log.info("[Databento CSV] Auto-aggregation skipped for source timeframe {} (requires 1min)", timeframe);
+            return;
+        }
+
         for (String target : TARGET_TIMEFRAMES) {
             if (target.equalsIgnoreCase(timeframe)) {
                 continue;
@@ -98,5 +103,14 @@ public class DatabentoCsvImportService {
             return "data_unknown";
         }
         return "data_" + DATASET_FORMATTER.format(start);
+    }
+
+
+    private boolean isOneMinuteTimeframe(String timeframe) {
+        if (timeframe == null) {
+            return false;
+        }
+        String normalized = timeframe.trim().toLowerCase();
+        return "1m".equals(normalized) || "1min".equals(normalized);
     }
 }

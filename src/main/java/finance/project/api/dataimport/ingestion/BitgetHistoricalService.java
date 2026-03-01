@@ -50,6 +50,11 @@ public class BitgetHistoricalService {
         candleService.saveCandlesToDatabase(candles, symbol, timeframe);
         deltaLakeExporter.exportCandlesToDelta(job, mapForDelta(candles, timeframe));
 
+        if (!isOneMinuteTimeframe(timeframe)) {
+            log.info("[Bitget] Auto-aggregation skipped for source timeframe {} (requires 1min)", timeframe);
+            return true;
+        }
+
         try {
             List<CandleDTO> aggregated =
                     candleAggregationService.aggregateCandles(candles, timeframe, MarketType.CRYPTO);
@@ -79,5 +84,14 @@ public class BitgetHistoricalService {
             entities.add(candle);
         }
         return entities;
+    }
+
+
+    private boolean isOneMinuteTimeframe(String timeframe) {
+        if (timeframe == null) {
+            return false;
+        }
+        String normalized = timeframe.trim().toLowerCase();
+        return "1m".equals(normalized) || "1min".equals(normalized);
     }
 }
