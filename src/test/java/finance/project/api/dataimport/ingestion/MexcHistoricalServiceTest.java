@@ -45,25 +45,42 @@ class MexcHistoricalServiceTest {
     private MexcHistoricalService service;
 
     @Test
-    void fetchAndSavePersistsAndAggregates() {
+    void fetchAndSaveSkipsAutoAggregationWhenSourceIsNot1min() {
         DataImportJob job = job("ETHUSDT", "15m");
         Instant start = Instant.parse("2024-02-01T00:00:00Z");
         Instant end = Instant.parse("2024-02-01T02:00:00Z");
         List<CandleDTO> baseCandles = List.of(candle(LocalDateTime.parse("2024-02-01T00:00:00")));
-        List<CandleDTO> aggregatedCandles = List.of(candle(LocalDateTime.parse("2024-02-01T00:15:00")));
 
         when(mexcService.getHistoricalCandlesInRange(eq("ETHUSDT"), eq("15m"), any(), any()))
                 .thenReturn(baseCandles);
-        when(candleAggregationService.aggregateCandles(eq(baseCandles), eq("15m"), eq(MarketType.CRYPTO)))
-                .thenReturn(aggregatedCandles);
-
         boolean result = service.fetchAndSave(job, start, end);
 
         assertThat(result).isTrue();
         verify(candleService).saveCandlesToDatabase(baseCandles, "ETHUSDT", "15m");
         verify(deltaLakeExporter).exportCandlesToDelta(eq(job), anyList());
-        verify(candleAggregationService).aggregateCandles(baseCandles, "15m", MarketType.CRYPTO);
-        verify(candleService).saveCandlesToDatabase(aggregatedCandles, "ETHUSDT", "15m");
+        verify(candleAggregationService, never()).aggregateCandles(anyList(), any(), any());
+    }
+
+    @Test
+    void fetchAndSaveAggregatesWhenSourceIs1min() {
+        DataImportJob job = job("ETHUSDT", "1min");
+        Instant start = Instant.parse("2024-02-01T00:00:00Z");
+        Instant end = Instant.parse("2024-02-01T02:00:00Z");
+        List<CandleDTO> baseCandles = List.of(candle(LocalDateTime.parse("2024-02-01T00:00:00")));
+        List<CandleDTO> aggregatedCandles = List.of(candle(LocalDateTime.parse("2024-02-01T00:01:00")));
+
+        when(mexcService.getHistoricalCandlesInRange(eq("ETHUSDT"), eq("1min"), any(), any()))
+                .thenReturn(baseCandles);
+        when(candleAggregationService.aggregateCandles(eq(baseCandles), eq("1min"), eq(MarketType.CRYPTO)))
+                .thenReturn(aggregatedCandles);
+
+        boolean result = service.fetchAndSave(job, start, end);
+
+        assertThat(result).isTrue();
+        verify(candleService).saveCandlesToDatabase(baseCandles, "ETHUSDT", "1min");
+        verify(deltaLakeExporter).exportCandlesToDelta(eq(job), anyList());
+        verify(candleAggregationService).aggregateCandles(baseCandles, "1min", MarketType.CRYPTO);
+        verify(candleService).saveCandlesToDatabase(aggregatedCandles, "ETHUSDT", "1min");
     }
 
     @Test

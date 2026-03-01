@@ -45,25 +45,42 @@ class BitgetHistoricalServiceTest {
     private BitgetHistoricalService service;
 
     @Test
-    void fetchAndSavePersistsAndAggregates() {
+    void fetchAndSaveSkipsAutoAggregationWhenSourceIsNot1min() {
         DataImportJob job = job("BTCUSDT", "30m");
         Instant start = Instant.parse("2024-03-01T00:00:00Z");
         Instant end = Instant.parse("2024-03-01T02:00:00Z");
         List<CandleDTO> baseCandles = List.of(candle(LocalDateTime.parse("2024-03-01T00:00:00")));
-        List<CandleDTO> aggregatedCandles = List.of(candle(LocalDateTime.parse("2024-03-01T00:30:00")));
 
         when(bitgetService.getHistoricalCandlesInRange(eq("BTCUSDT"), eq("30m"), any(), any()))
                 .thenReturn(baseCandles);
-        when(candleAggregationService.aggregateCandles(eq(baseCandles), eq("30m"), eq(MarketType.CRYPTO)))
-                .thenReturn(aggregatedCandles);
-
         boolean result = service.fetchAndSave(job, start, end);
 
         assertThat(result).isTrue();
         verify(candleService).saveCandlesToDatabase(baseCandles, "BTCUSDT", "30m");
         verify(deltaLakeExporter).exportCandlesToDelta(eq(job), anyList());
-        verify(candleAggregationService).aggregateCandles(baseCandles, "30m", MarketType.CRYPTO);
-        verify(candleService).saveCandlesToDatabase(aggregatedCandles, "BTCUSDT", "30m");
+        verify(candleAggregationService, never()).aggregateCandles(anyList(), any(), any());
+    }
+
+    @Test
+    void fetchAndSaveAggregatesWhenSourceIs1min() {
+        DataImportJob job = job("BTCUSDT", "1min");
+        Instant start = Instant.parse("2024-03-01T00:00:00Z");
+        Instant end = Instant.parse("2024-03-01T02:00:00Z");
+        List<CandleDTO> baseCandles = List.of(candle(LocalDateTime.parse("2024-03-01T00:00:00")));
+        List<CandleDTO> aggregatedCandles = List.of(candle(LocalDateTime.parse("2024-03-01T00:01:00")));
+
+        when(bitgetService.getHistoricalCandlesInRange(eq("BTCUSDT"), eq("1min"), any(), any()))
+                .thenReturn(baseCandles);
+        when(candleAggregationService.aggregateCandles(eq(baseCandles), eq("1min"), eq(MarketType.CRYPTO)))
+                .thenReturn(aggregatedCandles);
+
+        boolean result = service.fetchAndSave(job, start, end);
+
+        assertThat(result).isTrue();
+        verify(candleService).saveCandlesToDatabase(baseCandles, "BTCUSDT", "1min");
+        verify(deltaLakeExporter).exportCandlesToDelta(eq(job), anyList());
+        verify(candleAggregationService).aggregateCandles(baseCandles, "1min", MarketType.CRYPTO);
+        verify(candleService).saveCandlesToDatabase(aggregatedCandles, "BTCUSDT", "1min");
     }
 
     @Test

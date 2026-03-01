@@ -55,6 +55,11 @@ public class MexcHistoricalService {
 
         // Pas obligé de faire toutes les agrégations comme Binance au début,
         // mais si tu veux rester homogène :
+        if (!isOneMinuteTimeframe(timeframe)) {
+            log.info("[MEXC] Auto-aggregation skipped for source timeframe {} (requires 1min)", timeframe);
+            return true;
+        }
+
         try {
             List<CandleDTO> aggregated =
                     candleAggregationService.aggregateCandles(candles, timeframe, MarketType.CRYPTO);
@@ -84,5 +89,14 @@ public class MexcHistoricalService {
             entities.add(candle);
         }
         return entities;
+    }
+
+
+    private boolean isOneMinuteTimeframe(String timeframe) {
+        if (timeframe == null) {
+            return false;
+        }
+        String normalized = timeframe.trim().toLowerCase();
+        return "1m".equals(normalized) || "1min".equals(normalized);
     }
 }

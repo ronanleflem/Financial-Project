@@ -89,6 +89,23 @@ class DatabentoCsvImportServiceTest {
         assertThat(timeframeCaptor.getAllValues()).contains("monthly");
     }
 
+
+    @Test
+    void importCsvSkipsAutoAggregationWhenSourceIsNot1min() {
+        DataImportJob job = job("ES", "1h");
+        Instant start = Instant.parse("2024-02-01T00:00:00Z");
+        Instant end = Instant.parse("2024-02-02T00:00:00Z");
+        List<CandleDTO> baseCandles = List.of(candle(LocalDateTime.parse("2024-02-01T00:00:00")));
+
+        when(candleService.loadCsvCME("ES", "1h", "data_2024-02")).thenReturn(baseCandles);
+
+        service.importCsv(job, start, end, null);
+
+        verify(candleService).saveCandlesToDatabase(baseCandles, "ES", "1h");
+        verify(deltaLakeExporter).exportCandlesToDelta(eq(job), anyList());
+        verify(candleAggregationService, never()).aggregateCandles(anyList(), any(), any());
+    }
+
     @Test
     void importCsvSkipsWhenNoCandles() {
         DataImportJob job = job("ES", "1min");

@@ -47,14 +47,14 @@ class BinanceHistoricalServiceTest {
     private BinanceHistoricalService service;
 
     @Test
-    void fetchAndSaveAggregatesAcrossMultipleTimeframes() {
-        DataImportJob job = job("BTCUSDT", "1h");
+    void fetchAndSaveAggregatesAcrossMultipleTimeframesWhenSourceIs1min() {
+        DataImportJob job = job("BTCUSDT", "1min");
         Instant start = Instant.parse("2024-01-01T00:00:00Z");
         Instant end = Instant.parse("2024-01-01T01:00:00Z");
         List<CandleDTO> baseCandles = List.of(candle(LocalDateTime.parse("2024-01-01T00:00:00")));
         List<CandleDTO> aggregatedCandles = List.of(candle(LocalDateTime.parse("2024-01-01T00:01:00")));
 
-        when(binanceService.getHistoricalCandlesInRange(eq("BTCUSDT"), eq("1h"), any(), any()))
+        when(binanceService.getHistoricalCandlesInRange(eq("BTCUSDT"), eq("1min"), any(), any()))
                 .thenReturn(baseCandles);
         when(candleAggregationService.aggregateCandles(eq(baseCandles), anyString(), eq(MarketType.CRYPTO)))
                 .thenReturn(aggregatedCandles);
@@ -62,14 +62,33 @@ class BinanceHistoricalServiceTest {
         boolean result = service.fetchAndSave(job, start, end);
 
         assertThat(result).isTrue();
-        verify(candleService).saveCandlesToDatabase(baseCandles, "BTCUSDT", "1h");
+        verify(candleService).saveCandlesToDatabase(baseCandles, "BTCUSDT", "1min");
         verify(deltaLakeExporter).exportCandlesToDelta(eq(job), anyList());
         verify(candleAggregationService, times(13))
                 .aggregateCandles(eq(baseCandles), anyString(), eq(MarketType.CRYPTO));
 
         ArgumentCaptor<String> timeframeCaptor = ArgumentCaptor.forClass(String.class);
         verify(candleService, times(13)).saveCandlesToDatabase(eq(aggregatedCandles), eq("BTCUSDT"), timeframeCaptor.capture());
-        assertThat(timeframeCaptor.getAllValues()).doesNotContain("1h");
+        assertThat(timeframeCaptor.getAllValues()).doesNotContain("1min");
+    }
+
+
+    @Test
+    void fetchAndSaveSkipsAutoAggregationWhenSourceIsNot1min() {
+        DataImportJob job = job("BTCUSDT", "1h");
+        Instant start = Instant.parse("2024-01-01T00:00:00Z");
+        Instant end = Instant.parse("2024-01-01T01:00:00Z");
+        List<CandleDTO> baseCandles = List.of(candle(LocalDateTime.parse("2024-01-01T00:00:00")));
+
+        when(binanceService.getHistoricalCandlesInRange(eq("BTCUSDT"), eq("1h"), any(), any()))
+                .thenReturn(baseCandles);
+
+        boolean result = service.fetchAndSave(job, start, end);
+
+        assertThat(result).isTrue();
+        verify(candleService).saveCandlesToDatabase(baseCandles, "BTCUSDT", "1h");
+        verify(deltaLakeExporter).exportCandlesToDelta(eq(job), anyList());
+        verify(candleAggregationService, never()).aggregateCandles(anyList(), anyString(), any());
     }
 
     @Test
