@@ -129,6 +129,12 @@ mvn install:install-file -Dfile=jar\protobuf-java-4.29.3.jar -DgroupId=com.ib -D
 - **Sécurité** : option HMAC via l'entête configuré (`app.live.ingest.hmacHeader`), calculé sur le JSON canonique du signal.
 - **Documentation** : l'interface OpenAPI/Swagger est disponible sur `/swagger-ui`.
 
+## Statut du graphique desktop
+
+- Le module backend Spring API ne contient plus de composant JavaFX.
+- L'ancien `TradingChartApp` a ete retire du backend pour respecter le perimetre API-only.
+- Tout outil graphique desktop doit vivre dans un module/outillage dedie.
+
 ## Contribution
 
 Les contributions sont les bienvenues ! Si vous souhaitez proposer des améliorations ou corriger des bugs, veuillez ouvrir une issue ou soumettre une pull request.

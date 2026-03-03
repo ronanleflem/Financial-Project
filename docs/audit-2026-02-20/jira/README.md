@@ -10,7 +10,7 @@ Ces tickets couvrent une partie seulement de l'audit pour garder un decoupage fi
 - `AUD-104` - Resoudre les doublons de strategies homonymes
 - `AUD-105` - Nettoyer `CandleServiceJPA` des branches rollover legacy commentees
 - `AUD-106` - Sortir `CsvMonthlySplitter` du package `controllers`
-- `AUD-107` - Extraire/supprimer JavaFX du module API Spring
+- `AUD-107 [DONE]` - Extraire/supprimer JavaFX du module API Spring
 - `AUD-108` - Hygiene depot: retirer artefacts locaux versionnes
 - `AUD-109` - Rationaliser `pom.xml` (Guava et devtools)
 - `AUD-110` - Rendre `TradeFilterService` stateless/thread-safe
