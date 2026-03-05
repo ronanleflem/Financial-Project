@@ -18,3 +18,10 @@ Eliminer les collisions de noms (`MeanReversionStrategy`, `VolatilityBreakoutStr
 
 ## Hors scope
 - Refonte metier des strategies.
+
+## Resolution (2026-03-05)
+- Source de verite `MeanReversionStrategy`: conservee dans `strategies/statisticals` (classe Spring `@Service`).
+- Doublon vide supprime: `strategies/volatility/MeanReversionStrategy.java`.
+- Source de verite `VolatilityBreakoutStrategy`: conservee dans `strategies/volatility`.
+- Doublon vide supprime: `strategies/statisticals/VolatilityBreakoutStrategy.java`.
+- Impact Spring: aucun bean retire pour `VolatilityBreakoutStrategy` (classes vides non annotees), et `MeanReversionStrategy` conserve le bean existant.

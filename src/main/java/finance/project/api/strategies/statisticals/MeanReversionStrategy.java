@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class MeanReversionStrategy extends BaseStrategy {
+    // Canonical MeanReversionStrategy implementation (kept in statisticals package).
 
     public MeanReversionStrategy(TradeFilterService tradeFilterService) {
         super(tradeFilterService);
