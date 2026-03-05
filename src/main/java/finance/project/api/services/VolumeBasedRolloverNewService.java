@@ -20,6 +20,9 @@ import static java.math.BigDecimal.ZERO;
 
 /**
  * Dynamic rollover builder for futures minute candles.
+ * Architecture note: this is the active "new" rollover engine used by CandleServiceJPA
+ * for minute-level patched rollover generation. Do not confuse it with
+ * VolumeBasedRolloverService (legacy/alternate path).
  * - Splits the time range into trading sessions of 23h, whose local start is 22h or 23h (Europe/Paris) depending on DST.
  * - For each session, selects the dominant contract (most present minutes; if >=90% each for several, picks max volume).
  * - Fallback fills missing minutes from secondary contracts adjusted by latest spread to dominant.

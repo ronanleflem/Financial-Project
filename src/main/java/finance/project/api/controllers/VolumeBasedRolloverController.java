@@ -3,7 +3,6 @@ package finance.project.api.controllers;
 import finance.project.api.entities.Candle;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.services.CandleAggregationService;
-import finance.project.api.services.VolumeBasedRolloverNewService;
 import finance.project.api.services.VolumeBasedRolloverService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
