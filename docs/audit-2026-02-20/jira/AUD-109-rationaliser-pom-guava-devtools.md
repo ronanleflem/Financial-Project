@@ -18,3 +18,9 @@ Retirer les dependances non necessaires detectees par l'audit pour reduire la su
 
 ## Hors scope
 - Rationalisation complete de toutes les dependances.
+
+## Resolution (2026-03-05)
+- Guava retiree du `pom.xml` (aucun usage direct detecte dans `src/main` et `src/test`).
+- Propriete `guava.version` retiree.
+- `spring-boot-devtools` conservee en mode local uniquement (`scope=runtime`, `optional=true`) pour eviter la propagation transitive.
+- Impact attendu: simplification du `pom.xml` sans changement fonctionnel runtime metier.

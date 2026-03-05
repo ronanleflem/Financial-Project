@@ -29,7 +29,6 @@
 	<properties>
 		<java.version>21</java.version>
 		<org.mapstruct.version>1.5.2.Final</org.mapstruct.version>
-		<guava.version>20.0</guava.version>
 	</properties>
 	<repositories>
 		<repository>
@@ -148,12 +147,6 @@
 			<artifactId>protobuf-java</artifactId>
 			<version>4.29.3</version>
 		</dependency>
-		<dependency>
-			<groupId>com.google.guava</groupId>
-			<artifactId>guava</artifactId>
-			<version>${guava.version}</version>
-		</dependency>
-
 		<!--
 		<dependency>
 			<groupId>org.xerial</groupId>
@@ -192,6 +185,8 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-devtools</artifactId>
+			<scope>runtime</scope>
+			<optional>true</optional>
 		</dependency>
 		<dependency>
 				<groupId>org.springframework.boot</groupId>
