@@ -138,6 +138,7 @@ mvn install:install-file -Dfile=jar\protobuf-java-4.29.3.jar -DgroupId=com.ib -D
 ## Contribution
 
 Les contributions sont les bienvenues ! Si vous souhaitez proposer des améliorations ou corriger des bugs, veuillez ouvrir une issue ou soumettre une pull request.
+Ne versionnez pas les artefacts locaux (`logs/*.log`, `sqlite.db`, `local.duckdb`, `.m2/**`, `*.lastUpdated`).
 
 ## Licence
 

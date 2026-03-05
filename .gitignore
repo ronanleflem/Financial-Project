@@ -46,6 +46,7 @@ logs/
 
 # Local Maven cache in project workspace
 .m2/
+*.lastUpdated
 
 ### Local property overrides ###
 # Ignore custom copies of application.properties that may contain secrets
