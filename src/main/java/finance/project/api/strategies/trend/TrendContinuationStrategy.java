@@ -1,6 +1,5 @@
 package finance.project.api.strategies.trend;
 
-import finance.project.api.entities.MarketData;
 import finance.project.api.model.CandleDTO;
 import finance.project.api.model.TradeRequestDTO;
 import finance.project.api.model.TradeSignalDTO;
@@ -29,16 +28,11 @@ public class TrendContinuationStrategy extends BaseStrategy {
         super(tradeFilterService);
     }
 
-    @Override
-    protected TradeSignalDTO generateRawSignal(MarketData marketData) {
-        return null;
-    }
-
     public List<TradeSignalDTO> execute(String symbol, String timeframe, int period) {
         List<CandleDTO> candles = candleCacheManager.getCandles(symbol, timeframe, period);
 
         if (candles.size() < period) {
-            System.out.println("⚠️ Pas assez de bougies pour exécuter la stratégie.");
+            System.out.println("Pas assez de bougies pour executer la strategie.");
             return null;
         }
 
@@ -50,28 +44,23 @@ public class TrendContinuationStrategy extends BaseStrategy {
         double lastClose = close.getValue(lastIndex).doubleValue();
         double lastEma = ema.getValue(lastIndex).doubleValue();
 
-        // Exemple de logique simple : Trend following
         String action = lastClose > lastEma ? "BUY" : "SELL";
 
-        TradeSignalDTO signal = new TradeSignalDTO(action.equals("BUY") ? TradeSignalDTO.TradeType.LONG : TradeSignalDTO.TradeType.SHORT, 0,0,0,0,symbol);
+        TradeSignalDTO signal = new TradeSignalDTO(
+                action.equals("BUY") ? TradeSignalDTO.TradeType.LONG : TradeSignalDTO.TradeType.SHORT,
+                0, 0, 0, 0, symbol);
         TradeRequestDTO request = new TradeRequestDTO(signal);
 
-        if (isTradeValid(request,symbol,timeframe,period)) {
+        if (isTradeValid(request, symbol, timeframe, period)) {
             executeTrade(signal);
         } else {
-            System.out.println("🚫 Signal rejeté par les filtres : " + signal);
+            System.out.println("Signal rejete par les filtres : " + signal);
         }
         return null;
     }
 
-
     @Override
     protected TradeSignalDTO generateRawSignal(String symbol, String timeframe, int period) {
-        return null;
-    }
-
-    @Override
-    public TradeSignalDTO generateTradeSignal(MarketData marketData) {
         return null;
     }
 }

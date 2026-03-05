@@ -1,6 +1,5 @@
 package finance.project.api.controllers;
 
-import finance.project.api.entities.MarketData;
 import finance.project.api.entities.Performance;
 import finance.project.api.entities.Trade;
 import finance.project.api.model.*;
@@ -8,7 +7,6 @@ import finance.project.api.services.*;
 import finance.project.api.strategies.StrategyManager;
 import finance.project.api.strategies.volume.EmaVolumeStrategy;
 import finance.project.api.utils.StrategyResult;
-import jdk.jfr.Category;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -63,20 +61,18 @@ public class BacktestController {
     public ResponseEntity<String> runStrategy(@RequestParam String symbol,
                                               @RequestParam String timeframe,
                                               @RequestParam int period) {
-        //MarketData marketData = marketDataService.loadMarketData(symbol, timeframe, period); // Récupère les candles
         candleCacheManager.preload(symbol, timeframe, period);
         List<TradeSignalDTO> trades = strategyManager.runStrategies(symbol, timeframe, period);
-        return ResponseEntity.ok("Stratégies exécutées sur " + symbol + " " + timeframe);
+        return ResponseEntity.ok("Strategies executees sur " + symbol + " " + timeframe);
     }
 
     @GetMapping("/run-strategy-ta4j")
     public ResponseEntity<String> runStrategyTa4j(@RequestParam String symbol,
                                               @RequestParam String timeframe,
                                               @RequestParam int period) {
-        //MarketData marketData = marketDataService.loadMarketData(symbol, timeframe, period); // Récupère les candles
         candleCacheManager.preload(symbol, timeframe, period);
         List<TradeSignalDTO> trades = strategyManager.runStrategies(symbol, timeframe, period);
-        return ResponseEntity.ok("Stratégies exécutées sur " + symbol + " " + timeframe);
+        return ResponseEntity.ok("Strategies executees sur " + symbol + " " + timeframe);
     }
 
     @GetMapping("/trend-following")
@@ -85,19 +81,16 @@ public class BacktestController {
             @RequestParam String timeframe,
             @RequestParam String comparedSymbol,
             @RequestParam(defaultValue = "1000") int period,
-            @RequestParam(defaultValue = "1.0") double slPercent,   // ex: 1% SL
-            @RequestParam(defaultValue = "2.0") double rrRatio     // ex: RR 2.0
+            @RequestParam(defaultValue = "1.0") double slPercent,
+            @RequestParam(defaultValue = "2.0") double rrRatio
             ) {
 
-        // ⚠️ Important : on remplit le cache d'abord
         candleCacheManager.preload(symbol, timeframe, period);
 
-        // 🧠 Exécute la stratégie TrendFollowing avec TA4J
         StrategyResult result = strategyManager.runTrendFollowing(symbol, timeframe, period, slPercent, rrRatio);
 
-        String strategyName = "TrendFollowing"; // ou dynamiquement via paramètre
+        String strategyName = "TrendFollowing";
 
-        // ✅ Sauvegarde via services
         tradeService.saveTrades(strategyName, result.getSignals());
         String runId = UUID.randomUUID().toString();
         tradeCompletedService.saveCompletedTrades(strategyName, result.getCompletedTrades(), runId);

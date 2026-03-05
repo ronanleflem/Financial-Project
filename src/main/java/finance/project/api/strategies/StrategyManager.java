@@ -1,27 +1,18 @@
 package finance.project.api.strategies;
 
 import finance.project.api.config.StrategyConfig;
-import finance.project.api.entities.MarketData;
-import finance.project.api.model.CandleDTO;
 import finance.project.api.model.TradeSignalDTO;
-import finance.project.api.model.TradeSignalTa4jDTO;
-import finance.project.api.services.CandleCacheManager;
-import finance.project.api.services.TA4JService;
+import finance.project.api.strategies.ta4j.ExplosionGridStrategy;
 import finance.project.api.strategies.ta4j.MacdPredictionStrategy;
 import finance.project.api.strategies.ta4j.TrendFollowingStrategy;
-import finance.project.api.strategies.ta4j.ExplosionGridStrategy;
 import finance.project.api.utils.StrategyResult;
 import org.springframework.stereotype.Service;
-import org.ta4j.core.BarSeries;
-import org.ta4j.core.BaseTradingRecord;
-import org.ta4j.core.TradingRecord;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
-//Orchestration des stratégies actives
+// Orchestration des strategies actives
 @Service
 public class StrategyManager {
 
@@ -50,16 +41,17 @@ public class StrategyManager {
                 .toList();
 
         for (BaseStrategy strategy : enabledStrategies) {
-            List<TradeSignalDTO> tmp =  strategy.execute(symbol, timeframe, period);
-            if(tmp != null) {
+            List<TradeSignalDTO> tmp = strategy.execute(symbol, timeframe, period);
+            if (tmp != null) {
                 trades.addAll(tmp);
             }
         }
         return trades;
     }
 
-    public StrategyResult runTrendFollowing(String symbol, String timeframe, double slPercent, double rrRatio, LocalDateTime startDate, LocalDateTime endDate) {
-        return trendFollowingStrategy.executeInterval(symbol, timeframe, slPercent, rrRatio,startDate, endDate);
+    public StrategyResult runTrendFollowing(String symbol, String timeframe, double slPercent, double rrRatio,
+                                            LocalDateTime startDate, LocalDateTime endDate) {
+        return trendFollowingStrategy.executeInterval(symbol, timeframe, slPercent, rrRatio, startDate, endDate);
     }
 
     public StrategyResult runTrendFollowing(String symbol, String timeframe, int period, double slPercent, double rrRatio) {
@@ -77,12 +69,15 @@ public class StrategyManager {
 
     public StrategyResult runStrategyByName(String strategyName, String symbol, String timeframe, int period,
                                             Double slPercent, Double rrRatio,
-                                            Double explosionPct, Double stepPct, LocalDateTime startDate,LocalDateTime endDate) {
+                                            Double explosionPct, Double stepPct,
+                                            LocalDateTime startDate, LocalDateTime endDate) {
         switch (strategyName.toLowerCase()) {
             case "trendfollowingstrategy" -> {
                 double sl = slPercent != null ? slPercent : 1.0;
                 double rr = rrRatio != null ? rrRatio : 2.0;
-                return startDate == null ? runTrendFollowing(symbol, timeframe, period, sl, rr) : runTrendFollowing(symbol, timeframe, sl, rr, startDate, endDate);
+                return startDate == null
+                        ? runTrendFollowing(symbol, timeframe, period, sl, rr)
+                        : runTrendFollowing(symbol, timeframe, sl, rr, startDate, endDate);
             }
             case "explosiongridstrategy" -> {
                 double exp = explosionPct != null ? explosionPct : 2.0;
@@ -96,17 +91,4 @@ public class StrategyManager {
             default -> throw new IllegalArgumentException("Unknown strategy: " + strategyName);
         }
     }
-
-    /*
-    public void runStrategies() {
-        List<BaseStrategy> enabledStrategies = allStrategies.stream()
-                .filter(strategy -> strategyConfig.getEnabledStrategies().contains(strategy.getClass().getSimpleName()))
-                .toList();
-
-        for (BaseStrategy strategy : enabledStrategies) {
-            strategy.execute(marketData);
-        }
-    }
-
-     */
 }

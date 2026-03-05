@@ -14,7 +14,7 @@ Ces tickets couvrent une partie seulement de l'audit pour garder un decoupage fi
 - `AUD-108 [DONE]` - Hygiene depot: retirer artefacts locaux versionnes
 - `AUD-109 [DONE]` - Rationaliser `pom.xml` (Guava et devtools)
 - `AUD-110` - Rendre `TradeFilterService` stateless/thread-safe
-- `AUD-111` - Retirer `MarketData` legacy des signatures strategies/filtres
+- `AUD-111 [DONE]` - Retirer `MarketData` legacy des signatures strategies/filtres
 
 ## Non couvert dans cette vague
 - Arbitrage global TA4J vs run canonique Python.

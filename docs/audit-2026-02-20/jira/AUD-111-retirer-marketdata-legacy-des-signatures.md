@@ -27,3 +27,14 @@ Supprimer la dependance au placeholder `MarketData` encore present dans les inte
 ## Hors scope
 - Refonte metier des strategies.
 - Arbitrage TA4J vs run canonique Python.
+
+## Resolution (2026-03-05)
+- `MarketData` retire des signatures legacy:
+  - `Filter.java`
+  - `Strategy.java`
+  - `BaseStrategy.java`
+  - `TradeFilterService.java`
+- Implementations strategies adaptees (`trend` et `statisticals`) pour ne plus exposer de methodes `MarketData`.
+- Nettoyage des imports/comments legacy dans `StrategyManager` et `BacktestController`.
+- Suppression de `src/main/java/finance/project/api/entities/MarketData.java`.
+- Verification: plus aucune reference compile-time a `MarketData` dans `src/main/java` et `src/test/java`.
