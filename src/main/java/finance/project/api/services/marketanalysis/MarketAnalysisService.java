@@ -29,7 +29,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class MarketAnalysisService {
     private static final String CANONICAL_RUN = "canonical_run";
-    private static final Set<String> TERMINAL = Set.of("done", "completed", "failed", "cancelled", "canceled");
+    private static final Set<String> TERMINAL_STATUSES = Set.of(
+            "done", "completed", "failed", "cancelled", "canceled", "succeeded", "success"
+    );
 
     private final ApiJobRepository apiJobRepository;
     private final MarketStatsRepository marketStatsRepository;
@@ -89,10 +91,11 @@ public class MarketAnalysisService {
 
         JsonNode payload = parseJson(job.getPayloadJson());
         JsonNode progress = parseJson(job.getProgressJson());
+        JsonNode resultJson = parseJson(job.getResultJson());
         String specType = extractSpecType(payload);
         String requestId = firstNonBlank(readText(payload, "request_id"), readText(payload, "request", "request_id"), job.getJobId());
-        String specId = extractSpecId(payload, parseJson(job.getResultJson()));
-        String datasetId = extractDatasetId(payload, parseJson(job.getResultJson()));
+        String specId = extractSpecId(payload, resultJson);
+        String datasetId = extractDatasetId(payload, resultJson);
 
         return new MarketAnalysisRunDetailResponse(
                 job.getJobId(),
@@ -111,7 +114,7 @@ public class MarketAnalysisService {
                 job.getCanceledAt(),
                 payload,
                 progress,
-                job.getResultJson() != null && !job.getResultJson().isBlank(),
+                hasParsedResultJson(job),
                 extractPersistenceEnabled(payload),
                 specId,
                 datasetId
@@ -124,8 +127,8 @@ public class MarketAnalysisService {
 
         JsonNode payload = parseJson(job.getPayloadJson());
         JsonNode resultJson = parseJson(job.getResultJson());
-        String status = job.getStatus() == null ? "" : job.getStatus().toLowerCase(Locale.ROOT);
-        boolean terminal = TERMINAL.contains(status);
+        String status = normalizeStatus(job.getStatus());
+        boolean terminal = isTerminalStatus(job.getStatus());
         if (!terminal && resultJson == null) {
             throw new MarketAnalysisResultNotReadyException("result not ready for run: " + runId);
         }
@@ -199,6 +202,10 @@ public class MarketAnalysisService {
                 new MarketAnalysisResultMeta(specId, datasetId, null, readText(payload, "data", "window"), null, null, status),
                 new MarketAnalysisResultData(List.of(), List.of(), null, resultJson)
         );
+    }
+
+    private boolean hasParsedResultJson(ApiJobEntity job) {
+        return parseJson(job.getResultJson()) != null;
     }
 
     private List<MarketStatsEntity> loadMarketStats(String specId, String datasetId) {
@@ -365,6 +372,14 @@ public class MarketAnalysisService {
 
     private boolean equalsIgnoreCase(String a, String b) {
         return a != null && b != null && a.equalsIgnoreCase(b);
+    }
+
+    private boolean isTerminalStatus(String status) {
+        return TERMINAL_STATUSES.contains(normalizeStatus(status));
+    }
+
+    private String normalizeStatus(String status) {
+        return status == null ? "" : status.trim().toLowerCase(Locale.ROOT);
     }
 
     private JsonNode parseJson(String raw) {
