@@ -118,6 +118,43 @@ class MarketAnalysisServiceTest {
     }
 
     @Test
+    void getRunResultKeepsLegacyRowsReadableWhenEnrichedColumnsAreNull() {
+        ApiJobEntity job = job("run-legacy", "done", """
+                {"request":{"spec_type":"market_stats","spec_id":"spec-legacy","dataset_id":"dataset-legacy"}}
+                """, null);
+        when(apiJobRepository.findByJobId("run-legacy")).thenReturn(Optional.of(job));
+        when(marketStatsRepository.findBySpecIdAndDatasetIdOrderByCreatedAtAsc("spec-legacy", "dataset-legacy"))
+                .thenReturn(List.of(MarketStatsEntity.builder()
+                        .symbol("SPY")
+                        .timeframe("1d")
+                        .event("gap_up")
+                        .conditionName("session")
+                        .conditionValue("RTH")
+                        .target("continuation")
+                        .split("test")
+                        .n(8)
+                        .successes(5)
+                        .pHat(0.625)
+                        .ciLow(0.40)
+                        .ciHigh(0.81)
+                        .lift(1.05)
+                        .start("2024-01-01")
+                        .end("2024-06-01")
+                        .specId("spec-legacy")
+                        .datasetId("dataset-legacy")
+                        .build()));
+
+        MarketAnalysisRunResultResponse response = marketAnalysisService.getRunResult("run-legacy");
+
+        assertEquals("persisted_tables", response.source());
+        assertEquals(1, response.data().marketStatsRows().size());
+        assertNull(response.data().marketStatsRows().getFirst().pMean());
+        assertNull(response.data().marketStatsRows().getFirst().liftBayes());
+        assertNull(response.data().marketStatsRows().getFirst().significant());
+        assertNull(response.data().marketStatsRows().getFirst().insufficient());
+    }
+
+    @Test
     void getRunResultReturnsConflictForNonTerminalRunWithoutResult() {
         ApiJobEntity job = job("run-running", "RUNNING", """
                 {"request":{"spec_type":"market_stats","spec_id":"spec-3","dataset_id":"dataset-3"}}

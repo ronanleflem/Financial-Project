@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import finance.project.api.model.marketanalysis.MarketAnalysisResultData;
+import finance.project.api.model.marketanalysis.MarketAnalysisMarketStatsRow;
 import finance.project.api.model.marketanalysis.MarketAnalysisResultMeta;
 import finance.project.api.model.marketanalysis.MarketAnalysisRunItem;
 import finance.project.api.model.marketanalysis.MarketAnalysisRunListResponse;
@@ -83,14 +84,49 @@ class MarketAnalysisControllerTest {
                 "market_stats",
                 "persisted_tables",
                 new MarketAnalysisResultMeta("spec-3", "dataset-3", null, null, "2025-01-01", "2025-03-01", "done"),
-                new MarketAnalysisResultData(List.of(), List.of(), null, null)
+                new MarketAnalysisResultData(List.of(
+                        new MarketAnalysisMarketStatsRow(
+                                "BTCUSD",
+                                "1d",
+                                "breakout",
+                                "session",
+                                "RTH",
+                                "up",
+                                "train",
+                                10,
+                                6,
+                                0.6,
+                                0.45,
+                                0.72,
+                                1.2,
+                                0.58,
+                                0.57,
+                                0.49,
+                                0.66,
+                                1.15,
+                                1.11,
+                                0.03,
+                                0.04,
+                                true,
+                                false,
+                                "2025-01-01",
+                                "2025-03-01",
+                                "spec-3",
+                                "dataset-3",
+                                Instant.parse("2026-03-05T10:00:00Z")
+                        )
+                ), List.of(), null, null)
         );
         Mockito.when(marketAnalysisService.getRunResult("run_3")).thenReturn(response);
 
         mockMvc.perform(get("/api/market-analysis/runs/run_3/result"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.source", is("persisted_tables")))
-                .andExpect(jsonPath("$.meta.spec_id", is("spec-3")));
+                .andExpect(jsonPath("$.meta.spec_id", is("spec-3")))
+                .andExpect(jsonPath("$.data.market_stats_rows[0].p_mean", is(0.58)))
+                .andExpect(jsonPath("$.data.market_stats_rows[0].lift_bayes", is(1.11)))
+                .andExpect(jsonPath("$.data.market_stats_rows[0].significant", is(true)))
+                .andExpect(jsonPath("$.data.market_stats_rows[0].insufficient", is(false)));
     }
 
     @Test
