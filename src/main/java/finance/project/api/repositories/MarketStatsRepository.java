@@ -1,6 +1,7 @@
 package finance.project.api.repositories;
 
 import finance.project.api.entities.quant.MarketStatsEntity;
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -8,6 +9,9 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 public interface MarketStatsRepository extends JpaRepository<MarketStatsEntity, Long> {
+    List<MarketStatsEntity> findBySpecIdAndDatasetIdOrderByCreatedAtAsc(String specId, String datasetId);
+    List<MarketStatsEntity> findBySpecIdOrderByCreatedAtAsc(String specId);
+    List<MarketStatsEntity> findByDatasetIdOrderByCreatedAtAsc(String datasetId);
 
     @Modifying
     @Transactional
