@@ -90,7 +90,7 @@ class SpecBuilderRegistrationTest {
                 "2026-02-02",
                 null,
                 RunType.MARKET_STATS,
-                new MarketStatsDataBlock("SPY", "1d", 1500, "Volatility", "Full", false),
+                new MarketStatsDataBlock("SPY", java.util.List.of("SPY"), "1d", 1500, "Volatility", "Full", false),
                 null,
                 null,
                 new finance.project.api.model.run.MarketStatsBlock(

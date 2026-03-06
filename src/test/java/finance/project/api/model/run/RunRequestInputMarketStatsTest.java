@@ -26,6 +26,7 @@ class RunRequestInputMarketStatsTest {
 
         MarketStatsDataBlock data = (MarketStatsDataBlock) dto.data();
         assertEquals("SPY", data.symbol());
+        assertEquals(java.util.List.of("SPY", "QQQ"), data.symbols());
         assertEquals(Integer.valueOf(1500), data.lookback());
 
         RunRequestInput roundTrip = RunRequestInputTestSupport.mapper()

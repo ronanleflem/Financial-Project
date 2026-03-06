@@ -83,6 +83,36 @@ public class MarketStatsEntity {
     @Column(name = "lift", nullable = false)
     private Double lift;
 
+    @Column(name = "p_mean")
+    private Double pMean;
+
+    @Column(name = "p_map")
+    private Double pMap;
+
+    @Column(name = "hdi_low")
+    private Double hdiLow;
+
+    @Column(name = "hdi_high")
+    private Double hdiHigh;
+
+    @Column(name = "lift_freq")
+    private Double liftFreq;
+
+    @Column(name = "lift_bayes")
+    private Double liftBayes;
+
+    @Column(name = "p_value")
+    private Double pValue;
+
+    @Column(name = "q_value")
+    private Double qValue;
+
+    @Column(name = "significant")
+    private Boolean significant;
+
+    @Column(name = "insufficient")
+    private Boolean insufficient;
+
     @Column(name = "`start`", nullable = false)
     private String start;
 

@@ -45,7 +45,10 @@ public class MarketStatsSpecBuilder implements PythonSpecBuilder {
 
     private static Map<String, Object> buildData(MarketStatsDataBlock data) {
         Map<String, Object> dataSpec = new LinkedHashMap<>();
-        dataSpec.put("symbols", List.of(data.symbol()));
+        List<String> symbols = data.symbols() != null && !data.symbols().isEmpty()
+                ? data.symbols()
+                : (data.symbol() == null ? List.of() : List.of(data.symbol()));
+        dataSpec.put("symbols", symbols);
         dataSpec.put("timeframe", data.timeframe());
         dataSpec.put("lookback", data.lookback());
         dataSpec.put("stats_pack", data.statsPack());
@@ -105,8 +108,11 @@ public class MarketStatsSpecBuilder implements PythonSpecBuilder {
         if (data == null) {
             errors.add(new ValidationErrorItem("data", "is required"));
         } else {
-            if (isBlank(data.symbol())) {
-                errors.add(new ValidationErrorItem("data.symbol", "is required"));
+            boolean hasSymbol = !isBlank(data.symbol());
+            boolean hasSymbols = data.symbols() != null
+                    && data.symbols().stream().anyMatch(value -> value != null && !value.isBlank());
+            if (!hasSymbol && !hasSymbols) {
+                errors.add(new ValidationErrorItem("data.symbols", "at least one symbol is required"));
             }
             if (isBlank(data.timeframe())) {
                 errors.add(new ValidationErrorItem("data.timeframe", "is required"));

@@ -33,10 +33,13 @@ public class RunRequestInputDeserializer extends StdDeserializer<RunRequestInput
 
         ObjectMapper mapper = codec instanceof ObjectMapper objectMapper ? objectMapper : new ObjectMapper();
 
-        String specType = textValue(root.get("specType"));
-        String catalogVersion = textValue(root.get("catalogVersion"));
-        String requestId = textValue(root.get("requestId"));
-        RunType runType = treeToValue(mapper, ctxt, root.get("runType"), RunType.class);
+        String specType = textValue(firstNode(root, "specType", "spec_type"));
+        String catalogVersion = textValue(firstNode(root, "catalogVersion", "catalog_version"));
+        String requestId = textValue(firstNode(root, "requestId", "request_id"));
+        RunType runType = treeToValue(mapper, ctxt, firstNode(root, "runType", "run_type"), RunType.class);
+        if (runType == null && specType != null) {
+            runType = RunType.fromValue(specType);
+        }
 
         DataBlock data = deserializeData(mapper, ctxt, runType, root.get("data"));
         StrategyBlock strategy = deserializeStrategy(mapper, ctxt, runType, root.get("strategy"));
@@ -140,5 +143,18 @@ public class RunRequestInputDeserializer extends StdDeserializer<RunRequestInput
         }
         String text = node.asText();
         return text == null || "null".equals(text) ? null : text;
+    }
+
+    private static JsonNode firstNode(JsonNode root, String... names) {
+        if (root == null || names == null) {
+            return null;
+        }
+        for (String name : names) {
+            JsonNode node = root.get(name);
+            if (node != null && !node.isNull()) {
+                return node;
+            }
+        }
+        return null;
     }
 }

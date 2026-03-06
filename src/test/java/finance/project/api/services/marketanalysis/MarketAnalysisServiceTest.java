@@ -89,7 +89,17 @@ class MarketAnalysisServiceTest {
                         .n(10)
                         .successes(6)
                         .pHat(0.6)
+                        .pMean(0.58)
+                        .pMap(0.57)
+                        .hdiLow(0.45)
+                        .hdiHigh(0.68)
                         .lift(1.2)
+                        .liftFreq(1.15)
+                        .liftBayes(1.11)
+                        .pValue(0.03)
+                        .qValue(0.04)
+                        .significant(true)
+                        .insufficient(false)
                         .start("2025-01-01")
                         .end("2025-03-01")
                         .specId("spec-2")
@@ -102,6 +112,9 @@ class MarketAnalysisServiceTest {
         assertEquals("2025-01-01", response.meta().start());
         assertEquals("2025-03-01", response.meta().end());
         assertEquals(1, response.data().marketStatsRows().size());
+        assertEquals(0.58, response.data().marketStatsRows().getFirst().pMean());
+        assertEquals(1.11, response.data().marketStatsRows().getFirst().liftBayes());
+        assertEquals(true, response.data().marketStatsRows().getFirst().significant());
     }
 
     @Test
