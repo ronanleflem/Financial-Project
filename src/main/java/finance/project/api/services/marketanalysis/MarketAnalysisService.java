@@ -140,13 +140,11 @@ public class MarketAnalysisService {
         if ("market_stats".equals(specType)) {
             List<MarketStatsEntity> rows = loadMarketStats(specId, datasetId);
             if (!rows.isEmpty()) {
-                String start = rows.stream().map(MarketStatsEntity::getStart).filter(s -> s != null && !s.isBlank()).min(String::compareTo).orElse(null);
-                String end = rows.stream().map(MarketStatsEntity::getEnd).filter(s -> s != null && !s.isBlank()).max(String::compareTo).orElse(null);
                 return new MarketAnalysisRunResultResponse(
                         runId,
                         specType,
                         "persisted_tables",
-                        new MarketAnalysisResultMeta(specId, datasetId, null, null, start, end, status),
+                        buildMarketStatsMeta(payload, resultJson, rows, status),
                         new MarketAnalysisResultData(
                                 rows.stream().map(this::toMarketStatsRow).toList(),
                                 List.of(),
@@ -175,7 +173,14 @@ public class MarketAnalysisService {
                                 readText(payload, "data", "window"),
                                 start,
                                 end,
-                                run == null ? status : run.getStatus()
+                                run == null ? status : run.getStatus(),
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
                         ),
                         new MarketAnalysisResultData(
                                 List.of(),
@@ -199,13 +204,88 @@ public class MarketAnalysisService {
                 runId,
                 specType,
                 "result_json",
-                new MarketAnalysisResultMeta(specId, datasetId, null, readText(payload, "data", "window"), null, null, status),
+                "market_stats".equals(specType)
+                        ? buildMarketStatsMeta(payload, resultJson, List.of(), status)
+                        : new MarketAnalysisResultMeta(
+                                specId,
+                                datasetId,
+                                null,
+                                readText(payload, "data", "window"),
+                                null,
+                                null,
+                                status,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                        ),
                 new MarketAnalysisResultData(List.of(), List.of(), null, resultJson)
         );
     }
 
     private boolean hasParsedResultJson(ApiJobEntity job) {
         return parseJson(job.getResultJson()) != null;
+    }
+
+    private MarketAnalysisResultMeta buildMarketStatsMeta(JsonNode payload,
+                                                          JsonNode resultJson,
+                                                          List<MarketStatsEntity> rows,
+                                                          String status) {
+        return new MarketAnalysisResultMeta(
+                extractSpecId(payload, resultJson),
+                extractDatasetId(payload, resultJson),
+                null,
+                null,
+                extractMarketStatsStart(resultJson, rows),
+                extractMarketStatsEnd(resultJson, rows),
+                status,
+                firstNonBlank(
+                        extractPayloadSymbol(payload),
+                        readText(resultJson, "symbol"),
+                        readText(resultJson, "meta", "symbol"),
+                        firstRowValue(rows, MarketStatsEntity::getSymbol)
+                ),
+                firstNonBlank(
+                        readText(payload, "request", "data", "timeframe"),
+                        readText(payload, "data", "timeframe"),
+                        readText(resultJson, "timeframe"),
+                        readText(resultJson, "meta", "timeframe"),
+                        firstRowValue(rows, MarketStatsEntity::getTimeframe)
+                ),
+                firstNonBlank(
+                        readText(payload, "request", "data", "stats_pack"),
+                        readText(payload, "request", "data", "statsPack"),
+                        readText(payload, "data", "stats_pack"),
+                        readText(payload, "data", "statsPack"),
+                        readText(resultJson, "stats_pack"),
+                        readText(resultJson, "meta", "stats_pack")
+                ),
+                firstNonBlank(
+                        readText(payload, "request", "stats", "event", "id"),
+                        readText(payload, "stats", "event", "id"),
+                        readText(resultJson, "event"),
+                        readText(resultJson, "meta", "event"),
+                        firstRowValue(rows, MarketStatsEntity::getEvent)
+                ),
+                firstNonBlank(
+                        readText(payload, "request", "stats", "condition", "id"),
+                        readText(payload, "stats", "condition", "id"),
+                        readText(resultJson, "condition"),
+                        readText(resultJson, "meta", "condition"),
+                        firstRowValue(rows, MarketStatsEntity::getConditionName)
+                ),
+                firstNonBlank(
+                        readText(payload, "request", "stats", "target", "id"),
+                        readText(payload, "stats", "target", "id"),
+                        readText(resultJson, "target"),
+                        readText(resultJson, "meta", "target"),
+                        firstRowValue(rows, MarketStatsEntity::getTarget)
+                ),
+                extractMarketStatsRowCount(resultJson, rows)
+        );
     }
 
     private List<MarketStatsEntity> loadMarketStats(String specId, String datasetId) {
@@ -382,6 +462,163 @@ public class MarketAnalysisService {
 
     private boolean equalsIgnoreCase(String a, String b) {
         return a != null && b != null && a.equalsIgnoreCase(b);
+    }
+
+    private String extractPayloadSymbol(JsonNode payload) {
+        String symbol = firstNonBlank(
+                readText(payload, "request", "data", "symbol"),
+                readText(payload, "data", "symbol")
+        );
+        if (symbol != null) {
+            return symbol;
+        }
+        return firstTextFromArray(
+                firstNonNullNode(
+                        nodeAt(payload, "request", "data", "symbols"),
+                        nodeAt(payload, "data", "symbols")
+                )
+        );
+    }
+
+    private String extractMarketStatsStart(JsonNode resultJson, List<MarketStatsEntity> rows) {
+        return firstNonBlank(
+                rows.stream().map(MarketStatsEntity::getStart).filter(this::hasText).min(String::compareTo).orElse(null),
+                readText(resultJson, "start"),
+                readText(resultJson, "meta", "start"),
+                minTextFromResultRows(resultJson, "start")
+        );
+    }
+
+    private String extractMarketStatsEnd(JsonNode resultJson, List<MarketStatsEntity> rows) {
+        return firstNonBlank(
+                rows.stream().map(MarketStatsEntity::getEnd).filter(this::hasText).max(String::compareTo).orElse(null),
+                readText(resultJson, "end"),
+                readText(resultJson, "meta", "end"),
+                maxTextFromResultRows(resultJson, "end")
+        );
+    }
+
+    private Integer extractMarketStatsRowCount(JsonNode resultJson, List<MarketStatsEntity> rows) {
+        if (rows != null && !rows.isEmpty()) {
+            return rows.size();
+        }
+        Integer explicit = firstNonNullInt(
+                readInteger(resultJson, "row_count"),
+                readInteger(resultJson, "meta", "row_count"),
+                readInteger(resultJson, "count"),
+                readInteger(resultJson, "meta", "count")
+        );
+        if (explicit != null) {
+            return explicit;
+        }
+        JsonNode rowArray = firstNonNullNode(resultJson == null ? null : resultJson.get("market_stats_rows"), resultJson == null ? null : resultJson.get("rows"));
+        return rowArray != null && rowArray.isArray() ? rowArray.size() : null;
+    }
+
+    private Integer firstNonNullInt(Integer... values) {
+        if (values == null) {
+            return null;
+        }
+        for (Integer value : values) {
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private Integer readInteger(JsonNode root, String... path) {
+        JsonNode node = nodeAt(root, path);
+        return node != null && node.isNumber() ? node.intValue() : null;
+    }
+
+    private JsonNode nodeAt(JsonNode root, String... path) {
+        if (root == null || path == null) {
+            return null;
+        }
+        JsonNode cursor = root;
+        for (String p : path) {
+            if (cursor == null) {
+                return null;
+            }
+            cursor = cursor.get(p);
+        }
+        return cursor == null || cursor.isNull() ? null : cursor;
+    }
+
+    private JsonNode firstNonNullNode(JsonNode... nodes) {
+        if (nodes == null) {
+            return null;
+        }
+        for (JsonNode node : nodes) {
+            if (node != null && !node.isNull()) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    private String firstTextFromArray(JsonNode arrayNode) {
+        if (arrayNode == null || !arrayNode.isArray()) {
+            return null;
+        }
+        for (JsonNode item : arrayNode) {
+            if (item != null && !item.isNull()) {
+                String value = item.asText();
+                if (hasText(value)) {
+                    return value;
+                }
+            }
+        }
+        return null;
+    }
+
+    private String minTextFromResultRows(JsonNode resultJson, String field) {
+        return aggregateTextFromResultRows(resultJson, field, true);
+    }
+
+    private String maxTextFromResultRows(JsonNode resultJson, String field) {
+        return aggregateTextFromResultRows(resultJson, field, false);
+    }
+
+    private String aggregateTextFromResultRows(JsonNode resultJson, String field, boolean min) {
+        JsonNode rowArray = firstNonNullNode(resultJson == null ? null : resultJson.get("market_stats_rows"), resultJson == null ? null : resultJson.get("rows"));
+        if (rowArray == null || !rowArray.isArray()) {
+            return null;
+        }
+        String selected = null;
+        for (JsonNode row : rowArray) {
+            String value = readText(row, field);
+            if (!hasText(value)) {
+                continue;
+            }
+            if (selected == null) {
+                selected = value;
+                continue;
+            }
+            int comparison = value.compareTo(selected);
+            if ((min && comparison < 0) || (!min && comparison > 0)) {
+                selected = value;
+            }
+        }
+        return selected;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private String firstRowValue(List<MarketStatsEntity> rows, java.util.function.Function<MarketStatsEntity, String> getter) {
+        if (rows == null || rows.isEmpty()) {
+            return null;
+        }
+        for (MarketStatsEntity row : rows) {
+            String value = getter.apply(row);
+            if (hasText(value)) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private boolean isTerminalStatus(String status) {

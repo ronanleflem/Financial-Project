@@ -109,8 +109,14 @@ class MarketAnalysisServiceTest {
         MarketAnalysisRunResultResponse response = marketAnalysisService.getRunResult("run-persisted");
 
         assertEquals("persisted_tables", response.source());
+        assertEquals(null, response.meta().window());
         assertEquals("2025-01-01", response.meta().start());
         assertEquals("2025-03-01", response.meta().end());
+        assertEquals("BTCUSD", response.meta().symbol());
+        assertEquals("1d", response.meta().timeframe());
+        assertEquals("breakout", response.meta().event());
+        assertEquals("up", response.meta().target());
+        assertEquals(1, response.meta().rowCount());
         assertEquals(1, response.data().marketStatsRows().size());
         assertEquals(0.58, response.data().marketStatsRows().getFirst().pMean());
         assertEquals(1.11, response.data().marketStatsRows().getFirst().liftBayes());
@@ -147,11 +153,43 @@ class MarketAnalysisServiceTest {
         MarketAnalysisRunResultResponse response = marketAnalysisService.getRunResult("run-legacy");
 
         assertEquals("persisted_tables", response.source());
+        assertEquals("SPY", response.meta().symbol());
+        assertEquals("1d", response.meta().timeframe());
+        assertEquals("gap_up", response.meta().event());
+        assertEquals("session", response.meta().condition());
+        assertEquals("continuation", response.meta().target());
+        assertEquals(1, response.meta().rowCount());
         assertEquals(1, response.data().marketStatsRows().size());
         assertNull(response.data().marketStatsRows().getFirst().pMean());
         assertNull(response.data().marketStatsRows().getFirst().liftBayes());
         assertNull(response.data().marketStatsRows().getFirst().significant());
         assertNull(response.data().marketStatsRows().getFirst().insufficient());
+    }
+
+    @Test
+    void getRunResultBuildsUsefulMarketStatsMetaFromResultJsonFallback() {
+        ApiJobEntity job = job("run-result-json", "DONE", """
+                {"request":{"spec_type":"market_stats","spec_id":"spec-json","dataset_id":"dataset-json","data":{"symbols":["QQQ"],"timeframe":"4h","stats_pack":"Liquidity"},"stats":{"event":{"id":"gap_up"},"condition":{"id":"session"},"target":{"id":"retracement_probability"}}}}
+                """, """
+                {"meta":{"row_count":2},"market_stats_rows":[{"start":"2024-01-01","end":"2024-01-31"},{"start":"2024-02-01","end":"2024-03-31"}]}
+                """);
+        when(apiJobRepository.findByJobId("run-result-json")).thenReturn(Optional.of(job));
+        when(marketStatsRepository.findBySpecIdAndDatasetIdOrderByCreatedAtAsc("spec-json", "dataset-json"))
+                .thenReturn(List.of());
+
+        MarketAnalysisRunResultResponse response = marketAnalysisService.getRunResult("run-result-json");
+
+        assertEquals("result_json", response.source());
+        assertNull(response.meta().window());
+        assertEquals("QQQ", response.meta().symbol());
+        assertEquals("4h", response.meta().timeframe());
+        assertEquals("Liquidity", response.meta().statsPack());
+        assertEquals("gap_up", response.meta().event());
+        assertEquals("session", response.meta().condition());
+        assertEquals("retracement_probability", response.meta().target());
+        assertEquals("2024-01-01", response.meta().start());
+        assertEquals("2024-03-31", response.meta().end());
+        assertEquals(2, response.meta().rowCount());
     }
 
     @Test

@@ -9,6 +9,13 @@ public record MarketAnalysisResultMeta(
         String window,
         String start,
         String end,
-        String status
+        String status,
+        String symbol,
+        String timeframe,
+        @JsonProperty("stats_pack") String statsPack,
+        String event,
+        String condition,
+        String target,
+        @JsonProperty("row_count") Integer rowCount
 ) {
 }

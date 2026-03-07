@@ -66,7 +66,7 @@ class MarketAnalysisControllerTest {
                 "run_2",
                 "seasonality",
                 "result_json",
-                new MarketAnalysisResultMeta("spec-2", "dataset-2", null, "90d", null, null, "done"),
+                new MarketAnalysisResultMeta("spec-2", "dataset-2", null, "90d", null, null, "done", null, null, null, null, null, null, null),
                 new MarketAnalysisResultData(List.of(), List.of(), null, null)
         );
         Mockito.when(marketAnalysisService.getRunResult("run_2")).thenReturn(response);
@@ -83,7 +83,22 @@ class MarketAnalysisControllerTest {
                 "run_3",
                 "market_stats",
                 "persisted_tables",
-                new MarketAnalysisResultMeta("spec-3", "dataset-3", null, null, "2025-01-01", "2025-03-01", "done"),
+                new MarketAnalysisResultMeta(
+                        "spec-3",
+                        "dataset-3",
+                        null,
+                        null,
+                        "2025-01-01",
+                        "2025-03-01",
+                        "done",
+                        "BTCUSD",
+                        "1d",
+                        "Liquidity",
+                        "breakout",
+                        "session",
+                        "up",
+                        1
+                ),
                 new MarketAnalysisResultData(List.of(
                         new MarketAnalysisMarketStatsRow(
                                 "BTCUSD",
@@ -123,6 +138,13 @@ class MarketAnalysisControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.source", is("persisted_tables")))
                 .andExpect(jsonPath("$.meta.spec_id", is("spec-3")))
+                .andExpect(jsonPath("$.meta.symbol", is("BTCUSD")))
+                .andExpect(jsonPath("$.meta.timeframe", is("1d")))
+                .andExpect(jsonPath("$.meta.stats_pack", is("Liquidity")))
+                .andExpect(jsonPath("$.meta.event", is("breakout")))
+                .andExpect(jsonPath("$.meta.condition", is("session")))
+                .andExpect(jsonPath("$.meta.target", is("up")))
+                .andExpect(jsonPath("$.meta.row_count", is(1)))
                 .andExpect(jsonPath("$.data.market_stats_rows[0].p_mean", is(0.58)))
                 .andExpect(jsonPath("$.data.market_stats_rows[0].lift_bayes", is(1.11)))
                 .andExpect(jsonPath("$.data.market_stats_rows[0].significant", is(true)))
