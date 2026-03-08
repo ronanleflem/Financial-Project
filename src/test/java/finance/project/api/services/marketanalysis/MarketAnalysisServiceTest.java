@@ -11,12 +11,14 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import finance.project.api.entities.quant.ApiJobEntity;
 import finance.project.api.entities.quant.MarketStatsEntity;
+import finance.project.api.entities.quant.SeasonalityProfileEntity;
 import finance.project.api.model.marketanalysis.MarketAnalysisRunDetailResponse;
 import finance.project.api.model.marketanalysis.MarketAnalysisRunResultResponse;
 import finance.project.api.repositories.ApiJobRepository;
 import finance.project.api.repositories.MarketStatsRepository;
 import finance.project.api.repositories.SeasonalityProfileRepository;
 import finance.project.api.repositories.SeasonalityRunRepository;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -71,6 +73,75 @@ class MarketAnalysisServiceTest {
         assertEquals("succeeded", response.meta().status());
         assertNotNull(response.data().rawResultJson());
         assertEquals("spec-1", response.meta().specId());
+    }
+
+    @Test
+    void getRunResultReturnsPersistedSeasonalityProfilesWithTextBins() {
+        ApiJobEntity job = job("run-seasonality-text-bin", "SUCCEEDED", """
+                {"request":{"spec_type":"seasonality","spec_id":"spec-seasonality","dataset_id":"dataset-session","data":{"window":"90d"}}}
+                """, null);
+        when(apiJobRepository.findByJobId("run-seasonality-text-bin")).thenReturn(Optional.of(job));
+        when(seasonalityRunRepository.findByRunId("run-seasonality-text-bin")).thenReturn(Optional.empty());
+        when(seasonalityProfileRepository.findBySpecIdAndDatasetIdOrderByCreatedAtAsc("spec-seasonality", "dataset-session"))
+                .thenReturn(List.of(SeasonalityProfileEntity.builder()
+                        .symbol("BTCUSDT")
+                        .timeframe("1d")
+                        .dim("session")
+                        .bin("Asia")
+                        .measure("return")
+                        .score(0.42)
+                        .n(128)
+                        .baseline(0.11)
+                        .lift(0.31)
+                        .metrics("{\"win_rate\":0.58}")
+                        .start("2024-01-01")
+                        .end("2024-12-31")
+                        .specId("spec-seasonality")
+                        .datasetId("dataset-session")
+                        .createdAt(Instant.parse("2026-03-08T10:00:00Z"))
+                        .build()));
+
+        MarketAnalysisRunResultResponse response = marketAnalysisService.getRunResult("run-seasonality-text-bin");
+
+        assertEquals("persisted_tables", response.source());
+        assertEquals(1, response.data().seasonalityProfiles().size());
+        assertEquals("Asia", response.data().seasonalityProfiles().getFirst().bin());
+        assertEquals("spec-seasonality", response.meta().specId());
+        assertEquals("dataset-session", response.meta().datasetId());
+    }
+
+    @Test
+    void getRunResultKeepsNumericSeasonalityBinsReadableAsStrings() {
+        ApiJobEntity job = job("run-seasonality-numeric-bin", "SUCCEEDED", """
+                {"request":{"spec_type":"seasonality","spec_id":"spec-hour","dataset_id":"dataset-hour","data":{"window":"30d"}}}
+                """, null);
+        when(apiJobRepository.findByJobId("run-seasonality-numeric-bin")).thenReturn(Optional.of(job));
+        when(seasonalityRunRepository.findByRunId("run-seasonality-numeric-bin")).thenReturn(Optional.empty());
+        when(seasonalityProfileRepository.findBySpecIdAndDatasetIdOrderByCreatedAtAsc("spec-hour", "dataset-hour"))
+                .thenReturn(List.of(SeasonalityProfileEntity.builder()
+                        .symbol("ETHUSDT")
+                        .timeframe("1h")
+                        .dim("hour")
+                        .bin("7")
+                        .measure("hit_rate")
+                        .score(0.27)
+                        .n(64)
+                        .baseline(0.13)
+                        .lift(0.14)
+                        .metrics("{\"samples\":64}")
+                        .start("2024-02-01")
+                        .end("2024-02-29")
+                        .specId("spec-hour")
+                        .datasetId("dataset-hour")
+                        .createdAt(Instant.parse("2026-03-08T11:00:00Z"))
+                        .build()));
+
+        MarketAnalysisRunResultResponse response = marketAnalysisService.getRunResult("run-seasonality-numeric-bin");
+
+        assertEquals("persisted_tables", response.source());
+        assertEquals(1, response.data().seasonalityProfiles().size());
+        assertEquals("7", response.data().seasonalityProfiles().getFirst().bin());
+        assertEquals("hour", response.data().seasonalityProfiles().getFirst().dim());
     }
 
     @Test

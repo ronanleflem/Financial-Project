@@ -8,7 +8,7 @@ public record MarketAnalysisSeasonalityProfileRow(
         String symbol,
         String timeframe,
         String dim,
-        Integer bin,
+        String bin,
         String measure,
         Double score,
         Integer n,

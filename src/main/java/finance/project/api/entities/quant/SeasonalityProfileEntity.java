@@ -52,7 +52,7 @@ public class SeasonalityProfileEntity {
     private String dim;
 
     @Column(name = "bin", nullable = false)
-    private Integer bin;
+    private String bin;
 
     @Column(name = "measure", nullable = false)
     private String measure;

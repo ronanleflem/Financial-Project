@@ -37,7 +37,7 @@ public interface SeasonalityProfileRepository extends JpaRepository<SeasonalityP
             @Param("symbol") String symbol,
             @Param("timeframe") String timeframe,
             @Param("dim") String dim,
-            @Param("bin") Integer bin,
+            @Param("bin") String bin,
             @Param("measure") String measure,
             @Param("score") Double score,
             @Param("n") Integer n,
