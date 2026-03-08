@@ -446,6 +446,8 @@ public class MarketAnalysisService {
         return firstNonBlank(
                 readText(result, "spec_id"),
                 readText(result, "meta", "spec_id"),
+                readText(payload, "request", "persistence", "spec_id"),
+                readText(payload, "persistence", "spec_id"),
                 readText(payload, "request", "spec_id"),
                 readText(payload, "spec_id")
         );
@@ -455,6 +457,8 @@ public class MarketAnalysisService {
         return firstNonBlank(
                 readText(result, "dataset_id"),
                 readText(result, "meta", "dataset_id"),
+                readText(payload, "request", "persistence", "dataset_id"),
+                readText(payload, "persistence", "dataset_id"),
                 readText(payload, "request", "dataset_id"),
                 readText(payload, "dataset_id")
         );

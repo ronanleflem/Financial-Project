@@ -124,6 +124,40 @@ class MarketAnalysisServiceTest {
     }
 
     @Test
+    void getRunResultUsesPersistenceIdsFromPayloadWhenTopLevelIdsAreMissing() {
+        ApiJobEntity job = job("run-persistence-ids", "SUCCEEDED", """
+                {"request":{"spec_type":"market_stats","persistence":{"enabled":true,"spec_id":"spec_001","dataset_id":"dataset_main"},"data":{"symbols":["BTC"],"timeframe":"1d"},"stats":{"event":{"id":"k_consecutive"},"condition":{"id":"htf_trend"},"target":{"id":"up_next_bar"}}}}
+                """, "{not-json");
+        when(apiJobRepository.findByJobId("run-persistence-ids")).thenReturn(Optional.of(job));
+        when(marketStatsRepository.findBySpecIdAndDatasetIdOrderByCreatedAtAsc("spec_001", "dataset_main"))
+                .thenReturn(List.of(MarketStatsEntity.builder()
+                        .symbol("BTCUSDT")
+                        .timeframe("1d")
+                        .event("k_consecutive")
+                        .conditionName("htf_trend")
+                        .conditionValue("down")
+                        .target("up_next_bar")
+                        .split("train")
+                        .n(103)
+                        .successes(43)
+                        .pHat(0.4174757281553398)
+                        .lift(0.09276308447717885)
+                        .start("2022-01-01 00:00:00")
+                        .end("2024-12-31 00:00:00")
+                        .specId("spec_001")
+                        .datasetId("dataset_main")
+                        .build()));
+
+        MarketAnalysisRunResultResponse response = marketAnalysisService.getRunResult("run-persistence-ids");
+
+        assertEquals("persisted_tables", response.source());
+        assertEquals("spec_001", response.meta().specId());
+        assertEquals("dataset_main", response.meta().datasetId());
+        assertEquals("BTCUSDT", response.meta().symbol());
+        assertEquals(1, response.data().marketStatsRows().size());
+    }
+
+    @Test
     void getRunResultKeepsLegacyRowsReadableWhenEnrichedColumnsAreNull() {
         ApiJobEntity job = job("run-legacy", "done", """
                 {"request":{"spec_type":"market_stats","spec_id":"spec-legacy","dataset_id":"dataset-legacy"}}
